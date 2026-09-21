@@ -412,19 +412,22 @@ nav.tabs .tab-ico{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentC
 </style>
 
 
-<style id="bodoquena-smart-tooltips">
-[data-tip]{cursor:help}
-.smart-tip{
- position:fixed;z-index:99999;max-width:310px;padding:9px 11px;
- background:#18372d;color:#fff;border:1px solid rgba(255,255,255,.13);
- border-radius:9px;box-shadow:0 9px 28px rgba(12,43,34,.22);
- font-size:11.5px;line-height:1.38;letter-spacing:.01em;
+<style id="dashboard-data-hover-style">
+.dash-hover-data{cursor:crosshair}
+.bar-row.dash-hover-data:hover .bar-track{box-shadow:0 0 0 2px rgba(15,101,72,.12)}
+.bar-row.dash-hover-data:hover .bar-fill{filter:brightness(1.08)}
+.mini-bar.dash-hover-data:hover{filter:brightness(1.08);transform:scaleX(1.12);transform-origin:bottom}
+.evolution-col.dash-hover-data:hover .evolution-point{transform:scale(1.35)}
+table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
+.dashboard-data-tip{
+ position:fixed;z-index:99999;max-width:320px;padding:9px 12px;
+ background:#173a2e;color:#fff;border-radius:9px;
+ box-shadow:0 9px 26px rgba(12,43,34,.24);
+ font-size:11.5px;line-height:1.35;pointer-events:none;
  opacity:0;visibility:hidden;transform:translateY(3px);
- transition:opacity .14s ease,transform .14s ease,visibility .14s;
- pointer-events:none;
+ transition:opacity .12s ease,transform .12s ease,visibility .12s;
 }
-.smart-tip.show{opacity:1;visibility:visible;transform:translateY(0)}
-@media(max-width:700px){.smart-tip{max-width:calc(100vw - 28px);font-size:12px}}
+.dashboard-data-tip.show{opacity:1;visibility:visible;transform:none}
 </style>
 
 </head>
@@ -453,24 +456,24 @@ nav.tabs .tab-ico{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentC
     </div>
   </div>
   <div class="header-actions">
-    <span class="pill" id="headerHerdCount" data-tip="Saldo atual consolidado do rebanho.">0 cabeças</span>
-    <span class="pill" id="headerDate" data-tip="Data da última atualização apresentada pelo sistema.">—</span>
-    <span class="user-chip user-identity" id="authUser" data-tip="Usuário conectado e nível de acesso ao sistema.">
+    <span class="pill" id="headerHerdCount">0 cabeças</span>
+    <span class="pill" id="headerDate">—</span>
+    <span class="user-chip user-identity" id="authUser">
   <span class="user-avatar" aria-hidden="true">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-4 3.2-6 7.5-6s6.7 2 7.5 6"/></svg>
   </span>
   <span class="user-copy"><strong id="authUserName">Usuário</strong><small id="authUserRole">Consulta</small></span>
 </span>
-    <button class="btn-logout" id="btnLogout" data-tip="Encerrar a sessão atual com segurança." type="button" style="display:none">Sair</button>
+    <button class="btn-logout" id="btnLogout" type="button" style="display:none">Sair</button>
   </div>
 </header>
 
 <nav class="tabs" id="mainTabs">
-  <button data-view="dashboard" data-tip="Visão consolidada do rebanho, movimentações, composição e principais indicadores." class="active"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg><span>Dashboard</span></button>
-  <button data-view="mapaInicial" data-tip="Posição base do rebanho utilizada como início do controle."><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3 3V20.5H6z"/><path d="M14.5 3.5v4h4"/><path d="M9 11h6M9 14.5h6M9 18h4"/></svg><span>Mapa Inicial</span></button>
-  <button data-view="movimentacoes" data-tip="Consulte compras, nascimentos, vendas, mortes e transferências entre setores."><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
-  <button data-view="mapaAtual" data-tip="Posição atual calculada a partir do mapa inicial e das movimentações válidas."><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Mapa Atual</span></button>
-  <button data-view="relatorio" data-tip="Resumo das entradas, saídas e alterações ocorridas no período selecionado."><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h3M8 16h6"/></svg><span>Relatório do Período</span></button>
+  <button data-view="dashboard" class="active"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg><span>Dashboard</span></button>
+  <button data-view="mapaInicial"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3 3V20.5H6z"/><path d="M14.5 3.5v4h4"/><path d="M9 11h6M9 14.5h6M9 18h4"/></svg><span>Mapa Inicial</span></button>
+  <button data-view="movimentacoes"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
+  <button data-view="mapaAtual"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Mapa Atual</span></button>
+  <button data-view="relatorio"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h3M8 16h6"/></svg><span>Relatório do Período</span></button>
   <button data-view="config" class="admin-only">Configurações / Backup</button>
   <button data-view="usuarios" class="admin-only">Usuários</button>
 </nav>
@@ -2012,32 +2015,32 @@ function renderDashboard(){
   const femeas=ativos.filter(a=>norm(a.sexo).startsWith('f')).length, machos=ativos.filter(a=>norm(a.sexo).startsWith('m')).length;
   const delta=ativos.length-inicial;
   const pctDelta=inicial?delta/inicial*100:0;
-  const card=(lbl,val,sub,icon,tone,cls='',tip='')=>`<div class="kpi-card ${tone?'tone-'+tone:''} ${cls}" ${tip?`data-tip="${String(tip).replace(/"/g,'&quot;')}"`:''}><div class="kpi-icon">${svgIcon(icon)}</div><div><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
+  const card=(lbl,val,sub,icon,tone,cls='')=>`<div class="kpi-card ${tone?'tone-'+tone:''} ${cls}"><div class="kpi-icon">${svgIcon(icon)}</div><div><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
   document.getElementById('dashKpis').innerHTML=[
-    card('MAPA INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack','','','Posição base utilizada para iniciar o controle do rebanho.'),
-    card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus','','',`Total de entradas: ${entradas.toLocaleString('pt-BR')} cabeças. Nascimentos: ${nasc.toLocaleString('pt-BR')} · Compras: ${compras.toLocaleString('pt-BR')}.`),
-    card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red','',`Total de saídas: ${saidas.toLocaleString('pt-BR')} cabeças. Vendas: ${vendas.toLocaleString('pt-BR')} · Mortes: ${mortes.toLocaleString('pt-BR')}.`),
-    card('TRANSFERÊNCIAS',transf.toLocaleString('pt-BR'),'entre setores · não altera o total','swap','blue','',`Transferências internas: ${transf.toLocaleString('pt-BR')} cabeças. Não alteram o saldo total do rebanho.`),
-    card('REBANHO ATUAL',ativos.length.toLocaleString('pt-BR'),`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')} (${pctDelta.toFixed(1).replace('.',',')}%)`,'stack','', 'current',`Saldo atual: ${ativos.length.toLocaleString('pt-BR')} cabeças. Variação sobre o mapa inicial: ${delta>=0?'+':''}${delta.toLocaleString('pt-BR')} (${pctDelta.toFixed(1).replace('.',',')}%).`)
+    card('MAPA INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack',''),
+    card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus',''),
+    card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red'),
+    card('TRANSFERÊNCIAS',transf.toLocaleString('pt-BR'),'entre setores · não altera o total','swap','blue'),
+    card('REBANHO ATUAL',ativos.length.toLocaleString('pt-BR'),`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')} (${pctDelta.toFixed(1).replace('.',',')}%)`,'stack','', 'current')
   ].join('');
 
   const catCounts={}; CATEGORIAS.forEach(c=>catCounts[c]=0); ativos.forEach(a=>{if(catCounts[a.categoria]!==undefined)catCounts[a.categoria]++});
-  const barList=(obj,labelFn=x=>x)=>{const entries=Object.entries(obj).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);const max=Math.max(1,...entries.map(x=>x[1]));return entries.map(([k,v])=>`<div class="bar-row"><div class="bar-label">${labelFn(k)}</div><div class="bar-track"><div class="bar-fill" style="width:${v/max*100}%"></div></div><div class="bar-val">${v.toLocaleString('pt-BR')}</div></div>`).join('')||'<p>Sem dados.</p>'};
+  const barList=(obj,labelFn=x=>x)=>{const entries=Object.entries(obj).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);const max=Math.max(1,...entries.map(x=>x[1])), total=entries.reduce((a,[,v])=>a+v,0);return entries.map(([k,v])=>{const pct=total?v/total*100:0;return `<div class="bar-row dash-hover-data" data-dash-tip="${labelFn(k)}: ${v.toLocaleString('pt-BR')} cabeças · ${pct.toFixed(1).replace('.',',')}%"><div class="bar-label">${labelFn(k)}</div><div class="bar-track"><div class="bar-fill" style="width:${v/max*100}%"></div></div><div class="bar-val">${v.toLocaleString('pt-BR')}</div></div>`}).join('')||'<p>Sem dados.</p>'};
   document.getElementById('dashCatChart').innerHTML=barList(catCounts,c=>c+' meses');
   const setorCounts={}; ativos.forEach(a=>{const k=a.setorAtual||a.setor||'Sem setor';setorCounts[k]=(setorCounts[k]||0)+1});
   document.getElementById('dashSetorChart').innerHTML=barList(setorCounts);
   const sexCat={}; CATEGORIAS.forEach(c=>sexCat[c]={Macho:0,'Fêmea':0}); ativos.forEach(a=>{if(!sexCat[a.categoria])return; const sx=norm(a.sexo).startsWith('f')?'Fêmea':norm(a.sexo).startsWith('m')?'Macho':''; if(sx)sexCat[a.categoria][sx]++});
-  document.getElementById('dashSexCat').innerHTML=`<div class="table-wrap"><table class="exec" style="min-width:0"><thead><tr><th>Categoria</th><th class="num">Machos</th><th class="num">Fêmeas</th><th class="num">Total</th></tr></thead><tbody>${CATEGORIAS.map(c=>{const m=sexCat[c].Macho,f=sexCat[c]['Fêmea'];return `<tr><td>${c} meses</td><td class="num">${m.toLocaleString('pt-BR')}</td><td class="num">${f.toLocaleString('pt-BR')}</td><td class="num"><b>${(m+f).toLocaleString('pt-BR')}</b></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${machos.toLocaleString('pt-BR')}</td><td class="num">${femeas.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td></tr></tbody></table></div>`;
+  document.getElementById('dashSexCat').innerHTML=`<div class="table-wrap"><table class="exec" style="min-width:0"><thead><tr><th>Categoria</th><th class="num">Machos</th><th class="num">Fêmeas</th><th class="num">Total</th></tr></thead><tbody>${CATEGORIAS.map(c=>{const m=sexCat[c].Macho,f=sexCat[c]['Fêmea'];return `<tr class="dash-hover-data" data-dash-tip="${c} meses · Machos ${m.toLocaleString('pt-BR')} · Fêmeas ${f.toLocaleString('pt-BR')} · Total ${(m+f).toLocaleString('pt-BR')}"><td>${c} meses</td><td class="num">${m.toLocaleString('pt-BR')}</td><td class="num">${f.toLocaleString('pt-BR')}</td><td class="num"><b>${(m+f).toLocaleString('pt-BR')}</b></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${machos.toLocaleString('pt-BR')}</td><td class="num">${femeas.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td></tr></tbody></table></div>`;
 
   const pf=ativos.length?femeas/ativos.length*100:0;
-  document.getElementById('dashSex').innerHTML=`<div class="dash-donut" style="background:conic-gradient(#3f8ee8 0 ${100-pf}%,#e85c9a ${100-pf}% 100%)"><div class="dash-donut-center">${ativos.length.toLocaleString('pt-BR')}<small>cabeças</small></div></div><div class="dash-legend"><span><i class="dash-dot" style="background:#3f8ee8"></i>Machos ${machos.toLocaleString('pt-BR')} (${ativos.length?(machos/ativos.length*100).toFixed(1).replace('.',','):0}%)</span><span><i class="dash-dot" style="background:#e85c9a"></i>Fêmeas ${femeas.toLocaleString('pt-BR')} (${ativos.length?(femeas/ativos.length*100).toFixed(1).replace('.',','):0}%)</span></div>`;
+  document.getElementById('dashSex').innerHTML=`<div class="dash-donut dash-hover-data" data-dash-tip="Rebanho atual: ${ativos.length.toLocaleString('pt-BR')} cabeças · Machos ${machos.toLocaleString('pt-BR')} · Fêmeas ${femeas.toLocaleString('pt-BR')}" style="background:conic-gradient(#3f8ee8 0 ${100-pf}%,#e85c9a ${100-pf}% 100%)"><div class="dash-donut-center">${ativos.length.toLocaleString('pt-BR')}<small>cabeças</small></div></div><div class="dash-legend"><span class="dash-hover-data" data-dash-tip="Machos: ${machos.toLocaleString('pt-BR')} cabeças · ${ativos.length?(machos/ativos.length*100).toFixed(1).replace('.',','):0}%"><i class="dash-dot" style="background:#3f8ee8"></i>Machos ${machos.toLocaleString('pt-BR')} (${ativos.length?(machos/ativos.length*100).toFixed(1).replace('.',','):0}%)</span><span class="dash-hover-data" data-dash-tip="Fêmeas: ${femeas.toLocaleString('pt-BR')} cabeças · ${ativos.length?(femeas/ativos.length*100).toFixed(1).replace('.',','):0}%"><i class="dash-dot" style="background:#e85c9a"></i>Fêmeas ${femeas.toLocaleString('pt-BR')} (${ativos.length?(femeas/ativos.length*100).toFixed(1).replace('.',','):0}%)</span></div>`;
 
   const monthly={}; DB.movimentacoes.forEach(m=>{const d=String(m.data||'');if(!/^\d{4}-\d{2}/.test(d))return;const k=d.slice(0,7);monthly[k]??={in:0,out:0};if(isNasc(m)||isCompra(m))monthly[k].in+=qtd(m);if(isMorte(m)||isVenda(m))monthly[k].out+=qtd(m)});
   const months=Object.keys(monthly).sort().slice(-9), maxFlow=Math.max(1,...months.flatMap(k=>[monthly[k].in,monthly[k].out]));
-  document.getElementById('dashFlow').innerHTML=`<div style="font-size:10px;margin-bottom:4px"><span style="color:#2e9b59">■ Entradas</span> &nbsp; <span style="color:#d65b5b">■ Saídas</span></div><div class="mini-bars">${months.map(k=>`<div class="mini-month"><div class="mini-pair"><div class="mini-bar mini-in" style="height:${monthly[k].in/maxFlow*110}px" title="Entradas ${monthly[k].in}"></div><div class="mini-bar mini-out" style="height:${monthly[k].out/maxFlow*110}px" title="Saídas ${monthly[k].out}"></div></div>${k.slice(5)}</div>`).join('')}</div>`;
+  document.getElementById('dashFlow').innerHTML=`<div style="font-size:10px;margin-bottom:4px"><span style="color:#2e9b59">■ Entradas</span> &nbsp; <span style="color:#d65b5b">■ Saídas</span></div><div class="mini-bars">${months.map(k=>`<div class="mini-month"><div class="mini-pair"><div class="mini-bar mini-in dash-hover-data" style="height:${monthly[k].in/maxFlow*110}px" data-dash-tip="${k.slice(5)}/${k.slice(0,4)} · Entradas: ${monthly[k].in.toLocaleString('pt-BR')} cabeças"></div><div class="mini-bar mini-out dash-hover-data" style="height:${monthly[k].out/maxFlow*110}px" data-dash-tip="${k.slice(5)}/${k.slice(0,4)} · Saídas: ${monthly[k].out.toLocaleString('pt-BR')} cabeças"></div></div>${k.slice(5)}</div>`).join('')}</div>`;
 
   let saldo=inicial; const evo=[]; Object.keys(monthly).sort().forEach(k=>{saldo+=monthly[k].in-monthly[k].out;evo.push([k,saldo])}); const last=evo.slice(-9); const vals=last.map(x=>x[1]).concat([inicial,ativos.length]);const min=Math.min(...vals),max=Math.max(...vals),range=Math.max(1,max-min);
-  document.getElementById('dashEvolution').innerHTML=`<div style="display:flex;justify-content:space-between;font-weight:800;color:var(--verde-mais-escuro)"><span>${inicial.toLocaleString('pt-BR')}</span><span>${ativos.length.toLocaleString('pt-BR')}</span></div><div class="evolution-wrap"><div class="evolution-line">${last.map(([k,v])=>{const h=20+(v-min)/range*90;return `<div class="evolution-col"><div class="evolution-stem" style="height:${h}px"></div><div class="evolution-point" style="bottom:${h}px"></div><span style="position:absolute;bottom:-18px;font-size:9px">${k.slice(5)}</span></div>`}).join('')}</div></div>`;
+  document.getElementById('dashEvolution').innerHTML=`<div style="display:flex;justify-content:space-between;font-weight:800;color:var(--verde-mais-escuro)"><span>${inicial.toLocaleString('pt-BR')}</span><span>${ativos.length.toLocaleString('pt-BR')}</span></div><div class="evolution-wrap"><div class="evolution-line">${last.map(([k,v])=>{const h=20+(v-min)/range*90;return `<div class="evolution-col dash-hover-data" data-dash-tip="${k.slice(5)}/${k.slice(0,4)} · Saldo: ${v.toLocaleString('pt-BR')} cabeças"><div class="evolution-stem" style="height:${h}px"></div><div class="evolution-point" style="bottom:${h}px"></div><span style="position:absolute;bottom:-18px;font-size:9px">${k.slice(5)}</span></div>`}).join('')}</div></div>`;
 
   const ageCounts={}; CATEGORIAS.forEach(c=>ageCounts[c]=0); ativos.forEach(a=>{if(ageCounts[a.categoria]!==undefined)ageCounts[a.categoria]++});
   const ageEl=document.getElementById('dashAge'); if(ageEl) ageEl.innerHTML=barList(ageCounts,c=>c+' meses');
@@ -2844,38 +2847,32 @@ async function init(){
 init();
 </script>
 
-<script id="bodoquena-smart-tooltips-js">
+<script id="dashboard-data-hover-js">
 (function(){
- let tip,timer,active;
- function ensure(){
-   if(tip)return tip;
-   tip=document.createElement('div');tip.className='smart-tip';tip.setAttribute('role','tooltip');
-   document.body.appendChild(tip);return tip;
+ let box;
+ function getBox(){if(!box){box=document.createElement('div');box.className='dashboard-data-tip';document.body.appendChild(box)}return box}
+ function show(el,e){
+   const txt=el.getAttribute('data-dash-tip');if(!txt)return;
+   const b=getBox();b.textContent=txt;b.classList.add('show');move(e);
  }
- function position(el){
-   const t=ensure(),r=el.getBoundingClientRect(),pad=10,w=t.offsetWidth||260,h=t.offsetHeight||45;
-   let left=r.left+r.width/2-w/2, top=r.bottom+9;
-   left=Math.max(pad,Math.min(left,innerWidth-w-pad));
-   if(top+h>innerHeight-pad) top=r.top-h-9;
-   t.style.left=left+'px';t.style.top=Math.max(pad,top)+'px';
+ function move(e){
+   if(!box||!box.classList.contains('show'))return;
+   const gap=14,w=box.offsetWidth||260,h=box.offsetHeight||42;
+   let x=e.clientX+gap,y=e.clientY+gap;
+   if(x+w>innerWidth-10)x=e.clientX-w-gap;
+   if(y+h>innerHeight-10)y=e.clientY-h-gap;
+   box.style.left=Math.max(10,x)+'px';box.style.top=Math.max(10,y)+'px';
  }
- function show(el,delay){
-   clearTimeout(timer);timer=setTimeout(function(){
-     const text=el && el.getAttribute('data-tip');if(!text)return;
-     active=el;const t=ensure();t.textContent=text;t.classList.add('show');position(el);
-   },delay||0);
- }
- function hide(){clearTimeout(timer);if(tip)tip.classList.remove('show');active=null}
- document.addEventListener('mouseover',e=>{const el=e.target.closest('[data-tip]');if(el)show(el,330)});
- document.addEventListener('mouseout',e=>{const el=e.target.closest('[data-tip]');if(el && !el.contains(e.relatedTarget))hide()});
- document.addEventListener('focusin',e=>{const el=e.target.closest('[data-tip]');if(el)show(el,80)});
- document.addEventListener('focusout',e=>{if(e.target.closest('[data-tip]'))hide()});
+ function hide(){if(box)box.classList.remove('show')}
+ document.addEventListener('mouseover',e=>{const el=e.target.closest('#view-dashboard [data-dash-tip]');if(el)show(el,e)});
+ document.addEventListener('mousemove',e=>{if(e.target.closest('#view-dashboard [data-dash-tip]'))move(e)});
+ document.addEventListener('mouseout',e=>{const el=e.target.closest('#view-dashboard [data-dash-tip]');if(el&&!el.contains(e.relatedTarget))hide()});
  document.addEventListener('click',e=>{
-   if(!matchMedia('(hover: none)').matches)return;
-   const el=e.target.closest('[data-tip]');
-   if(el){ if(active===el)hide(); else show(el,0); } else hide();
+   if(!matchMedia('(hover:none)').matches)return;
+   const el=e.target.closest('#view-dashboard [data-dash-tip]');
+   if(el)show(el,e);else hide();
  });
- addEventListener('scroll',hide,true);addEventListener('resize',()=>{if(active)position(active)});
+ document.addEventListener('scroll',hide,true);
 })();
 </script>
 
