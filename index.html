@@ -285,6 +285,37 @@ footer.app-footer{text-align:center;color:var(--cinza-600);font-size:11px;paddin
 /* ===== DASHBOARD EXECUTIVO ===== */
 .exec-dashboard{--dash-gap:14px}.exec-hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:16px}.exec-hero h2{margin:0;color:var(--verde-mais-escuro);font-size:26px;letter-spacing:-.4px}.exec-hero p{margin:4px 0 0;color:var(--cinza-600)}.exec-sync{background:#fff;border:1px solid var(--cinza-200);border-radius:8px;padding:9px 12px;font-size:11.5px;color:var(--verde-escuro);box-shadow:var(--sombra);min-width:210px}.exec-kpis{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:var(--dash-gap);margin-bottom:var(--dash-gap)}.exec-kpis .kpi-card{min-height:112px}.exec-kpis .kpi-card.current{background:linear-gradient(145deg,var(--verde-medio),var(--verde-mais-escuro));color:#fff}.exec-kpis .current .kpi-val,.exec-kpis .current .kpi-lbl,.exec-kpis .current .kpi-sub{color:#fff}.exec-row{display:grid;gap:var(--dash-gap);margin-bottom:var(--dash-gap)}.exec-row-main{grid-template-columns:1.45fr 1.25fr .8fr}.exec-row-3{grid-template-columns:1fr 1fr 1fr}.exec-row-bottom{grid-template-columns:.9fr .9fr 1.35fr .85fr}.exec-dashboard .panel{margin-bottom:0}.exec-dashboard .panel-body{min-height:210px}.dash-donut{width:150px;height:150px;border-radius:50%;margin:8px auto;display:grid;place-items:center;position:relative}.dash-donut:after{content:'';width:92px;height:92px;background:#fff;border-radius:50%;position:absolute}.dash-donut-center{z-index:2;text-align:center;font-weight:800;font-size:18px;color:var(--verde-mais-escuro)}.dash-donut-center small{display:block;font-size:10px;font-weight:600;color:var(--cinza-600)}.dash-legend{display:flex;justify-content:center;gap:14px;font-size:11px}.dash-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px}.mini-bars{display:flex;align-items:flex-end;gap:7px;height:145px;border-bottom:1px solid var(--cinza-300);padding:8px 4px 0}.mini-month{flex:1;text-align:center;font-size:9px;color:var(--cinza-600)}.mini-pair{height:120px;display:flex;align-items:flex-end;justify-content:center;gap:2px}.mini-bar{width:8px;min-height:2px;border-radius:3px 3px 0 0}.mini-in{background:#2e9b59}.mini-out{background:#d65b5b}.evolution-wrap{height:160px;position:relative;padding:8px}.evolution-line{display:flex;align-items:flex-end;height:125px;gap:2px;border-bottom:1px solid var(--cinza-300)}.evolution-col{flex:1;height:100%;display:flex;align-items:flex-end;justify-content:center;position:relative}.evolution-point{width:9px;height:9px;border-radius:50%;background:#2e9b59;position:absolute;transform:translateY(50%)}.evolution-stem{width:2px;background:#d9eee1}.exec-metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.exec-metric{padding:12px;border:1px solid var(--cinza-200);border-radius:8px;background:var(--cinza-100)}.exec-metric b{font-size:18px;color:var(--verde-mais-escuro);display:block}.exec-metric span{font-size:10.5px;color:var(--cinza-600)}.status-line{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--cinza-200);font-size:11.5px}.status-line:last-child{border:0}.status-ok{width:10px;height:10px;border-radius:50%;background:#2e9b59;margin-top:3px;flex:0 0 auto}.recent-table{width:100%;border-collapse:collapse;font-size:10.5px}.recent-table th{text-align:left;color:var(--cinza-600);padding:5px;border-bottom:1px solid var(--cinza-300)}.recent-table td{padding:6px 5px;border-bottom:1px solid var(--cinza-200)}@media(max-width:1050px){.exec-kpis{grid-template-columns:repeat(2,1fr)}.exec-row-main,.exec-row-3,.exec-row-bottom{grid-template-columns:1fr}.exec-hero{flex-direction:column}.exec-sync{width:100%}}
 
+
+/* ===== DASHBOARD EXECUTIVO V3 — DIRETORIA ===== */
+.exec-dashboard{--dash-gap:12px;background:#f4f7f6;border-radius:14px;padding:14px}
+.exec-sync-top{margin:0 0 12px auto;width:max-content;min-width:230px;border:1px solid #dce7e1;background:#fff;box-shadow:none;border-radius:10px;padding:8px 12px}
+.exec-kpis{grid-template-columns:1.08fr 1.12fr 1.12fr 1.05fr 1.28fr;gap:12px;margin-bottom:12px}
+.exec-kpis .kpi-card{min-height:126px;border:1px solid #e1e8e5;border-radius:12px;box-shadow:0 3px 12px rgba(15,59,46,.055);padding:17px 16px;align-items:flex-start;background:#fff}
+.exec-kpis .kpi-icon{width:44px;height:44px;border-radius:10px;background:#e8f4ec;color:#11613d}
+.exec-kpis .kpi-icon svg{width:23px;height:23px}
+.exec-kpis .kpi-lbl{font-size:10.5px;letter-spacing:.45px;text-transform:uppercase;color:#40504a;font-weight:800;margin-bottom:5px}
+.exec-kpis .kpi-val{font-size:30px;letter-spacing:-.7px;color:#10241c}
+.exec-kpis .kpi-sub{font-size:10.5px;line-height:1.55;color:#66736e;margin-top:6px}
+.exec-kpis .tone-red .kpi-icon{background:#fdeaea;color:#c83737}
+.exec-kpis .tone-blue .kpi-icon{background:#e8f2fb;color:#2472b8}
+.exec-kpis .kpi-card.current{background:#063f2d;border-color:#063f2d;box-shadow:0 8px 22px rgba(6,63,45,.18)}
+.exec-kpis .current .kpi-icon{background:#0d6848;color:#fff}
+.exec-kpis .current .kpi-val{font-size:36px;color:#fff}
+.exec-kpis .current .kpi-lbl{color:#fff}.exec-kpis .current .kpi-sub{color:#d9eee5}
+.exec-row{gap:12px;margin-bottom:12px}.exec-row-main{grid-template-columns:1.2fr 1.08fr .95fr}.exec-row-3{grid-template-columns:1fr 1fr 1fr}.exec-row-bottom{grid-template-columns:.9fr .9fr 1.35fr .85fr}
+.exec-dashboard .panel{border:1px solid #e1e8e5;border-radius:12px;box-shadow:0 3px 12px rgba(15,59,46,.045);background:#fff}
+.exec-dashboard .panel-head{background:#fff;border-bottom:1px solid #edf1ef;padding:13px 15px}
+.exec-dashboard .panel-head h3{font-size:13px;color:#142820;letter-spacing:-.1px}
+.exec-dashboard .panel-body{padding:14px;min-height:205px}
+.exec-dashboard .bar-track{height:13px;background:#edf2ef}.exec-dashboard .bar-fill{background:#17a45b}
+.exec-dashboard .bar-label{font-size:10.5px;color:#44534d}.exec-dashboard .bar-val{font-size:10.5px;color:#20352c}
+.exec-dashboard .exec-metric{background:#f8faf9;border-color:#e7ecea;border-radius:10px}.exec-dashboard .exec-metric b{font-size:20px}
+.exec-dashboard .recent-table th{font-size:10px;color:#53635c}.exec-dashboard .recent-table td{font-size:10.5px}
+.exec-dashboard .status-line{font-size:10.8px}
+@media(max-width:1200px){.exec-kpis{grid-template-columns:repeat(3,1fr)}.exec-row-main{grid-template-columns:1fr 1fr}.exec-row-main .panel:last-child{grid-column:1/-1}}
+@media(max-width:780px){.exec-dashboard{padding:8px}.exec-kpis{grid-template-columns:1fr 1fr}.exec-row-main,.exec-row-3,.exec-row-bottom{grid-template-columns:1fr}.exec-row-main .panel:last-child{grid-column:auto}.exec-sync-top{width:100%}}
+@media(max-width:520px){.exec-kpis{grid-template-columns:1fr}.exec-kpis .kpi-card{min-height:auto}.exec-kpis .current .kpi-val{font-size:32px}}
+
 </style>
 </head>
 <body>
@@ -332,21 +363,21 @@ footer.app-footer{text-align:center;color:var(--cinza-600);font-size:11px;paddin
 <main>
   <!-- ================= DASHBOARD EXECUTIVO ================= -->
   <section id="view-dashboard" class="view active exec-dashboard">
-    <div class="exec-hero"><div><h2>Visão Executiva do Rebanho</h2><p>Posição consolidada, movimentações e composição do rebanho para tomada de decisão.</p></div><div class="exec-sync" id="dashSync"></div></div>
+    <div class="exec-sync exec-sync-top" id="dashSync"></div>
     <div class="exec-kpis" id="dashKpis"></div>
     <div class="exec-row exec-row-main">
       <div class="panel"><div class="panel-head"><h3>Evolução do Rebanho</h3></div><div class="panel-body" id="dashEvolution"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Entradas x Saídas por mês</h3></div><div class="panel-body" id="dashFlow"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Distribuição por Sexo</h3></div><div class="panel-body" id="dashSex"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Entradas x Saídas por Mês</h3></div><div class="panel-body" id="dashFlow"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Composição por Sexo</h3></div><div class="panel-body" id="dashSex"></div></div>
     </div>
     <div class="exec-row exec-row-3">
-      <div class="panel"><div class="panel-head"><h3>Rebanho por Categoria — Geral</h3></div><div class="panel-body" id="dashCatChart"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Rebanho por Categoria (Geral)</h3></div><div class="panel-body" id="dashCatChart"></div></div>
       <div class="panel"><div class="panel-head"><h3>Rebanho por Sexo e Categoria</h3></div><div class="panel-body" id="dashSexCat"></div></div>
       <div class="panel"><div class="panel-head"><h3>Rebanho por Setor (Sessão)</h3></div><div class="panel-body" id="dashSetorChart"></div></div>
     </div>
     <div class="exec-row exec-row-bottom">
-      <div class="panel"><div class="panel-head"><h3>Faixa Etária</h3></div><div class="panel-body" id="dashAge"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Indicadores Executivos</h3></div><div class="panel-body" id="dashIndicators"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Faixa Etária (meses)</h3></div><div class="panel-body" id="dashAge"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Principais Indicadores</h3></div><div class="panel-body" id="dashIndicators"></div></div>
       <div class="panel"><div class="panel-head"><h3>Movimentações Recentes</h3></div><div class="panel-body" id="dashRecent"></div></div>
       <div class="panel"><div class="panel-head"><h3>Status da Base</h3></div><div class="panel-body" id="dashStatus"></div></div>
     </div>
@@ -1857,10 +1888,10 @@ function renderDashboard(){
   const card=(lbl,val,sub,icon,tone,cls='')=>`<div class="kpi-card ${tone?'tone-'+tone:''} ${cls}"><div class="kpi-icon">${svgIcon(icon)}</div><div><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
   document.getElementById('dashKpis').innerHTML=[
     card('MAPA INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack',''),
-    card('ENTRADAS TOTAIS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus',''),
-    card('SAÍDAS TOTAIS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red'),
+    card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus',''),
+    card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red'),
     card('TRANSFERÊNCIAS',transf.toLocaleString('pt-BR'),'entre setores · não altera o total','swap','blue'),
-    card('MAPA ATUAL',ativos.length.toLocaleString('pt-BR'),`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')} (${pctDelta.toFixed(1).replace('.',',')}%)`,'stack','', 'current')
+    card('REBANHO ATUAL',ativos.length.toLocaleString('pt-BR'),`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')} (${pctDelta.toFixed(1).replace('.',',')}%)`,'stack','', 'current')
   ].join('');
 
   const catCounts={}; CATEGORIAS.forEach(c=>catCounts[c]=0); ativos.forEach(a=>{if(catCounts[a.categoria]!==undefined)catCounts[a.categoria]++});
