@@ -391,6 +391,26 @@ nav.tabs button{display:inline-flex!important;align-items:center!important;gap:8
 nav.tabs .tab-ico{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;display:block!important}
 </style>
 
+
+<style id="user-identity-no-email">
+#authUser.user-identity{
+  display:none;align-items:center;gap:9px!important;
+  min-width:158px;padding:7px 12px 7px 8px!important;
+  background:rgba(255,255,255,.11)!important;
+  border:1px solid rgba(255,255,255,.20)!important;
+  border-radius:12px!important;color:#fff!important;
+}
+.user-avatar{
+  width:34px;height:34px;border-radius:50%;
+  background:rgba(255,255,255,.94);color:#0c5b40;
+  display:grid;place-items:center;flex:0 0 34px;
+}
+.user-avatar svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.user-copy{display:flex;flex-direction:column;line-height:1.12;text-align:left;min-width:0}
+.user-copy strong{font-size:12.5px;color:#fff;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.user-copy small{font-size:10.5px;color:rgba(255,255,255,.72);margin-top:3px}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -419,7 +439,12 @@ nav.tabs .tab-ico{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentC
   <div class="header-actions">
     <span class="pill" id="headerHerdCount">0 cabeças</span>
     <span class="pill" id="headerDate">—</span>
-    <span class="user-chip" id="authUser"></span>
+    <span class="user-chip user-identity" id="authUser">
+  <span class="user-avatar" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-4 3.2-6 7.5-6s6.7 2 7.5 6"/></svg>
+  </span>
+  <span class="user-copy"><strong id="authUserName">Usuário</strong><small id="authUserRole">Consulta</small></span>
+</span>
     <button class="btn-logout" id="btnLogout" type="button" style="display:none">Sair</button>
   </div>
 </header>
@@ -696,7 +721,19 @@ function aplicarPermissoes(){
   document.querySelectorAll('.admin-only').forEach(el=>el.hidden=!AUTH_ADMIN);
   // proteção adicional: controles críticos conhecidos
   ['btnImportInicial','btnExcluirTudo','btnImportMov','btnReprocessarMov','btnExcluirTudoMov','btnNovaMov','btnImportBackup','btnAddSetor','btnAplicarVisual','btnResetVisual','btnEscolherLogo','btnRemoverLogo'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!AUTH_ADMIN;});
-  const chip=document.getElementById('authUser'); if(chip) chip.textContent=AUTH_USER?`${AUTH_ADMIN?'Administrador':'Consulta'} · ${AUTH_USER.email||''}`:'';
+  const chip=document.getElementById('authUser');
+  if(chip) chip.style.display=AUTH_USER?'inline-flex':'none';
+  const nm=document.getElementById('authUserName'), rl=document.getElementById('authUserRole');
+  if(AUTH_USER){
+    const meta=AUTH_USER.user_metadata||{};
+    let nome=meta.full_name||meta.name||meta.nome||'';
+    if(!nome){
+      const parte=(AUTH_USER.email||'Usuário').split('@')[0].replace(/[._-]+/g,' ').trim();
+      nome=parte.replace(/\b\w/g,c=>c.toUpperCase());
+    }
+    if(nm) nm.textContent=nome;
+    if(rl) rl.textContent=AUTH_ADMIN?'Administrador':'Consulta';
+  }
   const out=document.getElementById('btnLogout'); if(out) out.style.display=AUTH_USER?'inline-block':'none';
 }
 async function iniciarAutenticacao(){
