@@ -318,7 +318,81 @@ footer.app-footer{text-align:center;color:var(--cinza-600);font-size:11px;paddin
 
 </style>
 
-<style>#brandSubtitle,.brand-text>p{display:none!important;}</style>
+<style id="bodoquena-executive-header-v3">
+/* Cabeçalho executivo Bodoquena — tema único */
+header.app-header{
+  background:linear-gradient(110deg,#0c4b38 0%,#0f6548 58%,#087a50 100%)!important;
+  min-height:78px!important;
+  padding:13px 28px!important;
+  box-shadow:0 8px 26px rgba(11,58,43,.16)!important;
+  border-bottom:1px solid rgba(255,255,255,.13)!important;
+}
+header.app-header .brand{gap:14px!important}
+header.app-header .brand-mark{
+  width:54px!important;height:54px!important;
+  background:#fff!important;border:0!important;border-radius:13px!important;
+  padding:4px!important;box-shadow:0 4px 14px rgba(0,0,0,.12)!important;
+}
+header.app-header .brand-text h1{
+  font-size:21px!important;letter-spacing:.35px!important;color:#fff!important;font-weight:800!important;
+}
+header.app-header .brand-text>p,#brandSubtitle{display:none!important}
+.header-actions{gap:10px!important;flex-wrap:wrap!important;justify-content:flex-end!important}
+.header-actions .pill{
+  background:rgba(255,255,255,.10)!important;
+  border:1px solid rgba(255,255,255,.20)!important;
+  color:#fff!important;border-radius:12px!important;
+  padding:9px 13px!important;font-size:12px!important;
+  backdrop-filter:blur(5px);
+}
+#headerHerdCount::before{content:"♟";font-size:14px;margin-right:6px}
+#headerDate::before{content:"▣";font-size:13px;margin-right:6px}
+#authUser{
+  background:rgba(255,255,255,.10)!important;
+  border:1px solid rgba(255,255,255,.20)!important;
+  color:#fff!important;border-radius:12px!important;padding:9px 13px!important;
+}
+#btnLogout,.header-actions button{
+  border-radius:10px!important;
+}
+nav.tabs{
+  background:linear-gradient(90deg,#0c4b38 0%,#0e6045 100%)!important;
+  border-bottom:0!important;
+  box-shadow:0 7px 18px rgba(11,58,43,.10)!important;
+  padding:0 26px!important;
+  gap:6px!important;
+}
+nav.tabs button{
+  color:rgba(255,255,255,.84)!important;
+  padding:15px 17px!important;
+  border-radius:10px 10px 0 0!important;
+  border-bottom:3px solid transparent!important;
+  font-weight:650!important;
+  transition:.18s ease!important;
+}
+nav.tabs button:hover{
+  color:#fff!important;background:rgba(255,255,255,.08)!important;
+}
+nav.tabs button.active{
+  color:#fff!important;background:rgba(255,255,255,.11)!important;
+  border-bottom-color:#d8b95f!important;
+}
+nav.tabs button::before{
+  display:inline-flex;align-items:center;justify-content:center;
+  margin-right:8px;font-size:15px;line-height:1;
+}
+nav.tabs button[data-tab="dashboard"]::before{content:"⌂"}
+nav.tabs button[data-tab="inicial"]::before{content:"▤"}
+nav.tabs button[data-tab="mov"]::before{content:"⇄"}
+nav.tabs button[data-tab="atual"]::before{content:"▥"}
+nav.tabs button[data-tab="relatorio"]::before{content:"▣"}
+@media(max-width:900px){
+ header.app-header{padding:11px 14px!important}
+ nav.tabs{padding:0 10px!important;overflow-x:auto!important}
+ nav.tabs button{white-space:nowrap!important;padding:13px 12px!important}
+}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -534,7 +608,7 @@ footer.app-footer{text-align:center;color:var(--cinza-600);font-size:11px;paddin
       <div class="panel-body">
         <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="field"><label>Título principal</label><input id="visualTitle" placeholder="MAPA PECUÁRIO"></div>
-          
+          <div class="field"><label>Subtítulo</label><input id="visualSubtitle" placeholder="Fazenda Bodoquena"></div>
           <div class="field"><label>Texto do rodapé</label><input id="visualFooter" placeholder="Mapa Pecuário — Controle de Rebanho"></div>
           <div class="field"><label>Ícone da marca</label><input id="visualIcon" maxlength="4" placeholder="🐂" title="Use um símbolo, letra ou emoji"></div>
           <div class="field"><label>Fonte</label><select id="visualFont"><option value="system">Padrão do sistema</option><option value="Arial, sans-serif">Arial</option><option value="Georgia, serif">Georgia</option><option value="Verdana, sans-serif">Verdana</option><option value="Trebuchet MS, sans-serif">Trebuchet MS</option></select></div>
@@ -839,8 +913,8 @@ function aplicarVisualConfig(){
   const v=visualAtual(), root=document.documentElement.style;
   root.setProperty('--verde-mais-escuro',v.primaria); root.setProperty('--verde-escuro',v.escura); root.setProperty('--verde-medio',v.media); root.setProperty('--dourado',v.destaque); root.setProperty('--cinza-100',v.fundo); root.setProperty('--cinza-800',v.texto);
   document.body.style.fontFamily=v.fonte==='system'?'':v.fonte; document.body.style.fontSize=(v.tamanho||'14')+'px';
-  const title=document.getElementById('brandTitle'), foot=document.getElementById('appFooter'), mark=document.getElementById('brandMark');
-  if(title) title.textContent=v.titulo; if(foot) foot.textContent=v.rodape;
+  const title=document.getElementById('brandTitle'), sub=document.getElementById('brandSubtitle'), foot=document.getElementById('appFooter'), mark=document.getElementById('brandMark');
+  if(title) title.textContent=v.titulo; if(sub) sub.textContent=v.subtitulo; if(foot) foot.textContent=v.rodape;
   if(mark){
     if(v.logo) mark.innerHTML=`<img src="${v.logo}" alt="Logo" style="width:100%;height:100%;object-fit:contain;border-radius:8px;">`;
     else if(v.icone) mark.innerHTML=`<span style="font-size:26px;line-height:1;">${v.icone}</span>`;
@@ -849,14 +923,14 @@ function aplicarVisualConfig(){
 }
 function renderEditorVisual(){
   const v=visualAtual();
-  const map={visualTitle:v.titulo,visualFooter:v.rodape,visualIcon:v.icone,visualFont:v.fonte,visualFontSize:v.tamanho,visualPrimary:v.primaria,visualDark:v.escura,visualMid:v.media,visualAccent:v.destaque,visualBackground:v.fundo,visualText:v.texto};
+  const map={visualTitle:v.titulo,visualSubtitle:v.subtitulo,visualFooter:v.rodape,visualIcon:v.icone,visualFont:v.fonte,visualFontSize:v.tamanho,visualPrimary:v.primaria,visualDark:v.escura,visualMid:v.media,visualAccent:v.destaque,visualBackground:v.fundo,visualText:v.texto};
   Object.entries(map).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val;});
   const preview=document.getElementById('logoPreview');
   if(preview) preview.innerHTML=v.logo ? `<img src="${v.logo}" alt="Logo" style="width:100%;height:100%;object-fit:contain;">` : 'Logo padrão';
 }
 function salvarVisual(){
   const atual=visualAtual();
-  DB.config.visual={titulo:document.getElementById('visualTitle').value.trim()||VISUAL_PADRAO.titulo,subtitulo:'',rodape:document.getElementById('visualFooter').value.trim()||VISUAL_PADRAO.rodape,icone:document.getElementById('visualIcon').value,logo:atual.logo||'',fonte:document.getElementById('visualFont').value,tamanho:document.getElementById('visualFontSize').value,primaria:document.getElementById('visualPrimary').value,escura:document.getElementById('visualDark').value,media:document.getElementById('visualMid').value,destaque:document.getElementById('visualAccent').value,fundo:document.getElementById('visualBackground').value,texto:document.getElementById('visualText').value};
+  DB.config.visual={titulo:document.getElementById('visualTitle').value.trim()||VISUAL_PADRAO.titulo,subtitulo:document.getElementById('visualSubtitle').value.trim()||VISUAL_PADRAO.subtitulo,rodape:document.getElementById('visualFooter').value.trim()||VISUAL_PADRAO.rodape,icone:document.getElementById('visualIcon').value,logo:atual.logo||'',fonte:document.getElementById('visualFont').value,tamanho:document.getElementById('visualFontSize').value,primaria:document.getElementById('visualPrimary').value,escura:document.getElementById('visualDark').value,media:document.getElementById('visualMid').value,destaque:document.getElementById('visualAccent').value,fundo:document.getElementById('visualBackground').value,texto:document.getElementById('visualText').value};
   saveDB('config'); aplicarVisualConfig(); toast('Personalização aplicada e salva.','ok');
 }
 function restaurarVisual(){ DB.config.visual=Object.assign({},VISUAL_PADRAO); saveDB('config'); aplicarVisualConfig(); renderEditorVisual(); toast('Visual padrão restaurado.','ok'); }
