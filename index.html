@@ -411,6 +411,22 @@ nav.tabs .tab-ico{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentC
 .user-copy small{font-size:10.5px;color:rgba(255,255,255,.72);margin-top:3px}
 </style>
 
+
+<style id="bodoquena-smart-tooltips">
+[data-tip]{cursor:help}
+.smart-tip{
+ position:fixed;z-index:99999;max-width:310px;padding:9px 11px;
+ background:#18372d;color:#fff;border:1px solid rgba(255,255,255,.13);
+ border-radius:9px;box-shadow:0 9px 28px rgba(12,43,34,.22);
+ font-size:11.5px;line-height:1.38;letter-spacing:.01em;
+ opacity:0;visibility:hidden;transform:translateY(3px);
+ transition:opacity .14s ease,transform .14s ease,visibility .14s;
+ pointer-events:none;
+}
+.smart-tip.show{opacity:1;visibility:visible;transform:translateY(0)}
+@media(max-width:700px){.smart-tip{max-width:calc(100vw - 28px);font-size:12px}}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -437,24 +453,24 @@ nav.tabs .tab-ico{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentC
     </div>
   </div>
   <div class="header-actions">
-    <span class="pill" id="headerHerdCount">0 cabeças</span>
-    <span class="pill" id="headerDate">—</span>
-    <span class="user-chip user-identity" id="authUser">
+    <span class="pill" id="headerHerdCount" data-tip="Saldo atual consolidado do rebanho.">0 cabeças</span>
+    <span class="pill" id="headerDate" data-tip="Data da última atualização apresentada pelo sistema.">—</span>
+    <span class="user-chip user-identity" id="authUser" data-tip="Usuário conectado e nível de acesso ao sistema.">
   <span class="user-avatar" aria-hidden="true">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-4 3.2-6 7.5-6s6.7 2 7.5 6"/></svg>
   </span>
   <span class="user-copy"><strong id="authUserName">Usuário</strong><small id="authUserRole">Consulta</small></span>
 </span>
-    <button class="btn-logout" id="btnLogout" type="button" style="display:none">Sair</button>
+    <button class="btn-logout" id="btnLogout" data-tip="Encerrar a sessão atual com segurança." type="button" style="display:none">Sair</button>
   </div>
 </header>
 
 <nav class="tabs" id="mainTabs">
-  <button data-view="dashboard" class="active"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg><span>Dashboard</span></button>
-  <button data-view="mapaInicial"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3 3V20.5H6z"/><path d="M14.5 3.5v4h4"/><path d="M9 11h6M9 14.5h6M9 18h4"/></svg><span>Mapa Inicial</span></button>
-  <button data-view="movimentacoes"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
-  <button data-view="mapaAtual"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Mapa Atual</span></button>
-  <button data-view="relatorio"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h3M8 16h6"/></svg><span>Relatório do Período</span></button>
+  <button data-view="dashboard" data-tip="Visão consolidada do rebanho, movimentações, composição e principais indicadores." class="active"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg><span>Dashboard</span></button>
+  <button data-view="mapaInicial" data-tip="Posição base do rebanho utilizada como início do controle."><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3 3V20.5H6z"/><path d="M14.5 3.5v4h4"/><path d="M9 11h6M9 14.5h6M9 18h4"/></svg><span>Mapa Inicial</span></button>
+  <button data-view="movimentacoes" data-tip="Consulte compras, nascimentos, vendas, mortes e transferências entre setores."><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
+  <button data-view="mapaAtual" data-tip="Posição atual calculada a partir do mapa inicial e das movimentações válidas."><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Mapa Atual</span></button>
+  <button data-view="relatorio" data-tip="Resumo das entradas, saídas e alterações ocorridas no período selecionado."><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h3M8 16h6"/></svg><span>Relatório do Período</span></button>
   <button data-view="config" class="admin-only">Configurações / Backup</button>
   <button data-view="usuarios" class="admin-only">Usuários</button>
 </nav>
@@ -1996,13 +2012,13 @@ function renderDashboard(){
   const femeas=ativos.filter(a=>norm(a.sexo).startsWith('f')).length, machos=ativos.filter(a=>norm(a.sexo).startsWith('m')).length;
   const delta=ativos.length-inicial;
   const pctDelta=inicial?delta/inicial*100:0;
-  const card=(lbl,val,sub,icon,tone,cls='')=>`<div class="kpi-card ${tone?'tone-'+tone:''} ${cls}"><div class="kpi-icon">${svgIcon(icon)}</div><div><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
+  const card=(lbl,val,sub,icon,tone,cls='',tip='')=>`<div class="kpi-card ${tone?'tone-'+tone:''} ${cls}" ${tip?`data-tip="${String(tip).replace(/"/g,'&quot;')}"`:''}><div class="kpi-icon">${svgIcon(icon)}</div><div><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
   document.getElementById('dashKpis').innerHTML=[
-    card('MAPA INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack',''),
-    card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus',''),
-    card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red'),
-    card('TRANSFERÊNCIAS',transf.toLocaleString('pt-BR'),'entre setores · não altera o total','swap','blue'),
-    card('REBANHO ATUAL',ativos.length.toLocaleString('pt-BR'),`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')} (${pctDelta.toFixed(1).replace('.',',')}%)`,'stack','', 'current')
+    card('MAPA INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack','','','Posição base utilizada para iniciar o controle do rebanho.'),
+    card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus','','',`Total de entradas: ${entradas.toLocaleString('pt-BR')} cabeças. Nascimentos: ${nasc.toLocaleString('pt-BR')} · Compras: ${compras.toLocaleString('pt-BR')}.`),
+    card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red','',`Total de saídas: ${saidas.toLocaleString('pt-BR')} cabeças. Vendas: ${vendas.toLocaleString('pt-BR')} · Mortes: ${mortes.toLocaleString('pt-BR')}.`),
+    card('TRANSFERÊNCIAS',transf.toLocaleString('pt-BR'),'entre setores · não altera o total','swap','blue','',`Transferências internas: ${transf.toLocaleString('pt-BR')} cabeças. Não alteram o saldo total do rebanho.`),
+    card('REBANHO ATUAL',ativos.length.toLocaleString('pt-BR'),`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')} (${pctDelta.toFixed(1).replace('.',',')}%)`,'stack','', 'current',`Saldo atual: ${ativos.length.toLocaleString('pt-BR')} cabeças. Variação sobre o mapa inicial: ${delta>=0?'+':''}${delta.toLocaleString('pt-BR')} (${pctDelta.toFixed(1).replace('.',',')}%).`)
   ].join('');
 
   const catCounts={}; CATEGORIAS.forEach(c=>catCounts[c]=0); ativos.forEach(a=>{if(catCounts[a.categoria]!==undefined)catCounts[a.categoria]++});
@@ -2827,5 +2843,41 @@ async function init(){
 }
 init();
 </script>
+
+<script id="bodoquena-smart-tooltips-js">
+(function(){
+ let tip,timer,active;
+ function ensure(){
+   if(tip)return tip;
+   tip=document.createElement('div');tip.className='smart-tip';tip.setAttribute('role','tooltip');
+   document.body.appendChild(tip);return tip;
+ }
+ function position(el){
+   const t=ensure(),r=el.getBoundingClientRect(),pad=10,w=t.offsetWidth||260,h=t.offsetHeight||45;
+   let left=r.left+r.width/2-w/2, top=r.bottom+9;
+   left=Math.max(pad,Math.min(left,innerWidth-w-pad));
+   if(top+h>innerHeight-pad) top=r.top-h-9;
+   t.style.left=left+'px';t.style.top=Math.max(pad,top)+'px';
+ }
+ function show(el,delay){
+   clearTimeout(timer);timer=setTimeout(function(){
+     const text=el && el.getAttribute('data-tip');if(!text)return;
+     active=el;const t=ensure();t.textContent=text;t.classList.add('show');position(el);
+   },delay||0);
+ }
+ function hide(){clearTimeout(timer);if(tip)tip.classList.remove('show');active=null}
+ document.addEventListener('mouseover',e=>{const el=e.target.closest('[data-tip]');if(el)show(el,330)});
+ document.addEventListener('mouseout',e=>{const el=e.target.closest('[data-tip]');if(el && !el.contains(e.relatedTarget))hide()});
+ document.addEventListener('focusin',e=>{const el=e.target.closest('[data-tip]');if(el)show(el,80)});
+ document.addEventListener('focusout',e=>{if(e.target.closest('[data-tip]'))hide()});
+ document.addEventListener('click',e=>{
+   if(!matchMedia('(hover: none)').matches)return;
+   const el=e.target.closest('[data-tip]');
+   if(el){ if(active===el)hide(); else show(el,0); } else hide();
+ });
+ addEventListener('scroll',hide,true);addEventListener('resize',()=>{if(active)position(active)});
+})();
+</script>
+
 </body>
 </html>
