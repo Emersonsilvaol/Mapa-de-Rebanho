@@ -377,20 +377,18 @@ nav.tabs button.active{
   color:#fff!important;background:rgba(255,255,255,.11)!important;
   border-bottom-color:#d8b95f!important;
 }
-nav.tabs button::before{
-  display:inline-flex;align-items:center;justify-content:center;
-  margin-right:8px;font-size:15px;line-height:1;
-}
-nav.tabs button[data-tab="dashboard"]::before{content:"⌂"}
-nav.tabs button[data-tab="inicial"]::before{content:"▤"}
-nav.tabs button[data-tab="mov"]::before{content:"⇄"}
-nav.tabs button[data-tab="atual"]::before{content:"▥"}
-nav.tabs button[data-tab="relatorio"]::before{content:"▣"}
+
 @media(max-width:900px){
  header.app-header{padding:11px 14px!important}
  nav.tabs{padding:0 10px!important;overflow-x:auto!important}
  nav.tabs button{white-space:nowrap!important;padding:13px 12px!important}
 }
+</style>
+
+
+<style id="real-tab-icons">
+nav.tabs button{display:inline-flex!important;align-items:center!important;gap:8px!important}
+nav.tabs .tab-ico{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;display:block!important}
 </style>
 
 </head>
@@ -427,11 +425,11 @@ nav.tabs button[data-tab="relatorio"]::before{content:"▣"}
 </header>
 
 <nav class="tabs" id="mainTabs">
-  <button data-view="dashboard" class="active">Dashboard</button>
-  <button data-view="mapaInicial">Mapa Inicial</button>
-  <button data-view="movimentacoes">Movimentações</button>
-  <button data-view="mapaAtual">Mapa Atual</button>
-  <button data-view="relatorio">Relatório do Período</button>
+  <button data-view="dashboard" class="active"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg><span>Dashboard</span></button>
+  <button data-view="mapaInicial"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3 3V20.5H6z"/><path d="M14.5 3.5v4h4"/><path d="M9 11h6M9 14.5h6M9 18h4"/></svg><span>Mapa Inicial</span></button>
+  <button data-view="movimentacoes"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
+  <button data-view="mapaAtual"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Mapa Atual</span></button>
+  <button data-view="relatorio"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h3M8 16h6"/></svg><span>Relatório do Período</span></button>
   <button data-view="config" class="admin-only">Configurações / Backup</button>
   <button data-view="usuarios" class="admin-only">Usuários</button>
 </nav>
