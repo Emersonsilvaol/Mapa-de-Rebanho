@@ -736,6 +736,11 @@ const SUPABASE_URL = 'https://ernbxfwhfqsriklqruhn.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable__ipSslWaw9EbT64RQ_gMmA_5hVstCNP';
 const ADMIN_EMAILS = ['emerson.oliveira@fazendabodoquena.com.br'];
 let authClient=null, AUTH_USER=null, AUTH_ADMIN=false;
+function exigirAdmin(acao='alterar dados'){
+  if(AUTH_ADMIN) return true;
+  toast(`Acesso somente para consulta. Você não tem permissão para ${acao}.`,'err');
+  return false;
+}
 function aplicarPermissoes(){
   document.querySelectorAll('.admin-only').forEach(el=>el.hidden=!AUTH_ADMIN);
   // proteção adicional: controles críticos conhecidos
@@ -1111,6 +1116,7 @@ async function loadDB(){
   normalizarSetoresPersistidos();
 }
 async function saveDB(part){
+  if(!exigirAdmin('salvar alterações')) return false;
   try{
     const gravacoes=[];
     if(!part || part==='animais') gravacoes.push(idbSet(LS_KEYS.animais, DB.animais));
@@ -1681,6 +1687,7 @@ function renderMapaGridPanel(ativos, containerId, titulo, subTitulo){
 /* Detalhamento individual — uma linha por animal, categoria sempre calculada, SISBOV/Brinco/Chip preservados. */
 
 function abrirEdicaoAnimal(id){
+  if(!exigirAdmin('editar animais')) return;
   const a=DB.animais.find(x=>x.id===id); if(!a) return;
   const body=`<div class="grid2">
     <div class="field"><label>SISBOV</label><input id="editAnSisbov" value="${a.sisbov||''}"></div>
@@ -1712,6 +1719,7 @@ function abrirEdicaoAnimal(id){
   ],true);
 }
 function excluirMovimentacao(id){
+  if(!exigirAdmin('excluir movimentações')) return;
   const m=DB.movimentacoes.find(x=>x.id===id); if(!m) return;
   confirmDialog('Excluir movimentação',`Deseja realmente excluir a movimentação <b>${m.tipo}</b> de ${formatBR(m.data)}? Esta ação não apaga as configurações do sistema.`,()=>{
     DB.movimentacoes=DB.movimentacoes.filter(x=>x.id!==id);
@@ -1724,8 +1732,8 @@ function renderDetalheTable(containerId, lista, modo){
   if(!el) return;
   const cabecalho = modo==='final'
     ? `<tr><th>Setor Atual</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th><th>Status</th></tr>`
-    : `<tr><th>Setor</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th><th>Ações</th></tr>`;
-  const colspan = modo==='final' ? 9 : 9;
+    : `<tr><th>Setor</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th>${AUTH_ADMIN?'<th>Ações</th>':''}</tr>`;
+  const colspan = modo==='final' ? 9 : (AUTH_ADMIN?9:8);
   const linhas = lista.map(a=>{
     const cellsBase = `<td>${a.sisbov? `<span class="link-sisbov">${a.sisbov}</span>` : `<span class="no-sisbov">sem SISBOV</span>`}</td>`+
       `<td>${a.brinco||'<span class="pending">PENDENTE</span>'}</td><td>${a.chip||'<span class="pending">PENDENTE</span>'}</td><td>${a.sexo||'<span class="pending">PENDENTE</span>'}</td><td>${a.raca||'<span class="pending">PENDENTE</span>'}</td>`+
@@ -1733,7 +1741,7 @@ function renderDetalheTable(containerId, lista, modo){
     if(modo==='final'){
       return `<tr><td>${a.setorAtual}</td>${cellsBase}<td><span class="badge badge-ativo">${a.status||'ATIVO'}</span></td></tr>`;
     }
-    return `<tr><td>${a.setorAtual}</td>${cellsBase}<td><button class="btn btn-outline btn-sm btnEditAnimal" data-id="${a.id}">EDITAR</button></td></tr>`;
+    return `<tr><td>${a.setorAtual}</td>${cellsBase}${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditAnimal" data-id="${a.id}">EDITAR</button></td>`:''}</tr>`;
   }).join('') || `<tr><td colspan="${colspan}" style="text-align:center;color:var(--cinza-600);">Nenhum animal encontrado.</td></tr>`;
   el.innerHTML = `<div class="table-wrap"><table class="exec"><thead>${cabecalho}</thead><tbody>${linhas}</tbody></table></div>
     <p style="font-size:11px;color:var(--cinza-600);margin-top:6px;">${lista.length.toLocaleString('pt-BR')} animal(is) listado(s) — categoria calculada automaticamente pela data de nascimento.</p>`;
@@ -2132,6 +2140,7 @@ function dadosAnimalParaMov(a){
   return a ? {sisbov:a.sisbov||'', brinco:a.brinco||'', chip:a.chip||'', sexo:a.sexo||'', raca:a.raca||'', nascimento:a.nascimento||'', setorOrigem:a.setorInicial||''} : {};
 }
 function salvarDadosAnimal(d){
+  if(!exigirAdmin('alterar o cadastro dos animais')) return;
   const id = d.animalId;
   let a = id ? DB.animais.find(x=>x.id===id) : localizarPorIdentificador(d.sisbov||d.brinco||d.chip);
   if(!a){ a={id:uid('an'), origem:'cadastro'}; DB.animais.push(a); }
@@ -2163,6 +2172,7 @@ function formularioMov(m){
     </div><div class="field" style="margin-top:10px"><label>Observação</label><input id="formMovObs" value="${d.observacao||''}"></div>`;
 }
 function abrirFormularioMov(m){
+  if(!exigirAdmin('criar ou editar movimentações')) return;
   openModal(m?'Editar Movimentação':'Nova Movimentação', formularioMov(m), [
     {label:'Cancelar',cls:'btn-outline',onClick:closeModal},
     {label:'Salvar',cls:'btn-primary',onClick:()=>salvarFormularioMov(m)}
@@ -2180,6 +2190,7 @@ function abrirFormularioMov(m){
   if(busca.value) preencher(); atualizarCategoria();
 }
 function salvarFormularioMov(m){
+  if(!exigirAdmin('salvar movimentações')) return;
   const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
   const encontrado=localizarPorIdentificador(d.sisbov||d.brinco||d.chip);
@@ -2199,6 +2210,7 @@ function salvarFormularioMov(m){
   closeModal(); renderAll();
 }
 function excluirTudoMapaInicial(){
+  if(!exigirAdmin('excluir o Mapa Inicial')) return;
   const removidos=DB.animais.filter(a=>a.origem==='inicial');
   const ids=new Set(removidos.map(a=>a.id));
   const chaves=new Set(removidos.flatMap(a=>[a.sisbov,a.brinco,a.chip].filter(Boolean)));
@@ -2211,6 +2223,7 @@ function excluirTudoMapaInicial(){
   saveDB('animais'); saveDB('mov'); closeModal(); toast('Mapa Inicial excluído. Configurações preservadas.','ok'); renderAll();
 }
 function confirmarExcluirTudo(){
+  if(!exigirAdmin('excluir o Mapa Inicial')) return;
   openModal('ATENÇÃO!', '<p style="font-size:13px;line-height:1.55;white-space:pre-line">Esta ação irá excluir todo o Mapa Inicial e todos os animais importados/cadastrados relacionados a ele.\n\nDeseja realmente continuar?</p>', [
     {label:'CANCELAR',cls:'btn-outline',onClick:closeModal},
     {label:'EXCLUIR TUDO',cls:'btn-danger',onClick:excluirTudoMapaInicial}
@@ -2218,6 +2231,7 @@ function confirmarExcluirTudo(){
 }
 
 function excluirTodasMovimentacoes(){
+  if(!exigirAdmin('excluir movimentações')) return;
   const total=DB.movimentacoes.length;
   DB.movimentacoes=[];
   saveDB('mov');
@@ -2227,6 +2241,7 @@ function excluirTodasMovimentacoes(){
   renderAll();
 }
 function confirmarExcluirTodasMovimentacoes(){
+  if(!exigirAdmin('excluir movimentações')) return;
   const total=DB.movimentacoes.length;
   if(!total){ toast('Não há movimentações para excluir.','err'); return; }
   openModal('ATENÇÃO!', `<p style="font-size:13px;line-height:1.55;white-space:pre-line">Esta ação irá excluir todas as ${total.toLocaleString('pt-BR')} movimentação(ões).
@@ -2250,13 +2265,13 @@ function renderMovimentacoes(){
   paginaMov = Math.min(paginaMov, totalPag);
   const slice = lista.slice((paginaMov-1)*PAGE_SIZE, paginaMov*PAGE_SIZE);
 
-  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th><th>Ação</th></tr>`;
+  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
   const tbody = slice.map(m=>`<tr>
     <td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.sisbov||'<span class="no-sisbov">agregado</span>'}</td>
     <td>${m.brinco||'—'}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td>
-    <td>${valorExibicao(m.sexo)}</td><td>${valorExibicao(m.raca)}</td><td>${m.nascimento?formatBR(m.nascimento):'<span class="pending">PENDENTE</span>'}</td><td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td><td>${m.observacao||''}</td><td><button class="btn btn-outline btn-sm btnEditMov" data-id="${m.id}">EDITAR</button> <button class="btn btn-danger btn-sm btnDeleteMov" data-id="${m.id}">EXCLUIR</button></td></tr>`).join('');
+    <td>${valorExibicao(m.sexo)}</td><td>${valorExibicao(m.raca)}</td><td>${m.nascimento?formatBR(m.nascimento):'<span class="pending">PENDENTE</span>'}</td><td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td><td>${m.observacao||''}</td>${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditMov" data-id="${m.id}">EDITAR</button> <button class="btn btn-danger btn-sm btnDeleteMov" data-id="${m.id}">EXCLUIR</button></td>`:''}</tr>`).join('');
   document.getElementById('movTable').querySelector('thead').innerHTML = thead;
-  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="14" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
+  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${AUTH_ADMIN?13:12}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
   document.getElementById('movPager').innerHTML = `Página ${paginaMov} de ${totalPag}
     <button class="btn btn-outline btn-sm" ${paginaMov<=1?'disabled':''} id="movPrev">‹</button>
     <button class="btn btn-outline btn-sm" ${paginaMov>=totalPag?'disabled':''} id="movNext">›</button>`;
@@ -2690,6 +2705,7 @@ function exportarBackup(){
   toast('Backup exportado.', 'ok');
 }
 function importarBackup(file){
+  if(!exigirAdmin('importar backup')) return;
   const reader = new FileReader();
   reader.onload = e=>{
     try{
