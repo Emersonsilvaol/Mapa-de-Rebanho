@@ -1574,12 +1574,15 @@ function buildMapaNaData(refISO){
     if(m.tipo==='Reidentificação'){
       const alvo = (m.animalId && state.get(m.animalId)) || acharAnimalMovimentacao({...m,brinco:m.brincoAnterior||m.brinco});
       if(!alvo){ inconsistencias.push({data:m.data,tipo:m.tipo,sisbov:m.sisbov||'—',setor:m.setorOrigem||'—',sexo:m.sexo,categoria:'—',faltante:0,msg:`Reidentificação pendente: brinco anterior ${m.brincoAnterior||m.brinco||'não informado'} não localizado.`}); return; }
-      const novo=String(m.brincoNovo||'').trim();
-      const conflito=Array.from(state.values()).some(v=>v.id!==alvo.id && String(v.brinco||'').trim()===novo);
-      if(!novo || conflito){ inconsistencias.push({data:m.data,tipo:m.tipo,sisbov:alvo.sisbov||'—',setor:alvo.setorAtual,sexo:alvo.sexo,categoria:'—',faltante:0,msg:`Reidentificação bloqueada: novo brinco ${novo||'não informado'} já pertence a outro animal ou é inválido.`}); return; }
-      const anterior=alvo.brinco;
-      alvo.brinco=novo;
-      alvo.historico.push({data:m.data,tipo:'Reidentificação',setor:alvo.setorAtual,brincoAnterior:anterior,brincoNovo:novo,sisbov:alvo.sisbov});
+      const sisbovNovo=String(m.sisbovNovo||'').trim();
+      const brincoNovo=String(m.brincoNovo||(sisbovNovo.length===15?sisbovNovo.slice(8,14):'')).trim();
+      const conflito=Array.from(state.values()).some(v=>v.id!==alvo.id && ((sisbovNovo && String(v.sisbov||'').trim()===sisbovNovo) || (brincoNovo && String(v.brinco||'').trim()===brincoNovo)));
+      if(!sisbovNovo || sisbovNovo.length!==15 || conflito){ inconsistencias.push({data:m.data,tipo:m.tipo,sisbov:sisbovNovo||alvo.sisbov||'—',setor:alvo.setorAtual,sexo:alvo.sexo,categoria:'—',faltante:0,msg:`Reidentificação bloqueada: novo SISBOV ${sisbovNovo||'não informado'} é inválido ou já pertence a outro animal.`}); return; }
+      const sisbovAnterior=alvo.sisbov;
+      const brincoAnterior=alvo.brinco;
+      alvo.sisbov=sisbovNovo;
+      alvo.brinco=brincoNovo;
+      alvo.historico.push({data:m.data,tipo:'Reidentificação',setor:alvo.setorAtual,sisbovAnterior,sisbovNovo,brincoAnterior,brincoNovo,sisbov:sisbovNovo});
       return;
     }
     if(m.tipo==='Transferência entre Seções'){
@@ -2243,9 +2246,9 @@ function formularioMov(m){
       </div>
 
       <div id="reidNovoWrap" style="display:none;margin-top:12px;background:#eaf5ef;border:1px solid #bfe0cd;border-radius:10px;padding:14px">
-        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">3. Informar somente o novo brinco</div>
-        <div class="field"><label>Novo brinco</label><input id="formMovBrincoNovo" value="${d.brincoNovo||''}" placeholder="Digite o novo brinco" autocomplete="off"></div>
-        <div style="font-size:11px;color:var(--cinza-600);margin-top:8px">O animal continuará com o mesmo SISBOV, chip, sexo, raça, nascimento, categoria e setor. O saldo do rebanho não será alterado.</div>
+        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">3. Informar a nova identificação SISBOV</div>
+        <div class="field"><label>Novo SISBOV</label><input id="formMovBrincoNovo" value="${d.sisbovNovo||d.brincoNovo||''}" placeholder="Digite os 15 dígitos do novo SISBOV" inputmode="numeric" maxlength="15" autocomplete="off"></div>
+        <div style="font-size:11px;color:var(--cinza-600);margin-top:8px">O SISBOV será substituído pela nova identificação. Chip, sexo, raça, nascimento, categoria, setor, local e histórico permanecem no mesmo animal. O saldo do rebanho não será alterado.</div>
       </div>
     </div>
 
@@ -2316,7 +2319,7 @@ function abrirFormularioMov(m){
     document.getElementById('reidNovoWrap').style.display='block';
     msgReid.style.display='block';
     msgReid.className='alert alert-green';
-    msgReid.innerHTML='<b>Animal localizado.</b> Os dados foram carregados automaticamente. Agora informe somente o novo brinco.';
+    msgReid.innerHTML='<b>Animal localizado.</b> Os dados foram carregados automaticamente. Agora informe o novo SISBOV.';
   };
   const preencherNormal=()=>{
     const q=String(buscaNormal.value||'').trim();
@@ -2365,18 +2368,23 @@ function salvarFormularioMov(m){
   if(d.tipo==='Reidentificação'){
     if(!AUTH_ADMIN){toast('Acesso somente para administrador.','err');return;}
     const anterior=String(document.getElementById('formMovBrincoAnterior').value || document.getElementById('movBuscaAnimal').value||'').trim();
-    const novo=String(document.getElementById('formMovBrincoNovo').value||'').trim();
-    const animal=animalPorBrincoAtualOuHistorico(anterior);
-    if(!anterior||!novo){toast('Informe o brinco anterior e somente o novo brinco.','err');return;}
-    if(anterior===novo){toast('O novo brinco deve ser diferente do brinco anterior.','err');return;}
-    if(!animal){toast('Brinco anterior não encontrado. A reidentificação não cria um novo animal.','err');return;}
-    if(brincoJaPertenceOutroAnimal(novo,animal.id,m?.id)){toast('Novo brinco já cadastrado para outro animal. Reidentificação bloqueada para evitar duplicidade.','err');return;}
+    const sisbovNovo=String(document.getElementById('formMovBrincoNovo').value||'').replace(/\D/g,'').trim();
+    const animal=animalPorBrincoAtualOuHistorico(anterior) || localizarPorIdentificador(anterior);
+    if(!anterior||!sisbovNovo){toast('Informe a identificação anterior e o novo SISBOV.','err');return;}
+    if(sisbovNovo.length!==15){toast('O novo SISBOV deve conter 15 dígitos.','err');return;}
+    if(!animal){toast('Identificação anterior não encontrada. A reidentificação não cria um novo animal.','err');return;}
     const baseAtual=dadosAnimalParaMov(animal,d.data);
     const sisbovAnterior=baseAtual.sisbov||animal.sisbov||'';
-    const atual={...d,animalId:animal.id,sisbov:sisbovAnterior,sisbovAnterior,brinco:anterior,brincoAnterior:anterior,brincoNovo:novo,quantidade:1,
+    if(String(sisbovAnterior)===sisbovNovo){toast('O novo SISBOV deve ser diferente do SISBOV anterior.','err');return;}
+    const conflitoSisbov=Array.from(DB.animais||[]).some(a=>a.id!==animal.id && String(a.sisbov||'').trim()===sisbovNovo) || DB.movimentacoes.some(x=>x.id!==m?.id && x.tipo==='Reidentificação' && String(x.sisbovNovo||'').trim()===sisbovNovo && x.animalId!==animal.id);
+    if(conflitoSisbov){toast('Novo SISBOV já pertence a outro animal. Reidentificação bloqueada para evitar duplicidade.','err');return;}
+    const brincoAnterior=baseAtual.brinco||animal.brinco||anterior;
+    const brincoNovo=sisbovNovo.slice(8,14);
+    if(brincoJaPertenceOutroAnimal(brincoNovo,animal.id,m?.id)){toast('O brinco correspondente ao novo SISBOV já pertence a outro animal. Reidentificação bloqueada.','err');return;}
+    const atual={...d,animalId:animal.id,sisbov:sisbovNovo,sisbovAnterior,sisbovNovo,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,
       chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:baseAtual.setorOrigem||'',local:baseAtual.local||''};
     if(m) Object.assign(m,atual); else {atual.id=uid('mv');DB.movimentacoes.push(atual);}
-    saveDB('mov'); closeModal(); renderAll(); toast('Reidentificação registrada. O mesmo animal recebeu o novo brinco sem alterar o saldo.','ok'); return;
+    saveDB('mov'); closeModal(); renderAll(); toast('Reidentificação registrada. O mesmo animal recebeu o novo SISBOV sem alterar o saldo.','ok'); return;
   }
   const encontrado=localizarPorIdentificador(d.sisbov||d.brinco||d.chip);
   if(encontrado){
