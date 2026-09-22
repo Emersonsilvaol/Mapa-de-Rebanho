@@ -808,7 +808,7 @@ async function alternarUsuario(id,ativo){try{await chamarAdminUsuarios('PATCH',{
 async function excluirUsuario(id){confirmDialog('Excluir usuário','Este usuário perderá o acesso ao sistema. Deseja continuar?',async()=>{try{await chamarAdminUsuarios('DELETE',{id});toast('Usuário excluído.','ok');await carregarUsuarios()}catch(e){toast(e.message,'err')}})}
 
 /* ============================== UTIL ==================================== */
-const TIPOS_MOV = ['Nascimento','Morte','Transferência entre Seções','Animais sem auditar','Compra','Venda Frigorífico','Venda Terceiro'];
+const TIPOS_MOV = ['Nascimento','Morte','Transferência entre Seções','Animais sem auditar','Compra','Venda Frigorífico','Venda Terceiro','Reidentificação'];
 function rotuloTipoMov(tipo){ return tipo; }
 function tipoOperacionalMov(m){ return m && m.tipo==='Compra' && m.eventoAuditoria===true ? 'Animais sem auditar' : (m?.tipo||''); }
 const CATEGORIAS = ['00–12','13–24','25–36','36+'];
@@ -1428,7 +1428,7 @@ function buildMapaNaData(refISO){
     });
   });
 
-  const ordemMovimentacao = m => ({'Nascimento':10,'Compra':10,'Animais sem auditar':10,'Transferência entre Seções':20,'Morte':30,'Venda Frigorífico':30,'Venda Terceiro':30}[tipoOperacionalMov(m)]||50);
+  const ordemMovimentacao = m => ({'Nascimento':10,'Compra':10,'Animais sem auditar':10,'Transferência entre Seções':20,'Reidentificação':25,'Morte':30,'Venda Frigorífico':30,'Venda Terceiro':30}[tipoOperacionalMov(m)]||50);
   const movs = DB.movimentacoes.filter(m=>m.data<=refISO).slice().sort((a,b)=>
     a.data<b.data?-1:(a.data>b.data?1:ordemMovimentacao(a)-ordemMovimentacao(b))
   );
@@ -1564,6 +1564,17 @@ function buildMapaNaData(refISO){
         const sel = selecionarParaSaida(m);
         sel.forEach(v=>{ v.status=novoStatus; v.historico.push({data:m.data, tipo:m.tipo, setor:v.setorAtual}); });
       }
+      return;
+    }
+    if(m.tipo==='Reidentificação'){
+      const alvo = (m.animalId && state.get(m.animalId)) || acharAnimalMovimentacao({...m,sisbov:m.sisbovAnterior||m.sisbov});
+      if(!alvo){ inconsistencias.push({data:m.data,tipo:m.tipo,sisbov:m.sisbovAnterior||m.sisbov,setor:m.setorOrigem||'—',sexo:m.sexo,categoria:'—',faltante:0,msg:`Reidentificação pendente: SISBOV anterior ${m.sisbovAnterior||m.sisbov||'não informado'} não localizado.`}); return; }
+      const novo=normalizarSisbov(m.sisbovNovo);
+      const conflito=Array.from(state.values()).some(v=>v.id!==alvo.id && normalizarSisbov(v.sisbov)===novo);
+      if(!novo || conflito){ inconsistencias.push({data:m.data,tipo:m.tipo,sisbov:novo,setor:alvo.setorAtual,sexo:alvo.sexo,categoria:'—',faltante:0,msg:`Reidentificação bloqueada no mapa: novo SISBOV ${novo||'não informado'} já pertence a outro animal ou é inválido.`}); return; }
+      const anterior=alvo.sisbov;
+      alvo.sisbov=novo;
+      alvo.historico.push({data:m.data,tipo:'Reidentificação',setor:alvo.setorAtual,sisbovAnterior:anterior,sisbovNovo:novo});
       return;
     }
     if(m.tipo==='Transferência entre Seções'){
@@ -2149,6 +2160,18 @@ function salvarDadosAnimal(d){
   a.sexo=a.sexo||''; a.raca=a.raca||''; a.nascimento=a.nascimento||'';
   return a;
 }
+function animalPorSisbovAtualOuHistorico(valor){
+  const q=normalizarSisbov(valor); if(!q) return null;
+  const direto=buscarAnimalPorSisbov(q); if(direto) return direto;
+  const reids=DB.movimentacoes.filter(x=>x.tipo==='Reidentificação' && normalizarSisbov(x.sisbovNovo)===q).sort((a,b)=>b.data.localeCompare(a.data));
+  if(reids.length){ return DB.animais.find(a=>a.id===reids[0].animalId) || buscarAnimalPorSisbov(reids[0].sisbovAnterior); }
+  return null;
+}
+function sisbovJaPertenceOutroAnimal(sisbov, animalId, movId){
+  const q=normalizarSisbov(sisbov); if(!q) return false;
+  if(DB.animais.some(a=>normalizarSisbov(a.sisbov)===q && a.id!==animalId)) return true;
+  return DB.movimentacoes.some(x=>x.tipo==='Reidentificação' && x.id!==movId && normalizarSisbov(x.sisbovNovo)===q && x.animalId!==animalId);
+}
 function formularioMov(m){
   const a = m ? (DB.animais.find(x=>x.id===m.animalId)||localizarPorIdentificador(m.sisbov||m.brinco||m.chip)) : null;
   const d = m ? {...m, ...dadosAnimalParaMov(a)} : dadosAnimalParaMov(a);
@@ -2159,7 +2182,9 @@ function formularioMov(m){
       <div class="field"><label>Localizar por SISBOV, Brinco ou Chip</label><input id="movBuscaAnimal" value="${d.sisbov||d.brinco||d.chip||''}" placeholder="Digite um identificador"></div>
       <div class="field"><label>Data</label><input type="date" id="formMovData" value="${d.data||todayISO()}"></div>
       <div class="field"><label>Tipo</label><select id="formMovTipo">${opts}</select></div>
-      <div class="field"><label>SISBOV</label><input id="formMovSisbov" value="${d.sisbov||''}"></div>
+      <div class="field reid-field" style="display:none"><label>SISBOV anterior</label><input id="formMovSisbovAnterior" value="${d.sisbovAnterior||d.sisbov||''}" readonly></div>
+      <div class="field reid-field" style="display:none"><label>Novo SISBOV</label><input id="formMovSisbovNovo" value="${d.sisbovNovo||''}" placeholder="Digite o novo SISBOV"></div>
+      <div class="field normal-mov-field"><label>SISBOV</label><input id="formMovSisbov" value="${d.sisbov||''}"></div>
       <div class="field"><label>Brinco</label><input id="formMovBrinco" value="${d.brinco||''}"></div>
       <div class="field"><label>Chip</label><input id="formMovChip" value="${d.chip||''}"></div>
       <div class="field"><label>Sexo</label><select id="formMovSexo"><option value="">PENDENTE</option><option ${d.sexo==='Macho'?'selected':''}>Macho</option><option ${d.sexo==='Fêmea'?'selected':''}>Fêmea</option></select></div>
@@ -2178,21 +2203,38 @@ function abrirFormularioMov(m){
     {label:'Salvar',cls:'btn-primary',onClick:()=>salvarFormularioMov(m)}
   ], true);
   const busca=document.getElementById('movBuscaAnimal');
+  const tipoEl=document.getElementById('formMovTipo');
+  const ajustarReid=()=>{ const reid=tipoEl.value==='Reidentificação'; document.querySelectorAll('.reid-field').forEach(el=>el.style.display=reid?'block':'none'); document.querySelectorAll('.normal-mov-field').forEach(el=>el.style.display=reid?'none':'block'); const qtd=document.getElementById('formMovQtd'); if(reid){qtd.value=1;qtd.readOnly=true;} else qtd.readOnly=false; };
+  tipoEl.addEventListener('change',ajustarReid);
   const preencher=()=>{
-    const a=localizarPorIdentificador(busca.value); const msg=document.getElementById('animalLookupMsg');
-    if(a){ const d=dadosAnimalParaMov(a); ['Sisbov','Brinco','Chip','Raca','Nasc'].forEach(k=>{const el=document.getElementById('formMov'+k); if(el) el.value=d[k.toLowerCase()]||d[{Sisbov:'sisbov',Brinco:'brinco',Chip:'chip',Raca:'raca',Nasc:'nascimento'}[k]]||'';}); document.getElementById('formMovSexo').value=d.sexo||''; document.getElementById('formMovOrigem').value=d.setorOrigem||''; msg.style.display='block'; msg.innerHTML='Animal encontrado no Mapa Inicial/Base Individual. Dados existentes foram preenchidos automaticamente.'; }
+    const a=animalPorSisbovAtualOuHistorico(busca.value)||localizarPorIdentificador(busca.value); const msg=document.getElementById('animalLookupMsg');
+    if(a){ const d=dadosAnimalParaMov(a); ['Sisbov','Brinco','Chip','Raca','Nasc'].forEach(k=>{const el=document.getElementById('formMov'+k); if(el) el.value=d[k.toLowerCase()]||d[{Sisbov:'sisbov',Brinco:'brinco',Chip:'chip',Raca:'raca',Nasc:'nascimento'}[k]]||'';}); document.getElementById('formMovSexo').value=d.sexo||''; document.getElementById('formMovOrigem').value=d.setorOrigem||''; const ant=document.getElementById('formMovSisbovAnterior'); if(ant) ant.value=normalizarSisbov(busca.value)||d.sisbov||''; msg.style.display='block'; msg.innerHTML='Animal encontrado no Mapa Inicial/Base Individual. Dados existentes foram preenchidos automaticamente.'; }
     else if(busca.value.trim()){ msg.style.display='block'; msg.innerHTML='Animal não encontrado no Mapa Inicial. Preencha os dados manualmente para cadastrá-lo na Base Individual.'; }
     else msg.style.display='none';
   };
   busca.addEventListener('input',preencher); busca.addEventListener('change',preencher); busca.addEventListener('blur',preencher);
   const atualizarCategoria=()=>{ const el=document.getElementById('formMovCategoria'); if(el) el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO()); };
   document.getElementById('formMovNasc').addEventListener('change',atualizarCategoria); document.getElementById('formMovData').addEventListener('change',atualizarCategoria);
-  if(busca.value) preencher(); atualizarCategoria();
+  if(busca.value) preencher(); ajustarReid(); atualizarCategoria();
 }
 function salvarFormularioMov(m){
   if(!exigirAdmin('salvar movimentações')) return;
   const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
+  if(d.tipo==='Reidentificação'){
+    if(!AUTH_ADMIN){toast('Acesso somente para administrador.','err');return;}
+    const anterior=normalizarSisbov(document.getElementById('formMovSisbovAnterior').value || document.getElementById('movBuscaAnimal').value);
+    const novo=normalizarSisbov(document.getElementById('formMovSisbovNovo').value);
+    const animal=animalPorSisbovAtualOuHistorico(anterior);
+    if(!anterior||!novo){toast('Informe o SISBOV anterior e o novo SISBOV.','err');return;}
+    if(anterior===novo){toast('O novo SISBOV deve ser diferente do atual.','err');return;}
+    if(!animal){toast('SISBOV anterior não encontrado. A reidentificação não cria um novo animal.','err');return;}
+    if(sisbovJaPertenceOutroAnimal(novo,animal.id,m?.id)){toast('SISBOV novo já cadastrado para outro animal. Reidentificação bloqueada para evitar duplicidade.','err');return;}
+    const atual={...d,animalId:animal.id,sisbov:anterior,sisbovAnterior:anterior,sisbovNovo:novo,quantidade:1,
+      brinco:animal.brinco||'',chip:animal.chip||'',sexo:animal.sexo||'',raca:animal.raca||'',nascimento:animal.nascimento||'',setorOrigem:d.setorOrigem||animal.setorInicial||'',setorDestino:d.setorOrigem||animal.setorInicial||''};
+    if(m) Object.assign(m,atual); else {atual.id=uid('mv');DB.movimentacoes.push(atual);}
+    saveDB('mov'); closeModal(); renderAll(); toast('Reidentificação registrada sem criar outro animal.','ok'); return;
+  }
   const encontrado=localizarPorIdentificador(d.sisbov||d.brinco||d.chip);
   if(encontrado){
     const base=dadosAnimalParaMov(encontrado);
@@ -2267,7 +2309,7 @@ function renderMovimentacoes(){
 
   const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
   const tbody = slice.map(m=>`<tr>
-    <td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.sisbov||'<span class="no-sisbov">agregado</span>'}</td>
+    <td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'<span class="no-sisbov">agregado</span>')}</td>
     <td>${m.brinco||'—'}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td>
     <td>${valorExibicao(m.sexo)}</td><td>${valorExibicao(m.raca)}</td><td>${m.nascimento?formatBR(m.nascimento):'<span class="pending">PENDENTE</span>'}</td><td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td><td>${m.observacao||''}</td>${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditMov" data-id="${m.id}">EDITAR</button> <button class="btn btn-danger btn-sm btnDeleteMov" data-id="${m.id}">EXCLUIR</button></td>`:''}</tr>`).join('');
   document.getElementById('movTable').querySelector('thead').innerHTML = thead;
