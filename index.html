@@ -551,6 +551,7 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
         <select id="movFiltroTipo"><option value="">Todos</option></select>
       </div>
       <div class="field"><label>Setor</label><select id="movFiltroSetor"><option value="">Todos</option></select></div>
+      <div class="field"><label>Local</label><select id="movFiltroLocal"><option value="">Todos</option></select></div>
       <div class="field"><label>Sexo</label><select id="movFiltroSexo"><option value="">Todos</option><option value="Macho">Macho</option><option value="Fêmea">Fêmea</option></select></div>
       <div class="field"><label>Raça</label><input id="movFiltroRaca" placeholder="Raça"></div>
       <div class="field"><label>SISBOV</label><input id="movFiltroSisbov" placeholder="SISBOV"></div>
@@ -574,6 +575,7 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
       <div class="field"><label>Data de Referência</label><input type="date" id="mapaAtualData"></div>
       <button class="btn btn-outline btn-sm" id="btnHoje" style="align-self:flex-end;">Hoje</button>
       <button class="btn btn-primary btn-sm" id="btnAtualizarMapa" style="align-self:flex-end;">Atualizar</button>
+      <div class="field"><label>Local</label><select id="mapaFiltroLocal"><option value="">Todos</option></select></div>
       <div class="spacer"></div>
       <button class="btn btn-outline" id="btnVerAnimais">Ocultar/Mostrar Detalhamento</button>
       <button class="btn btn-outline" id="btnExportAtualXlsx">Exportar XLSX</button>
@@ -605,6 +607,7 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
       <div class="field"><label>Data Inicial</label><input type="date" id="relInicio"></div>
       <div class="field"><label>Data Final</label><input type="date" id="relFim"></div>
       <div class="field"><label>Setor</label><select id="relSetor"><option value="">Todos</option></select></div>
+      <div class="field"><label>Local</label><select id="relLocal"><option value="">Todos</option></select></div>
       <div class="field"><label>Sexo</label><select id="relSexo"><option value="">Todos</option><option value="Macho">Macho</option><option value="Fêmea">Fêmea</option></select></div>
       <div class="field"><label>Raça</label><input id="relRaca" placeholder="Raça"></div>
       <div class="field"><label>Categoria</label>
@@ -838,6 +841,7 @@ const HEADER_MAP_MOV = {
   'chip':'chip',
   'setororigem':'setorOrigem',
   'setordestino':'setorDestino',
+  'local':'local','localdestino':'local','localdedestino':'local',
   'sexo':'sexo',
   'raca':'raca',
   'datadenascimento':'nascimento','datanascimento':'nascimento','nascimento':'nascimento',
@@ -1262,6 +1266,7 @@ function processarImportMov(rows){
       chip: String(r.chip||'').trim(),
       setorOrigem: String(r.setorOrigem||'').trim(),
       setorDestino: String(r.setorDestino||'').trim(),
+      local: String(r.local||'').trim(),
       sexo: String(r.sexo||'').trim() ? normSexo(r.sexo) : '',
       raca: String(r.raca||'').trim(),
       nascimento: nascISO,
@@ -1276,7 +1281,7 @@ function processarImportMov(rows){
 
 function chaveMovimentacao(m){
   return [m.data,m.tipo,normalizarSisbov(m.sisbov),String(m.brinco||'').trim(),
-    String(m.chip||'').trim(),String(m.setorOrigem||'').trim(),String(m.setorDestino||'').trim(),
+    String(m.chip||'').trim(),String(m.setorOrigem||'').trim(),String(m.setorDestino||'').trim(),String(m.local||'').trim(),
     Number(m.quantidade)||1].join('|');
 }
 function separarMovimentacoesNovas(lista){
@@ -1300,7 +1305,7 @@ function baixarModeloInicial(){
 }
 function baixarModeloMov(){
   const ws = XLSX.utils.json_to_sheet([{
-    'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Nascimento','SISBOV':'','BRINCO':'','SETOR ORIGEM':'','SETOR DESTINO':'Guaicurus',
+    'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Nascimento','SISBOV':'','BRINCO':'','SETOR ORIGEM':'','SETOR DESTINO':'Guaicurus','LOCAL':'Pasto 01',
     'SEXO':'Fêmea','RAÇA':'Nelore','DATA DE NASCIMENTO':'10/09/2026','QUANTIDADE':1,'OBSERVAÇÃO':''
   }]);
   const wb = XLSX.utils.book_new();
@@ -1423,7 +1428,7 @@ function buildMapaNaData(refISO){
   DB.animais.filter(a=>a.origem==='inicial' || a.origem==='cadastro').forEach(a=>{
     state.set(a.id, {
       id:a.id, sisbov:a.sisbov, brinco:a.brinco, chip:a.chip, sexo:a.sexo, raca:a.raca,
-      nascimento:a.nascimento, setorAtual:a.setorInicial, status:'ATIVO', sintetico:false,
+      nascimento:a.nascimento, setorAtual:a.setorInicial, localAtual:a.localInicial||'', status:'ATIVO', sintetico:false,
       historico:[{data:DB.config.dataMapaInicial, tipo:'Mapa Inicial', setor:a.setorInicial}]
     });
   });
@@ -1464,7 +1469,7 @@ function buildMapaNaData(refISO){
     if(cadastrado){
       const recuperado={id:cadastrado.id, sisbov:cadastrado.sisbov, brinco:cadastrado.brinco,
         chip:cadastrado.chip, sexo:cadastrado.sexo, raca:cadastrado.raca,
-        nascimento:cadastrado.nascimento, setorAtual:m.setorOrigem||cadastrado.setorInicial,
+        nascimento:cadastrado.nascimento, setorAtual:m.setorOrigem||cadastrado.setorInicial, localAtual:m.local||'',
         status:'ATIVO', sintetico:false, historico:[{data:m.data, tipo:'Cadastro recuperado', setor:m.setorOrigem||cadastrado.setorInicial}]};
       state.set(recuperado.id, recuperado);
       return recuperado;
@@ -1480,7 +1485,7 @@ function buildMapaNaData(refISO){
       brinco: m.quantidade>1 ? '' : m.brinco,
       chip: master? master.chip : '',
       sexo: m.sexo, raca: m.raca, nascimento: m.nascimento,
-      setorAtual: m.setorDestino || m.setorOrigem, status:'ATIVO', sintetico: m.quantidade>1,
+      setorAtual: m.setorDestino || m.setorOrigem, localAtual:m.local||'', status:'ATIVO', sintetico: m.quantidade>1,
       historico:[{data:m.data, tipo:m.tipo, setor:m.setorDestino||m.setorOrigem}]
     };
     state.set(novo.id, novo);
@@ -1549,7 +1554,7 @@ function buildMapaNaData(refISO){
         // "Animais sem auditar" é uma entrada real: aumenta o saldo e cria
         // o vínculo histórico do SISBOV para a saída posterior.
         alvo.status='ATIVO';
-        alvo.setorAtual = m.setorDestino||m.setorOrigem;
+        alvo.setorAtual = m.setorDestino||m.setorOrigem; if(m.local) alvo.localAtual=m.local;
         alvo.historico.push({data:m.data, tipo:m.tipo, setor:alvo.setorAtual});
       } else {
         for(let i=0;i<m.quantidade;i++) criarAnimal(m,i);
@@ -1583,11 +1588,11 @@ function buildMapaNaData(refISO){
       }
       if((m.sisbov || m.brinco || m.chip || m.animalId) && m.quantidade<=1){
         const alvo = acharAnimalMovimentacao(m);
-        if(alvo){ alvo.setorAtual = m.setorDestino; alvo.historico.push({data:m.data, tipo:m.tipo, setor:m.setorDestino}); }
+        if(alvo){ alvo.setorAtual = m.setorDestino; if(m.local) alvo.localAtual=m.local; alvo.historico.push({data:m.data, tipo:m.tipo, setor:m.setorDestino, local:m.local||alvo.localAtual}); }
         else inconsistencias.push({data:m.data, tipo:m.tipo, sisbov:m.sisbov, setor:m.setorOrigem||'—', sexo:m.sexo, categoria:'—', faltante:1, msg:`Transferência de SISBOV inexistente no mapa: ${m.sisbov}.`});
       } else {
         const sel = selecionarParaSaida(m);
-        sel.forEach(v=>{ v.setorAtual = m.setorDestino; v.historico.push({data:m.data, tipo:m.tipo, setor:m.setorDestino}); });
+        sel.forEach(v=>{ v.setorAtual = m.setorDestino; if(m.local) v.localAtual=m.local; v.historico.push({data:m.data, tipo:m.tipo, setor:m.setorDestino, local:m.local||v.localAtual}); });
       }
       return;
     }
@@ -1742,15 +1747,15 @@ function renderDetalheTable(containerId, lista, modo){
   const el = document.getElementById(containerId);
   if(!el) return;
   const cabecalho = modo==='final'
-    ? `<tr><th>Setor Atual</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th><th>Status</th></tr>`
+    ? `<tr><th>Setor Atual</th><th>Local</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th><th>Status</th></tr>`
     : `<tr><th>Setor</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th>${AUTH_ADMIN?'<th>Ações</th>':''}</tr>`;
-  const colspan = modo==='final' ? 9 : (AUTH_ADMIN?9:8);
+  const colspan = modo==='final' ? 10 : (AUTH_ADMIN?9:8);
   const linhas = lista.map(a=>{
     const cellsBase = `<td>${a.sisbov? `<span class="link-sisbov">${a.sisbov}</span>` : `<span class="no-sisbov">sem SISBOV</span>`}</td>`+
       `<td>${a.brinco||'<span class="pending">PENDENTE</span>'}</td><td>${a.chip||'<span class="pending">PENDENTE</span>'}</td><td>${a.sexo||'<span class="pending">PENDENTE</span>'}</td><td>${a.raca||'<span class="pending">PENDENTE</span>'}</td>`+
       `<td>${formatBR(a.nascimento)}</td><td>${a.categoria}</td>`;
     if(modo==='final'){
-      return `<tr><td>${a.setorAtual}</td>${cellsBase}<td><span class="badge badge-ativo">${a.status||'ATIVO'}</span></td></tr>`;
+      return `<tr><td>${a.setorAtual}</td><td>${a.localAtual||'Não informado'}</td>${cellsBase}<td><span class="badge badge-ativo">${a.status||'ATIVO'}</span></td></tr>`;
     }
     return `<tr><td>${a.setorAtual}</td>${cellsBase}${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditAnimal" data-id="${a.id}">EDITAR</button></td>`:''}</tr>`;
   }).join('') || `<tr><td colspan="${colspan}" style="text-align:center;color:var(--cinza-600);">Nenhum animal encontrado.</td></tr>`;
@@ -1887,7 +1892,7 @@ function buildGridAOA(ativos){
 
 function detalheParaJSON(lista, modo){
   return lista.map(a=> modo==='final' ? {
-    'Setor Atual':a.setorAtual, 'SISBOV':a.sisbov, 'Brinco':a.brinco, 'Chip':a.chip, 'Sexo':a.sexo, 'Raça':a.raca,
+    'Setor Atual':a.setorAtual, 'Local':a.localAtual||'Não informado', 'SISBOV':a.sisbov, 'Brinco':a.brinco, 'Chip':a.chip, 'Sexo':a.sexo, 'Raça':a.raca,
     'Data de Nascimento':formatBR(a.nascimento), 'Categoria':a.categoria, 'Status':a.status||'ATIVO'
   } : {
     'Setor':a.setorAtual, 'SISBOV':a.sisbov, 'Brinco':a.brinco, 'Chip':a.chip, 'Sexo':a.sexo, 'Raça':a.raca,
@@ -2117,11 +2122,25 @@ function popularSelect(sel, values, keepFirst, usarRotulo=true){
   values.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=usarRotulo?rotuloTipoMov(v):v; sel.appendChild(o); });
 }
 
+function listaLocais(){
+  return [...new Set(DB.movimentacoes.map(m=>String(m.local||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+}
+function popularFiltrosLocal(){
+  const locais=listaLocais();
+  ['movFiltroLocal','mapaFiltroLocal','relLocal'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const atual=el.value;
+    el.innerHTML='<option value="">Todos</option>'+locais.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+    if(locais.includes(atual)) el.value=atual;
+  });
+}
+
 function filtrarMovimentacoes(){
   const ini = document.getElementById('movFiltroInicio').value;
   const fim = document.getElementById('movFiltroFim').value;
   const tipo = document.getElementById('movFiltroTipo').value;
   const setor = document.getElementById('movFiltroSetor').value;
+  const local = document.getElementById('movFiltroLocal').value;
   const sexo = document.getElementById('movFiltroSexo').value;
   const raca = document.getElementById('movFiltroRaca').value.trim().toLowerCase();
   const sisbov = document.getElementById('movFiltroSisbov').value.trim();
@@ -2130,6 +2149,7 @@ function filtrarMovimentacoes(){
     if(fim && m.data>fim) return false;
     if(tipo && tipoOperacionalMov(m)!==tipo) return false;
     if(setor && m.setorOrigem!==setor && m.setorDestino!==setor) return false;
+    if(local && String(m.local||'')!==local) return false;
     if(sexo && m.sexo!==sexo) return false;
     if(raca && !m.raca.toLowerCase().includes(raca)) return false;
     if(sisbov){
@@ -2242,6 +2262,7 @@ function formularioMov(m){
         <div class="field"><label>Categoria no evento</label><input id="formMovCategoria" value="${d.categoria||calcCategoria(d.nascimento||'',d.data||todayISO())}" readonly></div>
         <div class="field"><label>Setor origem</label><select id="formMovOrigem"><option value="">PENDENTE</option>${setores}</select></div>
         <div class="field"><label>Setor destino</label><select id="formMovDestino"><option value="">PENDENTE</option>${DB.setores.map(x=>`<option ${d.setorDestino===x?'selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>Local</label><input id="formMovLocal" value="${d.local||''}" placeholder="Ex.: Pasto 01, Curral, Confinamento"></div>
         <div class="field"><label>Quantidade</label><input type="number" min="1" id="formMovQtd" value="${d.quantidade||1}"></div>
       </div>
     </div>
@@ -2310,6 +2331,7 @@ function abrirFormularioMov(m){
       document.getElementById('formMovNasc').value=d.nascimento||'';
       document.getElementById('formMovOrigem').value=d.setorOrigem||'';
       document.getElementById('formMovDestino').value=d.setorOrigem||'';
+      const localEl=document.getElementById('formMovLocal'); if(localEl) localEl.value=d.local||'';
       document.getElementById('formMovCategoria').value=d.categoria||calcCategoria(d.nascimento||'',document.getElementById('formMovData').value||todayISO());
       msgNormal.style.display='block'; msgNormal.className='alert alert-green'; msgNormal.innerHTML='<b>Animal encontrado.</b> Os dados foram puxados automaticamente da base.';
     }else if(q){msgNormal.style.display='block';msgNormal.className='alert alert-gold';msgNormal.textContent='Animal não encontrado no Mapa Inicial. Preencha os dados manualmente.';}
@@ -2338,7 +2360,7 @@ function abrirFormularioMov(m){
 }
 function salvarFormularioMov(m){
   if(!exigirAdmin('salvar movimentações')) return;
-  const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
+  const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,local:(document.getElementById('formMovLocal')?.value||'').trim(),quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
   if(d.tipo==='Reidentificação'){
     if(!AUTH_ADMIN){toast('Acesso somente para administrador.','err');return;}
@@ -2352,7 +2374,7 @@ function salvarFormularioMov(m){
     const baseAtual=dadosAnimalParaMov(animal,d.data);
     const sisbovAnterior=baseAtual.sisbov||animal.sisbov||'';
     const atual={...d,animalId:animal.id,sisbov:sisbovAnterior,sisbovAnterior,brinco:anterior,brincoAnterior:anterior,brincoNovo:novo,quantidade:1,
-      chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:baseAtual.setorOrigem||''};
+      chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:baseAtual.setorOrigem||'',local:baseAtual.local||''};
     if(m) Object.assign(m,atual); else {atual.id=uid('mv');DB.movimentacoes.push(atual);}
     saveDB('mov'); closeModal(); renderAll(); toast('Reidentificação registrada. O mesmo animal recebeu o novo brinco sem alterar o saldo.','ok'); return;
   }
@@ -2421,6 +2443,7 @@ function renderMovimentacoes(){
   const tSel = document.getElementById('movFiltroTipo');
   if(tSel.options.length<=1) popularSelect(tSel, TIPOS_MOV, true, false);
   popularSelect(document.getElementById('movFiltroSetor'), DB.setores, true);
+  popularFiltrosLocal();
 
   const lista = filtrarMovimentacoes();
   document.getElementById('movCount').textContent = `${lista.length.toLocaleString('pt-BR')} lançamento(s)`;
@@ -2428,13 +2451,13 @@ function renderMovimentacoes(){
   paginaMov = Math.min(paginaMov, totalPag);
   const slice = lista.slice((paginaMov-1)*PAGE_SIZE, paginaMov*PAGE_SIZE);
 
-  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
+  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
   const tbody = slice.map(m=>`<tr>
     <td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'<span class="no-sisbov">agregado</span>')}</td>
-    <td>${m.tipo==='Reidentificação'?`${m.brincoAnterior||m.brinco||'—'} → ${m.brincoNovo||'—'}`:(m.brinco||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td>
+    <td>${m.tipo==='Reidentificação'?`${m.brincoAnterior||m.brinco||'—'} → ${m.brincoNovo||'—'}`:(m.brinco||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td>
     <td>${valorExibicao(m.sexo)}</td><td>${valorExibicao(m.raca)}</td><td>${m.nascimento?formatBR(m.nascimento):'<span class="pending">PENDENTE</span>'}</td><td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td><td>${m.observacao||''}</td>${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditMov" data-id="${m.id}">EDITAR</button> <button class="btn btn-danger btn-sm btnDeleteMov" data-id="${m.id}">EXCLUIR</button></td>`:''}</tr>`).join('');
   document.getElementById('movTable').querySelector('thead').innerHTML = thead;
-  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${AUTH_ADMIN?13:12}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
+  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${AUTH_ADMIN?14:13}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
   document.getElementById('movPager').innerHTML = `Página ${paginaMov} de ${totalPag}
     <button class="btn btn-outline btn-sm" ${paginaMov<=1?'disabled':''} id="movPrev">‹</button>
     <button class="btn btn-outline btn-sm" ${paginaMov>=totalPag?'disabled':''} id="movNext">›</button>`;
@@ -2451,7 +2474,9 @@ function renderMapaAtual(){
   const ref = dataInput.value;
   mapaAtualCache = buildMapaNaData(ref);
   const {animais, inconsistencias} = mapaAtualCache;
-  const ativos = animais.filter(a=>a.status==='ATIVO');
+  popularFiltrosLocal();
+  const localFiltro=document.getElementById('mapaFiltroLocal')?.value||'';
+  const ativos = animais.filter(a=>a.status==='ATIVO').filter(a=>!localFiltro || String(a.localAtual||'')===localFiltro);
   renderMapaGridPanel(ativos, 'mapaAtualResumo', `MAPA FINAL — ${ativos.length.toLocaleString('pt-BR')} animais`, `Referência: ${formatBR(ref)}`);
 
   const alertBox = document.getElementById('mapaAtualAlertas');
@@ -2497,7 +2522,9 @@ function renderAuditoriaMapaAtual(inconsistencias, ref){
 function animaisAtivosFiltrados(){
   if(!mapaAtualCache) return [];
   const busca = (document.getElementById('buscaAnimal').value||'').trim().toLowerCase();
+  const localFiltro=document.getElementById('mapaFiltroLocal')?.value||'';
   return mapaAtualCache.animais.filter(a=>a.status==='ATIVO').filter(a=>{
+    if(localFiltro && String(a.localAtual||'')!==localFiltro) return false;
     if(!busca) return true;
     return (a.sisbov||'').toLowerCase().includes(busca) || (a.brinco||'').toLowerCase().includes(busca) ||
            (a.chip||'').toLowerCase().includes(busca) || (a.setorAtual||'').toLowerCase().includes(busca);
@@ -2510,13 +2537,13 @@ function renderAnimaisTable(){
   paginaAnimais = Math.min(paginaAnimais, totalPag);
   const slice = lista.slice((paginaAnimais-1)*PAGE_SIZE, paginaAnimais*PAGE_SIZE);
   document.getElementById('animaisTable').querySelector('thead').innerHTML =
-    `<tr><th>Setor Atual</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th><th class="num">Idade (m)</th><th>Status</th></tr>`;
+    `<tr><th>Setor Atual</th><th>Local</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th><th class="num">Idade (m)</th><th>Status</th></tr>`;
   document.getElementById('animaisTable').querySelector('tbody').innerHTML = slice.map(a=>`<tr>
-    <td>${a.setorAtual}</td>
+    <td>${a.setorAtual}</td><td>${a.localAtual||'Não informado'}</td>
     <td>${a.sisbov? `<span class="link-sisbov" data-id="${a.id}">${a.sisbov}</span>` : `<span class="no-sisbov" data-id="${a.id}" style="cursor:pointer;">sem SISBOV</span>`}</td>
     <td>${a.brinco||'—'}</td><td>${a.chip||'—'}</td><td>${a.sexo}</td><td>${a.raca}</td>
     <td>${formatBR(a.nascimento)}</td><td>${a.categoria}</td><td class="num">${a.idadeMeses!==null?a.idadeMeses:'—'}</td>
-    <td><span class="badge badge-ativo">${a.status||'ATIVO'}</span></td></tr>`).join('') || `<tr><td colspan="10" style="text-align:center;color:var(--cinza-600);">Nenhum animal encontrado.</td></tr>`;
+    <td><span class="badge badge-ativo">${a.status||'ATIVO'}</span></td></tr>`).join('') || `<tr><td colspan="12" style="text-align:center;color:var(--cinza-600);">Nenhum animal encontrado.</td></tr>`;
   document.getElementById('animaisPager').innerHTML = `${lista.length.toLocaleString('pt-BR')} animal(is) · Página ${paginaAnimais} de ${totalPag}
     <button class="btn btn-outline btn-sm" ${paginaAnimais<=1?'disabled':''} id="anPrev">‹</button>
     <button class="btn btn-outline btn-sm" ${paginaAnimais>=totalPag?'disabled':''} id="anNext">›</button>`;
@@ -2563,6 +2590,7 @@ function renderRelatorio(){
     return;
   }
   const setor = document.getElementById('relSetor').value;
+  const local = document.getElementById('relLocal').value;
   const sexo = document.getElementById('relSexo').value;
   const raca = document.getElementById('relRaca').value.trim().toLowerCase();
   const categoria = document.getElementById('relCategoria').value;
@@ -2571,6 +2599,7 @@ function renderRelatorio(){
   function aplicaFiltrosAnimais(lista){
     return lista.filter(a=>{
       if(setor && a.setorAtual!==setor) return false;
+      if(local && String(a.localAtual||'')!==local) return false;
       if(sexo && a.sexo!==sexo) return false;
       if(raca && !(a.raca||'').toLowerCase().includes(raca)) return false;
       if(categoria && a.categoria!==categoria) return false;
@@ -2586,6 +2615,7 @@ function renderRelatorio(){
   const movsPeriodo = DB.movimentacoes.filter(m=>{
     if(m.data<ini || m.data>fim) return false;
     if(setor && m.setorOrigem!==setor && m.setorDestino!==setor) return false;
+    if(local && String(m.local||'')!==local) return false;
     if(sexo && m.sexo!==sexo) return false;
     if(raca && !m.raca.toLowerCase().includes(raca)) return false;
     if(tipo && tipoOperacionalMov(m)!==tipo) return false;
@@ -2626,10 +2656,10 @@ function renderRelatorio(){
   html += `<h3 class="bloco-title">BLOCO 2 — Movimentações do Período</h3>
     <div class="panel"><div class="panel-head"><h3>Lançamentos</h3><span style="font-size:11.5px;color:var(--cinza-600);">${movsPeriodo.length} lançamento(s)</span></div>
     <div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr>
-    <th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th></tr></thead><tbody>
+    <th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th></tr></thead><tbody>
     ${movsPeriodo.map(m=>`<tr><td>${formatBR(m.data)}</td><td>${rotuloTipoMov(m.tipo)}</td><td>${m.sisbov||'—'}</td><td>${m.brinco||'—'}</td>
-      <td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.sexo}</td><td>${m.raca}</td><td>${formatBR(m.nascimento)}</td>
-      <td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td></tr>`).join('') || `<tr><td colspan="11" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação no período.</td></tr>`}
+      <td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td><td>${m.sexo}</td><td>${m.raca}</td><td>${formatBR(m.nascimento)}</td>
+      <td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td></tr>`).join('') || `<tr><td colspan="12" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação no período.</td></tr>`}
     </tbody></table></div></div></div>`;
 
   html += `<h3 class="bloco-title">BLOCO 3 — Mapa Final do Período (${formatBR(fim)})</h3>
@@ -2674,6 +2704,7 @@ function renderAuditoriaPanel(){
 }
 
 function renderAll(){
+  popularFiltrosLocal();
   renderHeaderCounters();
   renderDashboard();
   renderMapaInicial();
@@ -2785,12 +2816,12 @@ function exportarMovimentacoes(formato){
       'Brinco Anterior':m.tipo==='Reidentificação'?(m.brincoAnterior||m.brinco||''):m.brinco,
       'Brinco Novo':m.tipo==='Reidentificação'?(m.brincoNovo||''):m.brinco,
       'Setor Origem':m.setorOrigem,
-      'Setor Destino':m.setorDestino,'Sexo':m.sexo,'Raça':m.raca,'Nascimento':formatBR(m.nascimento),'Quantidade':m.quantidade,'Observação':m.observacao
+      'Setor Destino':m.setorDestino,'Local':m.local||'','Sexo':m.sexo,'Raça':m.raca,'Nascimento':formatBR(m.nascimento),'Quantidade':m.quantidade,'Observação':m.observacao
     }))}], 'movimentacoes.xlsx');
   } else {
     const doc = novoPDF('MOVIMENTAÇÕES', '');
-    doc.autoTable({startY:20, head:[['Data','Tipo','SISBOV','Origem','Destino','Sexo','Qtd.']],
-      body: lista.map(m=>[formatBR(m.data), m.tipo, m.sisbov||'—', m.setorOrigem||'—', m.setorDestino||'—', m.sexo, {content:m.quantidade,styles:{halign:'right'}}]),
+    doc.autoTable({startY:20, head:[['Data','Tipo','SISBOV','Origem','Destino','Local','Sexo','Qtd.']],
+      body: lista.map(m=>[formatBR(m.data), m.tipo, m.sisbov||'—', m.setorOrigem||'—', m.setorDestino||'—', m.local||'—', m.sexo, {content:m.quantidade,styles:{halign:'right'}}]),
       headStyles:autoTableHead()});
     finalizarPDF(doc, 'movimentacoes.pdf');
   }
@@ -2828,7 +2859,7 @@ function exportarRelatorio(formato){
       {nome:'Mapa Inicial', aoa:iniGrid.aoa, styleMatrix:iniGrid.styleMatrix, merges:iniGrid.merges, colWidths:colW},
       {nome:'Animais Mapa Inicial', json: detalheParaJSON(c.inicioAtivos, 'inicial')},
       {nome:'Movimentações', json: c.movsPeriodo.map(m=>({
-        'Data':formatBR(m.data),'Tipo':m.tipo,'SISBOV':m.sisbov,'Brinco':m.brinco,'Origem':m.setorOrigem,'Destino':m.setorDestino,
+        'Data':formatBR(m.data),'Tipo':m.tipo,'SISBOV':m.sisbov,'Brinco':m.brinco,'Origem':m.setorOrigem,'Destino':m.setorDestino,'Local':m.local||'',
         'Sexo':m.sexo,'Raça':m.raca,'Nascimento':formatBR(m.nascimento),'Categoria':calcCategoria(m.nascimento,m.data),'Quantidade':m.quantidade
       }))},
       {nome:'Mapa Final', aoa:fimGrid.aoa, styleMatrix:fimGrid.styleMatrix, merges:fimGrid.merges, colWidths:colW},
@@ -2846,8 +2877,8 @@ function exportarRelatorio(formato){
     doc.addPage();
     doc.setFontSize(11); doc.setTextColor(15,59,46); doc.setFont(undefined,'bold');
     doc.text('BLOCO 2 — Movimentações do Período', 10, 18);
-    doc.autoTable({startY:22, head:[['Data','Tipo','SISBOV','Brinco','Origem','Destino','Sexo','Raça','Nascimento','Categoria','Qtd.']],
-      body:c.movsPeriodo.map(m=>[formatBR(m.data), m.tipo, m.sisbov||'—', m.brinco||'—', m.setorOrigem||'—', m.setorDestino||'—', m.sexo, m.raca, formatBR(m.nascimento), calcCategoria(m.nascimento,m.data), {content:m.quantidade,styles:{halign:'right'}}]),
+    doc.autoTable({startY:22, head:[['Data','Tipo','SISBOV','Brinco','Origem','Destino','Local','Sexo','Raça','Nascimento','Categoria','Qtd.']],
+      body:c.movsPeriodo.map(m=>[formatBR(m.data), m.tipo, m.sisbov||'—', m.brinco||'—', m.setorOrigem||'—', m.setorDestino||'—', m.local||'—', m.sexo, m.raca, formatBR(m.nascimento), calcCategoria(m.nascimento,m.data), {content:m.quantidade,styles:{halign:'right'}}]),
       headStyles:autoTableHead(), theme:'grid', styles:{fontSize:7.5, cellPadding:3}});
 
     doc.addPage();
@@ -2965,6 +2996,7 @@ function initEvents(){
   // Mapa Atual
   document.getElementById('btnHoje').onclick = ()=>{ document.getElementById('mapaAtualData').value = todayISO(); renderMapaAtual(); };
   document.getElementById('btnAtualizarMapa').onclick = renderMapaAtual;
+  document.getElementById('mapaFiltroLocal').onchange=()=>{paginaAnimais=1;renderMapaAtual();};
   document.getElementById('btnVerAnimais').onclick = ()=>{
     const p = document.getElementById('painelAnimais');
     p.style.display = p.style.display==='none' ? 'block' : 'none';
