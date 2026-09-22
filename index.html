@@ -2147,8 +2147,24 @@ function localizarPorIdentificador(valor){
   const q=String(valor||'').trim();
   return DB.animais.find(a=>a.sisbov===q || a.brinco===q || a.chip===q) || null;
 }
-function dadosAnimalParaMov(a){
-  return a ? {sisbov:a.sisbov||'', brinco:a.brinco||'', chip:a.chip||'', sexo:a.sexo||'', raca:a.raca||'', nascimento:a.nascimento||'', setorOrigem:a.setorInicial||''} : {};
+function dadosAnimalParaMov(a, refISO){
+  if(!a) return {};
+  const ref = refISO || todayISO();
+  let atual = null;
+  try{
+    const mapa = buildMapaNaData(ref);
+    atual = mapa?.animais?.find(x=>x.id===a.id) || null;
+  }catch(e){}
+  return {
+    sisbov:(atual?.sisbov||a.sisbov||''),
+    brinco:(atual?.brinco||a.brinco||''),
+    chip:(atual?.chip||a.chip||''),
+    sexo:(atual?.sexo||a.sexo||''),
+    raca:(atual?.raca||a.raca||''),
+    nascimento:(atual?.nascimento||a.nascimento||''),
+    setorOrigem:(atual?.setorAtual||a.setorInicial||''),
+    categoria:(atual?.categoria||calcCategoria(atual?.nascimento||a.nascimento||'',ref))
+  };
 }
 function salvarDadosAnimal(d){
   if(!exigirAdmin('alterar o cadastro dos animais')) return;
@@ -2174,7 +2190,7 @@ function sisbovJaPertenceOutroAnimal(sisbov, animalId, movId){
 }
 function formularioMov(m){
   const a = m ? (DB.animais.find(x=>x.id===m.animalId)||localizarPorIdentificador(m.sisbov||m.brinco||m.chip)) : null;
-  const d = m ? {...m, ...dadosAnimalParaMov(a)} : dadosAnimalParaMov(a);
+  const d = m ? {...m, ...dadosAnimalParaMov(a,m.data||todayISO())} : dadosAnimalParaMov(a,todayISO());
   const opts=TIPOS_MOV.map(t=>`<option value="${t}" ${d.tipo===t?'selected':''}>${rotuloTipoMov(t)}</option>`).join('');
   const setores=DB.setores.map(x=>`<option ${d.setorOrigem===x?'selected':''}>${x}</option>`).join('');
   return `<div class="alert alert-gold" id="animalLookupMsg" style="display:none"></div>
@@ -2190,7 +2206,7 @@ function formularioMov(m){
       <div class="field"><label>Sexo</label><select id="formMovSexo"><option value="">PENDENTE</option><option ${d.sexo==='Macho'?'selected':''}>Macho</option><option ${d.sexo==='Fêmea'?'selected':''}>Fêmea</option></select></div>
       <div class="field"><label>Raça</label><input id="formMovRaca" value="${d.raca||''}" placeholder="PENDENTE"></div>
       <div class="field"><label>Data de nascimento</label><input type="date" id="formMovNasc" value="${d.nascimento||''}"></div>
-      <div class="field"><label>Categoria no evento</label><input id="formMovCategoria" value="${calcCategoria(d.nascimento||'',d.data||todayISO())}" readonly></div>
+      <div class="field"><label>Categoria no evento</label><input id="formMovCategoria" value="${d.categoria||calcCategoria(d.nascimento||'',d.data||todayISO())}" readonly></div>
       <div class="field"><label>Setor origem</label><select id="formMovOrigem"><option value="">PENDENTE</option>${setores}</select></div>
       <div class="field"><label>Setor destino</label><select id="formMovDestino"><option value="">PENDENTE</option>${DB.setores.map(x=>`<option ${d.setorDestino===x?'selected':''}>${x}</option>`).join('')}</select></div>
       <div class="field"><label>Quantidade</label><input type="number" min="1" id="formMovQtd" value="${d.quantidade||1}"></div>
@@ -2204,17 +2220,46 @@ function abrirFormularioMov(m){
   ], true);
   const busca=document.getElementById('movBuscaAnimal');
   const tipoEl=document.getElementById('formMovTipo');
-  const ajustarReid=()=>{ const reid=tipoEl.value==='Reidentificação'; document.querySelectorAll('.reid-field').forEach(el=>el.style.display=reid?'block':'none'); document.querySelectorAll('.normal-mov-field').forEach(el=>el.style.display=reid?'none':'block'); const qtd=document.getElementById('formMovQtd'); if(reid){qtd.value=1;qtd.readOnly=true;} else qtd.readOnly=false; };
+  const ajustarReid=()=>{
+    const reid=tipoEl.value==='Reidentificação';
+    document.querySelectorAll('.reid-field').forEach(el=>el.style.display=reid?'block':'none');
+    document.querySelectorAll('.normal-mov-field').forEach(el=>el.style.display=reid?'none':'block');
+    const qtd=document.getElementById('formMovQtd');
+    const camposAuto=['formMovBrinco','formMovChip','formMovSexo','formMovRaca','formMovNasc','formMovOrigem','formMovDestino'];
+    camposAuto.forEach(id=>{const el=document.getElementById(id); if(el) el.disabled=reid;});
+    if(reid){qtd.value=1;qtd.readOnly=true;} else qtd.readOnly=false;
+    if(reid && busca.value.trim()) preencher();
+  };
   tipoEl.addEventListener('change',ajustarReid);
   const preencher=()=>{
-    const a=animalPorSisbovAtualOuHistorico(busca.value)||localizarPorIdentificador(busca.value); const msg=document.getElementById('animalLookupMsg');
-    if(a){ const d=dadosAnimalParaMov(a); ['Sisbov','Brinco','Chip','Raca','Nasc'].forEach(k=>{const el=document.getElementById('formMov'+k); if(el) el.value=d[k.toLowerCase()]||d[{Sisbov:'sisbov',Brinco:'brinco',Chip:'chip',Raca:'raca',Nasc:'nascimento'}[k]]||'';}); document.getElementById('formMovSexo').value=d.sexo||''; document.getElementById('formMovOrigem').value=d.setorOrigem||''; const ant=document.getElementById('formMovSisbovAnterior'); if(ant) ant.value=normalizarSisbov(busca.value)||d.sisbov||''; msg.style.display='block'; msg.innerHTML='Animal encontrado no Mapa Inicial/Base Individual. Dados existentes foram preenchidos automaticamente.'; }
-    else if(busca.value.trim()){ msg.style.display='block'; msg.innerHTML='Animal não encontrado no Mapa Inicial. Preencha os dados manualmente para cadastrá-lo na Base Individual.'; }
-    else msg.style.display='none';
+    const dataRef=document.getElementById('formMovData').value||todayISO();
+    const a=animalPorSisbovAtualOuHistorico(busca.value)||localizarPorIdentificador(busca.value);
+    const msg=document.getElementById('animalLookupMsg');
+    if(a){
+      const d=dadosAnimalParaMov(a,dataRef);
+      document.getElementById('formMovSisbov').value=d.sisbov||'';
+      document.getElementById('formMovBrinco').value=d.brinco||'';
+      document.getElementById('formMovChip').value=d.chip||'';
+      document.getElementById('formMovSexo').value=d.sexo||'';
+      document.getElementById('formMovRaca').value=d.raca||'';
+      document.getElementById('formMovNasc').value=d.nascimento||'';
+      document.getElementById('formMovOrigem').value=d.setorOrigem||'';
+      document.getElementById('formMovDestino').value=d.setorOrigem||'';
+      document.getElementById('formMovCategoria').value=d.categoria||calcCategoria(d.nascimento||'',dataRef);
+      const ant=document.getElementById('formMovSisbovAnterior');
+      if(ant) ant.value=d.sisbov||normalizarSisbov(busca.value)||'';
+      msg.style.display='block';
+      msg.innerHTML='<b>Animal encontrado.</b> Sexo, raça, nascimento, categoria e setor atual foram puxados automaticamente da base e das movimentações anteriores.';
+    } else if(busca.value.trim()){
+      msg.style.display='block';
+      msg.innerHTML=tipoEl.value==='Reidentificação'
+        ? '<b>Animal não encontrado.</b> Para reidentificação, o animal precisa existir na base. Nenhum novo animal será criado.'
+        : 'Animal não encontrado no Mapa Inicial. Preencha os dados manualmente para cadastrá-lo na Base Individual.';
+    } else msg.style.display='none';
   };
   busca.addEventListener('input',preencher); busca.addEventListener('change',preencher); busca.addEventListener('blur',preencher);
   const atualizarCategoria=()=>{ const el=document.getElementById('formMovCategoria'); if(el) el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO()); };
-  document.getElementById('formMovNasc').addEventListener('change',atualizarCategoria); document.getElementById('formMovData').addEventListener('change',atualizarCategoria);
+  document.getElementById('formMovNasc').addEventListener('change',atualizarCategoria); document.getElementById('formMovData').addEventListener('change',()=>{ atualizarCategoria(); if(tipoEl.value==='Reidentificação' && busca.value.trim()) preencher(); });
   if(busca.value) preencher(); ajustarReid(); atualizarCategoria();
 }
 function salvarFormularioMov(m){
@@ -2230,8 +2275,9 @@ function salvarFormularioMov(m){
     if(anterior===novo){toast('O novo SISBOV deve ser diferente do atual.','err');return;}
     if(!animal){toast('SISBOV anterior não encontrado. A reidentificação não cria um novo animal.','err');return;}
     if(sisbovJaPertenceOutroAnimal(novo,animal.id,m?.id)){toast('SISBOV novo já cadastrado para outro animal. Reidentificação bloqueada para evitar duplicidade.','err');return;}
+    const baseAtual=dadosAnimalParaMov(animal,d.data);
     const atual={...d,animalId:animal.id,sisbov:anterior,sisbovAnterior:anterior,sisbovNovo:novo,quantidade:1,
-      brinco:animal.brinco||'',chip:animal.chip||'',sexo:animal.sexo||'',raca:animal.raca||'',nascimento:animal.nascimento||'',setorOrigem:d.setorOrigem||animal.setorInicial||'',setorDestino:d.setorOrigem||animal.setorInicial||''};
+      brinco:baseAtual.brinco||'',chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:baseAtual.setorOrigem||''};
     if(m) Object.assign(m,atual); else {atual.id=uid('mv');DB.movimentacoes.push(atual);}
     saveDB('mov'); closeModal(); renderAll(); toast('Reidentificação registrada sem criar outro animal.','ok'); return;
   }
