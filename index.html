@@ -278,7 +278,7 @@ footer.app-footer{text-align:center;color:var(--cinza-600);font-size:11px;paddin
 #authGate:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 15% 20%,rgba(201,162,75,.18),transparent 28%),radial-gradient(circle at 88% 80%,rgba(15,59,46,.13),transparent 32%);pointer-events:none}
 .auth-card{position:relative;z-index:1;width:min(440px,100%);background:rgba(255,255,255,.97);border:1px solid rgba(15,59,46,.12);border-radius:24px;padding:30px 34px 28px;box-shadow:0 26px 70px rgba(15,59,46,.18);}
 .auth-logo{width:210px;height:155px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center}.auth-logo img{display:block;max-width:100%;max-height:100%;object-fit:contain}
-.auth-brand{text-align:center;font-size:22px;font-weight:800;color:var(--verde-mais-escuro);margin:2px 0 5px;letter-spacing:.2px}.auth-sub{text-align:center;font-size:12.5px;color:var(--cinza-600);margin-bottom:22px}.auth-field{margin-bottom:13px}.auth-field label{display:block;font-size:11px;font-weight:700;color:var(--cinza-600);margin-bottom:6px}.auth-field input{width:100%;padding:12px 13px;border:1px solid var(--cinza-300);border-radius:9px;font-size:14px;background:#fff}.auth-field input:focus{outline:2px solid rgba(28,92,70,.22);border-color:var(--verde-medio)}.auth-msg{min-height:20px;margin-top:10px;font-size:12px;color:var(--vermelho)}#authGate[hidden]{display:none!important}.admin-only[hidden]{display:none!important}.user-chip{font-size:11px;color:#dfe8e3}.btn-logout{background:transparent;border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:6px;padding:6px 9px;font-size:11px}.user-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700}.user-dot{width:8px;height:8px;border-radius:50%;background:var(--verde-ok)}
+.auth-brand{text-align:center;font-size:22px;font-weight:800;color:var(--verde-mais-escuro);margin:2px 0 5px;letter-spacing:.2px}.auth-sub{text-align:center;font-size:12.5px;color:var(--cinza-600);margin-bottom:22px}.auth-field{margin-bottom:13px}.auth-field label{display:block;font-size:11px;font-weight:700;color:var(--cinza-600);margin-bottom:6px}.auth-field input{width:100%;padding:12px 13px;border:1px solid var(--cinza-300);border-radius:9px;font-size:14px;background:#fff}.auth-field input:focus{outline:2px solid rgba(28,92,70,.22);border-color:var(--verde-medio)}.auth-msg{min-height:20px;margin-top:10px;font-size:12px;color:var(--vermelho)}[hidden]{display:none!important}#authGate[hidden]{display:none!important}.admin-only[hidden]{display:none!important}.user-chip{font-size:11px;color:#dfe8e3}.btn-logout{background:transparent;border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:6px;padding:6px 9px;font-size:11px}.user-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700}.user-dot{width:8px;height:8px;border-radius:50%;background:var(--verde-ok)}
 .auth-foot{text-align:center;margin-top:14px;font-size:10.5px;color:#718079}.auth-foot b{color:var(--verde-escuro)}
 
 
@@ -514,7 +514,7 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
       <div class="spacer"></div>
       <button class="btn btn-outline" id="btnExportInicialXlsx">Exportar XLSX</button>
       <button class="btn btn-outline" id="btnExportInicialPdf">Exportar PDF</button>
-      <button class="btn btn-danger" id="btnExcluirTudo">EXCLUIR TUDO</button>
+      <button class="btn btn-danger admin-only" id="btnExcluirTudo" hidden>EXCLUIR TUDO</button>
     </div>
     <div class="panel" style="margin-top:12px;margin-bottom:12px;">
       <div class="panel-body" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
@@ -541,7 +541,7 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
       <button class="btn btn-outline" id="btnExportMovXlsx">Exportar XLSX</button>
       <button class="btn btn-outline" id="btnExportMovPdf">Exportar PDF</button>
       <button class="btn btn-outline" id="btnReprocessarMov">REPROCESSAR DADOS DOS ANIMAIS</button>
-      <button class="btn btn-danger" id="btnExcluirTudoMov">EXCLUIR TUDO</button>
+      <button class="btn btn-danger admin-only" id="btnExcluirTudoMov" hidden>EXCLUIR TUDO</button>
       <button class="btn btn-primary" id="btnNovaMov">NOVA MOVIMENTAÇÃO</button>
     </div>
     <div class="toolbar">
