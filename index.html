@@ -2132,7 +2132,10 @@ function filtrarMovimentacoes(){
     if(setor && m.setorOrigem!==setor && m.setorDestino!==setor) return false;
     if(sexo && m.sexo!==sexo) return false;
     if(raca && !m.raca.toLowerCase().includes(raca)) return false;
-    if(sisbov && !m.sisbov.includes(sisbov)) return false;
+    if(sisbov){
+      const termos=[m.sisbov,m.sisbovAnterior,m.sisbovNovo,m.brinco,m.brincoAnterior,m.brincoNovo,m.chip].map(v=>String(v||''));
+      if(!termos.some(v=>v.includes(sisbov))) return false;
+    }
     return true;
   }).sort((a,b)=> b.data.localeCompare(a.data));
 }
@@ -2193,24 +2196,59 @@ function formularioMov(m){
   const d = m ? {...m, ...dadosAnimalParaMov(a,m.data||todayISO())} : dadosAnimalParaMov(a,todayISO());
   const opts=TIPOS_MOV.map(t=>`<option value="${t}" ${d.tipo===t?'selected':''}>${rotuloTipoMov(t)}</option>`).join('');
   const setores=DB.setores.map(x=>`<option ${d.setorOrigem===x?'selected':''}>${x}</option>`).join('');
-  return `<div class="alert alert-gold" id="animalLookupMsg" style="display:none"></div>
-    <div class="grid2">
-      <div class="field"><label id="movBuscaLabel">Localizar por SISBOV, Brinco ou Chip</label><input id="movBuscaAnimal" value="${d.brincoAnterior||d.brinco||d.sisbov||d.chip||''}" placeholder="Digite um identificador"></div>
-      <div class="field"><label>Data</label><input type="date" id="formMovData" value="${d.data||todayISO()}"></div>
+  return `<div class="grid2 mov-top-grid">
       <div class="field"><label>Tipo</label><select id="formMovTipo">${opts}</select></div>
-      <div class="field reid-field" style="display:none"><label>Brinco anterior</label><input id="formMovBrincoAnterior" value="${d.brincoAnterior||d.brinco||''}" readonly></div>
-      <div class="field reid-field" style="display:none"><label>Novo brinco</label><input id="formMovBrincoNovo" value="${d.brincoNovo||''}" placeholder="Digite somente o novo brinco"></div>
-      <div class="field normal-mov-field"><label>SISBOV</label><input id="formMovSisbov" value="${d.sisbov||''}"></div>
-      <div class="field normal-mov-field"><label>Brinco</label><input id="formMovBrinco" value="${d.brinco||''}"></div>
-      <div class="field"><label>Chip</label><input id="formMovChip" value="${d.chip||''}"></div>
-      <div class="field"><label>Sexo</label><select id="formMovSexo"><option value="">PENDENTE</option><option ${d.sexo==='Macho'?'selected':''}>Macho</option><option ${d.sexo==='Fêmea'?'selected':''}>Fêmea</option></select></div>
-      <div class="field"><label>Raça</label><input id="formMovRaca" value="${d.raca||''}" placeholder="PENDENTE"></div>
-      <div class="field"><label>Data de nascimento</label><input type="date" id="formMovNasc" value="${d.nascimento||''}"></div>
-      <div class="field"><label>Categoria no evento</label><input id="formMovCategoria" value="${d.categoria||calcCategoria(d.nascimento||'',d.data||todayISO())}" readonly></div>
-      <div class="field"><label>Setor origem</label><select id="formMovOrigem"><option value="">PENDENTE</option>${setores}</select></div>
-      <div class="field"><label>Setor destino</label><select id="formMovDestino"><option value="">PENDENTE</option>${DB.setores.map(x=>`<option ${d.setorDestino===x?'selected':''}>${x}</option>`).join('')}</select></div>
-      <div class="field"><label>Quantidade</label><input type="number" min="1" id="formMovQtd" value="${d.quantidade||1}"></div>
-    </div><div class="field" style="margin-top:10px"><label>Observação</label><input id="formMovObs" value="${d.observacao||''}"></div>`;
+      <div class="field"><label>Data</label><input type="date" id="formMovData" value="${d.data||todayISO()}"></div>
+    </div>
+
+    <div id="reidFlow" style="display:none;margin-top:14px">
+      <div style="background:#f7faf8;border:1px solid #dce7e1;border-radius:10px;padding:14px">
+        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">1. Localizar o animal pelo brinco anterior</div>
+        <div class="field"><label>Brinco anterior</label><input id="movBuscaAnimal" value="${d.brincoAnterior||d.brinco||''}" placeholder="Digite o brinco anterior" autocomplete="off"></div>
+        <div class="alert alert-gold" id="animalLookupMsg" style="display:none;margin:10px 0 0"></div>
+      </div>
+
+      <div id="reidAnimalCard" style="display:none;margin-top:12px;background:#fff;border:1px solid #dce7e1;border-radius:10px;padding:14px">
+        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">2. Animal localizado — dados atuais</div>
+        <div class="grid2" style="gap:9px 14px">
+          <div class="detail-row"><span>SISBOV</span><b id="reidViewSisbov">—</b></div>
+          <div class="detail-row"><span>Brinco atual</span><b id="reidViewBrinco">—</b></div>
+          <div class="detail-row"><span>Chip</span><b id="reidViewChip">—</b></div>
+          <div class="detail-row"><span>Sexo</span><b id="reidViewSexo">—</b></div>
+          <div class="detail-row"><span>Raça</span><b id="reidViewRaca">—</b></div>
+          <div class="detail-row"><span>Nascimento</span><b id="reidViewNasc">—</b></div>
+          <div class="detail-row"><span>Categoria</span><b id="reidViewCategoria">—</b></div>
+          <div class="detail-row"><span>Setor atual</span><b id="reidViewSetor">—</b></div>
+        </div>
+      </div>
+
+      <div id="reidNovoWrap" style="display:none;margin-top:12px;background:#eaf5ef;border:1px solid #bfe0cd;border-radius:10px;padding:14px">
+        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">3. Informar somente o novo brinco</div>
+        <div class="field"><label>Novo brinco</label><input id="formMovBrincoNovo" value="${d.brincoNovo||''}" placeholder="Digite o novo brinco" autocomplete="off"></div>
+        <div style="font-size:11px;color:var(--cinza-600);margin-top:8px">O animal continuará com o mesmo SISBOV, chip, sexo, raça, nascimento, categoria e setor. O saldo do rebanho não será alterado.</div>
+      </div>
+    </div>
+
+    <div id="normalMovFlow" style="margin-top:14px">
+      <div class="alert alert-gold" id="normalAnimalLookupMsg" style="display:none"></div>
+      <div class="field" style="margin-bottom:10px"><label id="movBuscaLabel">Localizar por SISBOV, Brinco ou Chip</label><input id="movBuscaAnimalNormal" value="${d.brinco||d.sisbov||d.chip||''}" placeholder="Digite um identificador"></div>
+      <div class="grid2">
+        <div class="field"><label>SISBOV</label><input id="formMovSisbov" value="${d.sisbov||''}"></div>
+        <div class="field"><label>Brinco</label><input id="formMovBrinco" value="${d.brinco||''}"></div>
+        <div class="field"><label>Chip</label><input id="formMovChip" value="${d.chip||''}"></div>
+        <div class="field"><label>Sexo</label><select id="formMovSexo"><option value="">PENDENTE</option><option ${d.sexo==='Macho'?'selected':''}>Macho</option><option ${d.sexo==='Fêmea'?'selected':''}>Fêmea</option></select></div>
+        <div class="field"><label>Raça</label><input id="formMovRaca" value="${d.raca||''}" placeholder="PENDENTE"></div>
+        <div class="field"><label>Data de nascimento</label><input type="date" id="formMovNasc" value="${d.nascimento||''}"></div>
+        <div class="field"><label>Categoria no evento</label><input id="formMovCategoria" value="${d.categoria||calcCategoria(d.nascimento||'',d.data||todayISO())}" readonly></div>
+        <div class="field"><label>Setor origem</label><select id="formMovOrigem"><option value="">PENDENTE</option>${setores}</select></div>
+        <div class="field"><label>Setor destino</label><select id="formMovDestino"><option value="">PENDENTE</option>${DB.setores.map(x=>`<option ${d.setorDestino===x?'selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>Quantidade</label><input type="number" min="1" id="formMovQtd" value="${d.quantidade||1}"></div>
+      </div>
+    </div>
+
+    <!-- Campos técnicos da reidentificação: permanecem no DOM para compatibilidade com o restante do sistema -->
+    <input type="hidden" id="formMovBrincoAnterior" value="${d.brincoAnterior||d.brinco||''}">
+    <div class="field" style="margin-top:10px"><label>Observação</label><input id="formMovObs" value="${d.observacao||''}"></div>`;
 }
 function abrirFormularioMov(m){
   if(!exigirAdmin('criar ou editar movimentações')) return;
@@ -2218,15 +2256,52 @@ function abrirFormularioMov(m){
     {label:'Cancelar',cls:'btn-outline',onClick:closeModal},
     {label:'Salvar',cls:'btn-primary',onClick:()=>salvarFormularioMov(m)}
   ], true);
-  const busca=document.getElementById('movBuscaAnimal');
+
   const tipoEl=document.getElementById('formMovTipo');
-  const preencher=()=>{
+  const buscaReid=document.getElementById('movBuscaAnimal');
+  const buscaNormal=document.getElementById('movBuscaAnimalNormal');
+  const msgReid=document.getElementById('animalLookupMsg');
+  const msgNormal=document.getElementById('normalAnimalLookupMsg');
+
+  const setText=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=(v===undefined||v===null||v==='')?'—':v;};
+  const limparReid=()=>{
+    document.getElementById('formMovBrincoAnterior').value='';
+    document.getElementById('reidAnimalCard').style.display='none';
+    document.getElementById('reidNovoWrap').style.display='none';
+  };
+  const preencherReid=()=>{
+    const q=String(buscaReid.value||'').trim();
+    if(!q){ msgReid.style.display='none'; limparReid(); return; }
+    const a=animalPorBrincoAtualOuHistorico(q);
+    if(!a){
+      limparReid();
+      msgReid.style.display='block';
+      msgReid.className='alert alert-red';
+      msgReid.innerHTML='<b>Brinco anterior não encontrado.</b> Confira o número. A reidentificação não cria outro animal.';
+      return;
+    }
     const dataRef=document.getElementById('formMovData').value||todayISO();
-    const reid=tipoEl.value==='Reidentificação';
-    const a=reid ? animalPorBrincoAtualOuHistorico(busca.value) : localizarPorIdentificador(busca.value);
-    const msg=document.getElementById('animalLookupMsg');
+    const d=dadosAnimalParaMov(a,dataRef);
+    document.getElementById('formMovBrincoAnterior').value=q;
+    setText('reidViewSisbov',d.sisbov||a.sisbov);
+    setText('reidViewBrinco',d.brinco||a.brinco||q);
+    setText('reidViewChip',d.chip||a.chip);
+    setText('reidViewSexo',d.sexo||a.sexo);
+    setText('reidViewRaca',d.raca||a.raca);
+    setText('reidViewNasc',d.nascimento?formatBR(d.nascimento):(a.nascimento?formatBR(a.nascimento):'—'));
+    setText('reidViewCategoria',d.categoria||calcCategoria(d.nascimento||a.nascimento||'',dataRef));
+    setText('reidViewSetor',d.setorOrigem||a.setorAtual||a.setorInicial);
+    document.getElementById('reidAnimalCard').style.display='block';
+    document.getElementById('reidNovoWrap').style.display='block';
+    msgReid.style.display='block';
+    msgReid.className='alert alert-green';
+    msgReid.innerHTML='<b>Animal localizado.</b> Os dados foram carregados automaticamente. Agora informe somente o novo brinco.';
+  };
+  const preencherNormal=()=>{
+    const q=String(buscaNormal.value||'').trim();
+    const a=localizarPorIdentificador(q);
     if(a){
-      const d=dadosAnimalParaMov(a,dataRef);
+      const d=dadosAnimalParaMov(a,document.getElementById('formMovData').value||todayISO());
       document.getElementById('formMovSisbov').value=d.sisbov||'';
       document.getElementById('formMovBrinco').value=d.brinco||'';
       document.getElementById('formMovChip').value=d.chip||'';
@@ -2235,32 +2310,31 @@ function abrirFormularioMov(m){
       document.getElementById('formMovNasc').value=d.nascimento||'';
       document.getElementById('formMovOrigem').value=d.setorOrigem||'';
       document.getElementById('formMovDestino').value=d.setorOrigem||'';
-      document.getElementById('formMovCategoria').value=d.categoria||calcCategoria(d.nascimento||'',dataRef);
-      const ant=document.getElementById('formMovBrincoAnterior'); if(ant) ant.value=String(busca.value||d.brinco||'').trim();
-      msg.style.display='block';
-      msg.innerHTML=reid ? '<b>Animal encontrado pelo brinco anterior.</b> SISBOV, chip, sexo, raça, nascimento, categoria e setor foram carregados automaticamente. Informe somente o novo brinco.' : '<b>Animal encontrado.</b> Os dados foram puxados automaticamente da base.';
-    } else if(busca.value.trim()){
-      msg.style.display='block';
-      msg.innerHTML=reid ? '<b>Brinco anterior não encontrado.</b> A reidentificação só pode ser feita para um animal já existente.' : 'Animal não encontrado no Mapa Inicial. Preencha os dados manualmente para cadastrá-lo na Base Individual.';
-    } else msg.style.display='none';
+      document.getElementById('formMovCategoria').value=d.categoria||calcCategoria(d.nascimento||'',document.getElementById('formMovData').value||todayISO());
+      msgNormal.style.display='block'; msgNormal.className='alert alert-green'; msgNormal.innerHTML='<b>Animal encontrado.</b> Os dados foram puxados automaticamente da base.';
+    }else if(q){msgNormal.style.display='block';msgNormal.className='alert alert-gold';msgNormal.textContent='Animal não encontrado no Mapa Inicial. Preencha os dados manualmente.';}
+    else msgNormal.style.display='none';
   };
-  const ajustarReid=()=>{
+  const ajustarFluxo=()=>{
     const reid=tipoEl.value==='Reidentificação';
-    document.querySelectorAll('.reid-field').forEach(el=>el.style.display=reid?'block':'none');
-    document.querySelectorAll('.normal-mov-field').forEach(el=>el.style.display=reid?'none':'block');
-    document.getElementById('movBuscaLabel').textContent=reid?'Brinco anterior':'Localizar por SISBOV, Brinco ou Chip';
-    busca.placeholder=reid?'Digite o brinco anterior':'Digite um identificador';
-    const qtd=document.getElementById('formMovQtd');
-    const camposAuto=['formMovChip','formMovSexo','formMovRaca','formMovNasc','formMovOrigem','formMovDestino'];
-    camposAuto.forEach(id=>{const el=document.getElementById(id); if(el) el.disabled=reid;});
-    if(reid){qtd.value=1;qtd.readOnly=true;} else qtd.readOnly=false;
-    if(reid && busca.value.trim()) preencher();
+    document.getElementById('reidFlow').style.display=reid?'block':'none';
+    document.getElementById('normalMovFlow').style.display=reid?'none':'block';
+    if(reid){ preencherReid(); setTimeout(()=>buscaReid.focus(),30); }
+    else preencherNormal();
   };
-  tipoEl.addEventListener('change',ajustarReid);
-  busca.addEventListener('input',preencher); busca.addEventListener('change',preencher); busca.addEventListener('blur',preencher);
-  const atualizarCategoria=()=>{ const el=document.getElementById('formMovCategoria'); if(el) el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO()); };
-  document.getElementById('formMovNasc').addEventListener('change',atualizarCategoria); document.getElementById('formMovData').addEventListener('change',()=>{ atualizarCategoria(); if(tipoEl.value==='Reidentificação' && busca.value.trim()) preencher(); });
-  if(busca.value) preencher(); ajustarReid(); atualizarCategoria();
+  tipoEl.addEventListener('change',ajustarFluxo);
+  ['input','change','blur'].forEach(ev=>buscaReid.addEventListener(ev,preencherReid));
+  ['input','change','blur'].forEach(ev=>buscaNormal.addEventListener(ev,preencherNormal));
+  document.getElementById('formMovData').addEventListener('change',()=>{
+    if(tipoEl.value==='Reidentificação') preencherReid();
+    else {
+      const el=document.getElementById('formMovCategoria');
+      if(el) el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO());
+      preencherNormal();
+    }
+  });
+  document.getElementById('formMovNasc').addEventListener('change',()=>{const el=document.getElementById('formMovCategoria');if(el)el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO());});
+  ajustarFluxo();
 }
 function salvarFormularioMov(m){
   if(!exigirAdmin('salvar movimentações')) return;
@@ -2276,7 +2350,8 @@ function salvarFormularioMov(m){
     if(!animal){toast('Brinco anterior não encontrado. A reidentificação não cria um novo animal.','err');return;}
     if(brincoJaPertenceOutroAnimal(novo,animal.id,m?.id)){toast('Novo brinco já cadastrado para outro animal. Reidentificação bloqueada para evitar duplicidade.','err');return;}
     const baseAtual=dadosAnimalParaMov(animal,d.data);
-    const atual={...d,animalId:animal.id,sisbov:baseAtual.sisbov||animal.sisbov||'',brinco:anterior,brincoAnterior:anterior,brincoNovo:novo,quantidade:1,
+    const sisbovAnterior=baseAtual.sisbov||animal.sisbov||'';
+    const atual={...d,animalId:animal.id,sisbov:sisbovAnterior,sisbovAnterior,brinco:anterior,brincoAnterior:anterior,brincoNovo:novo,quantidade:1,
       chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:baseAtual.setorOrigem||''};
     if(m) Object.assign(m,atual); else {atual.id=uid('mv');DB.movimentacoes.push(atual);}
     saveDB('mov'); closeModal(); renderAll(); toast('Reidentificação registrada. O mesmo animal recebeu o novo brinco sem alterar o saldo.','ok'); return;
@@ -2356,7 +2431,7 @@ function renderMovimentacoes(){
   const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
   const tbody = slice.map(m=>`<tr>
     <td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'<span class="no-sisbov">agregado</span>')}</td>
-    <td>${m.brinco||'—'}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td>
+    <td>${m.tipo==='Reidentificação'?`${m.brincoAnterior||m.brinco||'—'} → ${m.brincoNovo||'—'}`:(m.brinco||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td>
     <td>${valorExibicao(m.sexo)}</td><td>${valorExibicao(m.raca)}</td><td>${m.nascimento?formatBR(m.nascimento):'<span class="pending">PENDENTE</span>'}</td><td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td><td>${m.observacao||''}</td>${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditMov" data-id="${m.id}">EDITAR</button> <button class="btn btn-danger btn-sm btnDeleteMov" data-id="${m.id}">EXCLUIR</button></td>`:''}</tr>`).join('');
   document.getElementById('movTable').querySelector('thead').innerHTML = thead;
   document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${AUTH_ADMIN?13:12}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
@@ -2704,7 +2779,12 @@ function exportarMovimentacoes(formato){
   const lista = filtrarMovimentacoes();
   if(formato==='xlsx'){
     exportarXLSXMultiplo([{nome:'Movimentações', json: lista.map(m=>({
-      'Data':formatBR(m.data),'Tipo':m.tipo,'SISBOV':m.sisbov,'Brinco':m.brinco,'Setor Origem':m.setorOrigem,
+      'Data':formatBR(m.data),'Tipo':m.tipo,
+      'SISBOV Anterior':m.tipo==='Reidentificação'?(m.sisbovAnterior||m.sisbov||''):m.sisbov,
+      'SISBOV Novo':m.tipo==='Reidentificação'?(m.sisbovNovo||''):m.sisbov,
+      'Brinco Anterior':m.tipo==='Reidentificação'?(m.brincoAnterior||m.brinco||''):m.brinco,
+      'Brinco Novo':m.tipo==='Reidentificação'?(m.brincoNovo||''):m.brinco,
+      'Setor Origem':m.setorOrigem,
       'Setor Destino':m.setorDestino,'Sexo':m.sexo,'Raça':m.raca,'Nascimento':formatBR(m.nascimento),'Quantidade':m.quantidade,'Observação':m.observacao
     }))}], 'movimentacoes.xlsx');
   } else {
