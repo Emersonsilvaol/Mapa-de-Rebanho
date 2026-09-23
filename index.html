@@ -585,6 +585,25 @@ nav.tabs.premium-sidebar{isolation:isolate}
 nav.tabs.premium-sidebar button,nav.tabs.premium-sidebar .nav-section{position:relative;z-index:1}
 </style>
 
+
+<style id="premium-v7-photo-visibility">
+.app-header{
+  background:
+    linear-gradient(90deg,rgba(3,49,38,.93) 0%,rgba(4,65,49,.72) 38%,rgba(3,57,43,.38) 68%,rgba(3,49,38,.78) 100%),
+    var(--herd-photo) center 58%/cover no-repeat!important;
+}
+nav.tabs.premium-sidebar{
+  background:linear-gradient(180deg,#043a30 0%,#03342b 76%,rgba(3,47,39,.93) 100%)!important;
+}
+nav.tabs.premium-sidebar::after{
+  height:205px!important;
+  background:
+    linear-gradient(180deg,rgba(3,52,43,.88) 0%,rgba(3,46,38,.40) 35%,rgba(2,38,31,.70) 100%),
+    var(--herd-photo) 25% 72%/auto 155% no-repeat!important;
+  opacity:1!important;
+}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -1085,6 +1104,15 @@ async function liberarSessao(user){
  }catch(e){console.warn('Perfil/permissões:',e);}
  if(!AUTH_ADMIN)AUTH_ADMIN=ADMIN_EMAILS.includes((user.email||'').toLowerCase());
  document.getElementById('authGate').hidden=true;aplicarPermissoes();
+ requestAnimationFrame(()=>{
+   renderDashboard();
+   renderHeaderCounters();
+   recuperarBaseCentralAposInicio().then(()=>{
+     renderDashboard();
+     renderHeaderCounters();
+     window.dispatchEvent(new Event('resize'));
+   });
+ });
 }
 async function chamarAdminUsers(payload){
  if(!AUTH_ADMIN)throw new Error('Acesso exclusivo do administrador.');
@@ -1448,7 +1476,23 @@ async function recuperarBaseCentralAposInicio(){
             idbSet(LS_KEYS.config,DB.config)
           ]);
         }catch(_){}
+        // Limpa caches calculados antes da chegada da base central.
+        mapaAtualCache=null;
+        mapaAtualFiltrado=[];
+        // Força o mesmo ciclo que antes só acontecia ao trocar de aba.
         renderAll();
+        renderHeaderCounters();
+        renderDashboard();
+        requestAnimationFrame(()=>{
+          renderDashboard();
+          renderHeaderCounters();
+          window.dispatchEvent(new Event('resize'));
+        });
+        setTimeout(()=>{
+          renderDashboard();
+          renderHeaderCounters();
+          window.dispatchEvent(new Event('resize'));
+        },180);
         toast('Base central carregada: '+DB.animais.length.toLocaleString('pt-BR')+' cadastros.','ok');
       }else{
         renderHeaderCounters();
@@ -3732,6 +3776,25 @@ nav.tabs.premium-sidebar{isolation:isolate}
 nav.tabs.premium-sidebar button,nav.tabs.premium-sidebar .nav-section{position:relative;z-index:1}
 </style>
 
+
+<style id="premium-v7-photo-visibility">
+.app-header{
+  background:
+    linear-gradient(90deg,rgba(3,49,38,.93) 0%,rgba(4,65,49,.72) 38%,rgba(3,57,43,.38) 68%,rgba(3,49,38,.78) 100%),
+    var(--herd-photo) center 58%/cover no-repeat!important;
+}
+nav.tabs.premium-sidebar{
+  background:linear-gradient(180deg,#043a30 0%,#03342b 76%,rgba(3,47,39,.93) 100%)!important;
+}
+nav.tabs.premium-sidebar::after{
+  height:205px!important;
+  background:
+    linear-gradient(180deg,rgba(3,52,43,.88) 0%,rgba(3,46,38,.40) 35%,rgba(2,38,31,.70) 100%),
+    var(--herd-photo) 25% 72%/auto 155% no-repeat!important;
+  opacity:1!important;
+}
+</style>
+
 </head><body><h1>Inventário / Auditoria de Campo</h1><p>${new Date().toLocaleString('pt-BR')}</p><table><thead><tr><th>Situação</th><th>SISBOV</th><th>Sexo</th><th>Raça</th><th>Setor</th><th>Local</th><th>Detalhe</th></tr></thead><tbody>${rows.map(x=>`<tr>${Object.values(x).map(v=>`<td>${esc(String(v||''))}</td>`).join('')}</tr>`).join('')}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
 }
 
@@ -3855,7 +3918,11 @@ async function iniciarSistema(){
   document.getElementById('mapaAtualData').value = todayISO();
   document.getElementById('relFim').value = todayISO();
   initEvents(); aplicarPermissoes(); renderAll();
-  requestAnimationFrame(()=>renderHeaderCounters());
+  requestAnimationFrame(()=>{
+    renderDashboard();
+    renderHeaderCounters();
+    window.dispatchEvent(new Event('resize'));
+  });
   setTimeout(()=>renderHeaderCounters(),350);
   setTimeout(()=>recuperarBaseCentralAposInicio(),700);
   setTimeout(()=>recuperarBaseCentralAposInicio(),2200);
