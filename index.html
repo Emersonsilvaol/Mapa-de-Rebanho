@@ -1118,6 +1118,14 @@ async function loadDB(){
   }
   if(!DB.setores.length) DB.setores = ['Bela Vista','Guaicurus','Porto Carreiro','Três Pedras','Tope','Três Barras','Confinamento','Margarida','Mutum'];
   normalizarSetoresPersistidos();
+  const corrigidos=corrigirConflitosMorteFrigorificoExistentes();
+  if(corrigidos>0 && AUTH_ADMIN){
+    try{
+      await idbSet(LS_KEYS.mov,DB.movimentacoes);
+      agendarSyncCentral();
+      console.info(`${corrigidos} venda(s) frigorífico conflitante(s) com morte foram removidas.`);
+    }catch(e){ console.error('Falha ao persistir saneamento Morte x Frigorífico',e); }
+  }
 }
 async function saveDB(part){
   if(!exigirAdmin('salvar alterações')) return false;
@@ -1235,6 +1243,33 @@ function vincularMovimentacaoAoAnimal(m){
   return {mov:m,animal};
 }
 
+
+function mesmaIdentidadeMov(a,b){
+  if(!a||!b) return false;
+  if(a.animalId && b.animalId && a.animalId===b.animalId) return true;
+  const sa=normalizarSisbov(a.sisbov), sb=normalizarSisbov(b.sisbov);
+  if(sa && sb && sa===sb) return true;
+  const ba=String(a.brinco||'').trim(), bb=String(b.brinco||'').trim();
+  if(ba && bb && ba===bb) return true;
+  const ca=String(a.chip||'').trim(), cb=String(b.chip||'').trim();
+  return !!(ca && cb && ca===cb);
+}
+function conflitoMorteFrigorifico(nova, ignorarId=''){
+  if(!nova || !['Morte','Venda Frigorífico'].includes(nova.tipo)) return null;
+  const oposto=nova.tipo==='Morte'?'Venda Frigorífico':'Morte';
+  return DB.movimentacoes.find(x=>x.id!==ignorarId && x.tipo===oposto && mesmaIdentidadeMov(nova,x))||null;
+}
+function corrigirConflitosMorteFrigorificoExistentes(){
+  const mortes=(DB.movimentacoes||[]).filter(m=>m.tipo==='Morte');
+  if(!mortes.length) return 0;
+  const antes=DB.movimentacoes.length;
+  DB.movimentacoes=DB.movimentacoes.filter(m=>{
+    if(m.tipo!=='Venda Frigorífico') return true;
+    return !mortes.some(mt=>mesmaIdentidadeMov(m,mt));
+  });
+  return antes-DB.movimentacoes.length;
+}
+
 function processarImportMov(rows){
   const validos = [], erros = [];
   rows.forEach((raw, idx)=>{
@@ -1274,7 +1309,17 @@ function processarImportMov(rows){
       observacao: String(r.observacao||'').trim(),
       eventoAuditoria: tipo==='Compra'
     });
-    vincularMovimentacaoAoAnimal(validos[validos.length-1]);
+    const atual=validos[validos.length-1];
+    vincularMovimentacaoAoAnimal(atual);
+    if(['Morte','Venda Frigorífico'].includes(atual.tipo)){
+      const oposto=atual.tipo==='Morte'?'Venda Frigorífico':'Morte';
+      const conflitoExistente=DB.movimentacoes.find(x=>x.tipo===oposto && mesmaIdentidadeMov(atual,x));
+      const conflitoLote=validos.slice(0,-1).find(x=>x.tipo===oposto && mesmaIdentidadeMov(atual,x));
+      if(conflitoExistente || conflitoLote){
+        validos.pop();
+        erros.push({linha:linhaNum,motivo:`Conflito bloqueado: o mesmo animal já possui ${oposto}. Morte e Venda Frigorífico não podem coexistir.`});
+      }
+    }
   });
   return {validos, erros};
 }
@@ -2385,6 +2430,15 @@ function salvarFormularioMov(m){
   if(!exigirAdmin('salvar movimentações')) return;
   const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,local:(document.getElementById('formMovLocal')?.value||'').trim(),quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
+  if(['Morte','Venda Frigorífico'].includes(d.tipo)){
+    const conflito=conflitoMorteFrigorifico(d,m?.id||'');
+    if(conflito){
+      const msg=d.tipo==='Morte'
+        ? 'Este animal já possui Venda Frigorífico registrada. Exclua/corrija a venda antes de registrar a morte.'
+        : 'Este animal já possui Morte registrada. Não é permitido embarcar para frigorífico um animal registrado como morto.';
+      toast(msg,'err'); return;
+    }
+  }
   if(d.tipo==='Reidentificação'){
     if(!AUTH_ADMIN){toast('Acesso somente para administrador.','err');return;}
     const anterior=String(document.getElementById('formMovBrincoAnterior').value || document.getElementById('movBuscaAnimal').value||'').trim();
