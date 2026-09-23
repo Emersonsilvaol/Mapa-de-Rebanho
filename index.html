@@ -586,56 +586,60 @@ nav.tabs.premium-sidebar::after{display:none!important}
 
 
 
-<style id="modal-workspace-v11">
-/*
-  Desktop: o modal usa somente a área de trabalho.
-  Assim ele NUNCA entra atrás da sidebar nem do cabeçalho,
-  independentemente de z-index/stacking context do navegador.
-*/
-:root{--modal-sidebar:272px;--modal-header:92px}
+
+<style id="modal-definitivo-v12">
 html.modal-aberto,body.modal-aberto{overflow:hidden!important}
 
-#modalOverlay{
+/* Quando qualquer apontamento abre, a navegação sai da frente fisicamente. */
+body.modal-aberto nav.tabs.premium-sidebar{
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+  transform:translateX(-110%)!important;
+}
+body.modal-aberto .app-header{
+  pointer-events:none!important;
+}
+
+/* O modal ocupa a viewport real, sem relação com main/sidebar. */
+#modalOverlay.modal-overlay{
   position:fixed!important;
-  left:var(--modal-sidebar)!important;
-  top:var(--modal-header)!important;
-  right:0!important;
-  bottom:0!important;
-  width:auto!important;
-  height:auto!important;
-  margin:0!important;
-  padding:18px 24px!important;
+  inset:0!important;
+  left:0!important;top:0!important;right:0!important;bottom:0!important;
+  width:100vw!important;height:100vh!important;height:100dvh!important;
+  margin:0!important;padding:22px!important;
   box-sizing:border-box!important;
-  z-index:5000!important;
+  z-index:2147483646!important;
   display:none;
   align-items:center!important;
   justify-content:center!important;
   overflow:hidden!important;
-  background:rgba(9,34,28,.42)!important;
-  backdrop-filter:blur(2px)!important;
-  -webkit-backdrop-filter:blur(2px)!important;
+  background:rgba(2,29,23,.72)!important;
+  backdrop-filter:blur(4px)!important;
+  -webkit-backdrop-filter:blur(4px)!important;
 }
-#modalOverlay.open{display:flex!important}
+#modalOverlay.modal-overlay.open{display:flex!important}
 
-#modalOverlay #modalBox{
+#modalOverlay #modalBox.modal-box{
   position:relative!important;
-  left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;
+  inset:auto!important;
   transform:none!important;
   margin:auto!important;
-  width:min(980px,calc(100% - 24px))!important;
-  max-width:980px!important;
-  max-height:calc(100% - 16px)!important;
+  width:min(1040px,calc(100vw - 44px))!important;
+  max-width:1040px!important;
   min-width:0!important;
+  max-height:calc(100dvh - 44px)!important;
   display:flex!important;
   flex-direction:column!important;
   overflow:hidden!important;
-  border-radius:15px!important;
   background:#fff!important;
-  box-shadow:0 24px 65px rgba(0,0,0,.28)!important;
+  border-radius:16px!important;
+  box-shadow:0 30px 90px rgba(0,0,0,.42)!important;
+  z-index:2147483647!important;
 }
-#modalOverlay #modalBox.wide{
-  width:min(1120px,calc(100% - 24px))!important;
-  max-width:1120px!important;
+#modalOverlay #modalBox.modal-box.wide{
+  width:min(1180px,calc(100vw - 44px))!important;
+  max-width:1180px!important;
 }
 #modalOverlay .modal-header{
   flex:0 0 auto!important;
@@ -657,26 +661,17 @@ html.modal-aberto,body.modal-aberto{overflow:hidden!important}
   padding:13px 20px!important;
   background:#fff!important;
   border-top:1px solid #e1e8e4!important;
-  box-shadow:0 -6px 16px rgba(8,52,40,.05)!important;
+  box-shadow:0 -7px 18px rgba(8,52,40,.06)!important;
 }
-#modalOverlay .modal-body input,
-#modalOverlay .modal-body select,
-#modalOverlay .modal-body textarea{max-width:100%!important;box-sizing:border-box!important}
-
-/* Quando a sidebar entra no modo compacto */
-@media(max-width:900px) and (min-width:701px){
- :root{--modal-sidebar:78px}
- #modalOverlay{padding:14px!important}
+#modalOverlay input,#modalOverlay select,#modalOverlay textarea{
+  max-width:100%!important;box-sizing:border-box!important
 }
-
-/* Celular: formulário em tela cheia */
 @media(max-width:700px){
- :root{--modal-sidebar:0px;--modal-header:0px}
- #modalOverlay{left:0!important;top:0!important;padding:0!important}
- #modalOverlay #modalBox,
- #modalOverlay #modalBox.wide{
-   width:100%!important;max-width:none!important;height:100%!important;
-   max-height:100%!important;border-radius:0!important
+ #modalOverlay.modal-overlay{padding:0!important}
+ #modalOverlay #modalBox.modal-box,
+ #modalOverlay #modalBox.modal-box.wide{
+   width:100vw!important;max-width:none!important;height:100dvh!important;
+   max-height:100dvh!important;border-radius:0!important
  }
 }
 </style>
@@ -1071,6 +1066,7 @@ html.modal-aberto,body.modal-aberto{overflow:hidden!important}
 </div>
 
 <div id="toastWrap"></div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V12 · MODAL FIX</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -1369,12 +1365,17 @@ function openModal(title, bodyHTML, footerButtons, wide){
     footer.appendChild(btn);
   });
   document.getElementById('modalBox').classList.toggle('wide', !!wide);
-  document.getElementById('modalOverlay').classList.add('open');
+  const overlay=document.getElementById('modalOverlay');
+  overlay.classList.add('open');
   document.documentElement.classList.add('modal-aberto');
   document.body.classList.add('modal-aberto');
+  // Defesa contra regras antigas/injetadas: aplica a geometria crítica inline também.
+  Object.assign(overlay.style,{position:'fixed',left:'0',top:'0',right:'0',bottom:'0',width:'100vw',height:'100dvh',zIndex:'2147483646'});
 }
 function closeModal(){
-  document.getElementById('modalOverlay').classList.remove('open');
+  const overlay=document.getElementById('modalOverlay');
+  overlay.classList.remove('open');
+  overlay.removeAttribute('style');
   document.documentElement.classList.remove('modal-aberto');
   document.body.classList.remove('modal-aberto');
 }
@@ -3870,101 +3871,6 @@ nav.tabs.premium-sidebar::after{display:none!important}
 </style>
 
 
-
-<style id="modal-workspace-v11">
-/*
-  Desktop: o modal usa somente a área de trabalho.
-  Assim ele NUNCA entra atrás da sidebar nem do cabeçalho,
-  independentemente de z-index/stacking context do navegador.
-*/
-:root{--modal-sidebar:272px;--modal-header:92px}
-html.modal-aberto,body.modal-aberto{overflow:hidden!important}
-
-#modalOverlay{
-  position:fixed!important;
-  left:var(--modal-sidebar)!important;
-  top:var(--modal-header)!important;
-  right:0!important;
-  bottom:0!important;
-  width:auto!important;
-  height:auto!important;
-  margin:0!important;
-  padding:18px 24px!important;
-  box-sizing:border-box!important;
-  z-index:5000!important;
-  display:none;
-  align-items:center!important;
-  justify-content:center!important;
-  overflow:hidden!important;
-  background:rgba(9,34,28,.42)!important;
-  backdrop-filter:blur(2px)!important;
-  -webkit-backdrop-filter:blur(2px)!important;
-}
-#modalOverlay.open{display:flex!important}
-
-#modalOverlay #modalBox{
-  position:relative!important;
-  left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;
-  transform:none!important;
-  margin:auto!important;
-  width:min(980px,calc(100% - 24px))!important;
-  max-width:980px!important;
-  max-height:calc(100% - 16px)!important;
-  min-width:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-  overflow:hidden!important;
-  border-radius:15px!important;
-  background:#fff!important;
-  box-shadow:0 24px 65px rgba(0,0,0,.28)!important;
-}
-#modalOverlay #modalBox.wide{
-  width:min(1120px,calc(100% - 24px))!important;
-  max-width:1120px!important;
-}
-#modalOverlay .modal-header{
-  flex:0 0 auto!important;
-  position:relative!important;
-  padding:16px 20px!important;
-  background:linear-gradient(105deg,#063d31,#07533e)!important;
-}
-#modalOverlay .modal-body{
-  flex:1 1 auto!important;
-  min-height:0!important;
-  max-height:none!important;
-  overflow-y:auto!important;
-  overflow-x:hidden!important;
-  padding:20px!important;
-  box-sizing:border-box!important;
-}
-#modalOverlay .modal-footer{
-  flex:0 0 auto!important;
-  padding:13px 20px!important;
-  background:#fff!important;
-  border-top:1px solid #e1e8e4!important;
-  box-shadow:0 -6px 16px rgba(8,52,40,.05)!important;
-}
-#modalOverlay .modal-body input,
-#modalOverlay .modal-body select,
-#modalOverlay .modal-body textarea{max-width:100%!important;box-sizing:border-box!important}
-
-/* Quando a sidebar entra no modo compacto */
-@media(max-width:900px) and (min-width:701px){
- :root{--modal-sidebar:78px}
- #modalOverlay{padding:14px!important}
-}
-
-/* Celular: formulário em tela cheia */
-@media(max-width:700px){
- :root{--modal-sidebar:0px;--modal-header:0px}
- #modalOverlay{left:0!important;top:0!important;padding:0!important}
- #modalOverlay #modalBox,
- #modalOverlay #modalBox.wide{
-   width:100%!important;max-width:none!important;height:100%!important;
-   max-height:100%!important;border-radius:0!important
- }
-}
-</style>
 
 </head><body><h1>Inventário / Auditoria de Campo</h1><p>${new Date().toLocaleString('pt-BR')}</p><table><thead><tr><th>Situação</th><th>SISBOV</th><th>Sexo</th><th>Raça</th><th>Setor</th><th>Local</th><th>Detalhe</th></tr></thead><tbody>${rows.map(x=>`<tr>${Object.values(x).map(v=>`<td>${esc(String(v||''))}</td>`).join('')}</tr>`).join('')}</tbody></table><script>window.onload=()=>window.print()<\/script>
 <div class="modal-overlay" id="modalPreValidacao">
