@@ -477,7 +477,6 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
   <button data-view="fichaAnimal"><span>Ficha do Animal</span></button>
   <button data-view="mortalidade"><span>Mortalidade</span></button>
   <button data-view="inventario"><span>Inventário / Auditoria</span></button>
-  <button data-view="permissoes"><span>Usuários e Permissões</span></button>
   <button data-view="config" class="admin-only">Configurações / Backup</button>
   <button data-view="usuarios" class="admin-only">Usuários</button>
 </nav>
@@ -657,58 +656,9 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
 
 
   
-<div class="modal-overlay" id="modalUsuarioSistema">
-  <div class="modal" style="max-width:620px">
-    <div class="modal-head"><h3 id="tituloModalUsuario">Novo usuário</h3><button class="modal-close" id="fecharModalUsuario">×</button></div>
-    <div class="modal-body">
-      <div class="form-grid">
-        <div class="field"><label>Nome *</label><input id="usrNome" placeholder="Nome completo"></div>
-        <div class="field"><label>E-mail / Login *</label><input id="usrEmail" type="email" placeholder="usuario@empresa.com.br"></div>
-        <div class="field"><label>Senha *</label><input id="usrSenha" type="password" placeholder="Senha de acesso"></div>
-        <div class="field"><label>Perfil</label>
-          <select id="usrPerfil"><option value="personalizado">Personalizado</option><option value="administrador">Administrador</option><option value="controladoria">Controladoria</option><option value="gestor">Gestor</option><option value="visualizacao">Somente visualização</option></select>
-        </div>
-        <div class="field"><label>Status</label><select id="usrAtivo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div>
-      </div>
-      <div style="margin-top:12px;padding:10px 12px;background:#f6f7f8;border-radius:8px;font-size:12px">
-        A senha é usada para login nesta versão do sistema. Para produção com Supabase Auth, a autenticação deve ser migrada para o serviço de autenticação e a senha não deve ser armazenada em texto aberto no banco.
-      </div>
-    </div>
-    <div class="modal-foot"><button class="btn btn-outline" id="cancelarUsuario">Cancelar</button><button class="btn btn-primary" id="salvarUsuarioSistema">Salvar usuário</button></div>
-  </div>
-</div>
 
-<!-- ================= USUÁRIOS E PERMISSÕES ================= -->
-  <section id="view-permissoes" class="view">
-    <h2 class="view-title">Usuários e Permissões</h2>
-    <p class="view-sub">O administrador define quais módulos e ações cada usuário pode acessar. Sem restrição por seção.</p>
-    <div class="panel">
-      <div class="panel-head"><h3>Gerenciar acesso</h3></div>
-      <div class="panel-body">
-        <div class="toolbar">
-          <button class="btn btn-primary btn-sm" id="btnNovoUsuario">+ Novo usuário</button>
-          <button class="btn btn-outline btn-sm" id="btnEditarUsuario">Editar usuário</button>
-          <button class="btn btn-outline btn-sm" id="btnAlternarUsuario">Ativar / Inativar</button>
-          <div class="field" style="min-width:280px"><label>Usuário</label><select id="permUsuario"></select></div>
-          <div class="field"><label>Perfil base</label>
-            <select id="permPerfil">
-              <option value="personalizado">Personalizado</option>
-              <option value="administrador">Administrador</option>
-              <option value="controladoria">Controladoria</option>
-              <option value="gestor">Gestor</option>
-              <option value="visualizacao">Somente visualização</option>
-            </select>
-          </div>
-          <button class="btn btn-primary btn-sm" id="btnAplicarPerfil" style="align-self:flex-end">Aplicar perfil</button>
-          <button class="btn btn-gold btn-sm" id="btnSalvarPermissoes" style="align-self:flex-end">Salvar permissões</button>
-        </div>
-        <div id="permGrade" style="margin-top:14px"></div>
-        <p style="font-size:11.5px;color:var(--cinza-600);margin-top:12px">Administradores mantêm acesso total a Usuários e Permissões. Módulos não autorizados são removidos do menu e suas ações ficam bloqueadas.</p>
-      </div>
-    </div>
-  </section>
 
-  <!-- ================= CONFIGURAÇÕES ================= -->
+<!-- ================= CONFIGURAÇÕES ================= -->
   <section id="view-config" class="view">
     <h2 class="view-title">Configurações / Backup</h2>
     <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -777,22 +727,56 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
   <!-- ================= USUÁRIOS ================= -->
   <section id="view-usuarios" class="view admin-only">
     <h2 class="view-title">Usuários e Acessos</h2>
-    <p class="view-sub">Somente o administrador cria e controla quem pode acessar o Mapa de Rebanho.</p>
+    <p class="view-sub">Crie o usuário e defina nesta mesma tela exatamente o que ele poderá ver e fazer.</p>
+
     <div class="panel">
-      <div class="panel-head"><h3>Novo usuário</h3><span class="sub">Não existe cadastro público</span></div>
+      <div class="panel-head"><h3 id="usuarioFormTitulo">Novo usuário</h3><span class="sub">Administrador possui acesso total</span></div>
       <div class="panel-body">
+        <input type="hidden" id="usrEditId">
         <div class="grid2">
           <div class="field"><label>Nome</label><input id="usrNome" placeholder="Nome do usuário"></div>
           <div class="field"><label>E-mail</label><input id="usrEmail" type="email" placeholder="usuario@empresa.com.br"></div>
           <div class="field"><label>Senha inicial</label><input id="usrSenha" type="password" minlength="6" placeholder="Mínimo 6 caracteres"></div>
-          <div class="field"><label>Nível de acesso</label><select id="usrRole"><option value="usuario">Consulta</option><option value="admin">Administrador</option></select></div>
+          <div class="field"><label>Tipo de acesso</label>
+            <select id="usrRole">
+              <option value="personalizado">Personalizado</option>
+              <option value="visualizacao">Somente visualização</option>
+              <option value="gestor">Gestor</option>
+              <option value="controladoria">Controladoria</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
         </div>
-        <div style="margin-top:12px"><button class="btn btn-primary" id="btnCriarUsuario">CRIAR USUÁRIO</button></div>
+
+        <div id="usrPermissoesBox" style="margin-top:16px">
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+            <div><b>Permissões deste usuário</b><div style="font-size:11.5px;color:var(--cinza-600)">Marque os módulos e ações liberados.</div></div>
+            <button class="btn btn-outline btn-sm" id="btnAplicarPerfilUsuario" type="button">APLICAR PERFIL</button>
+          </div>
+          <div class="table-wrap">
+            <table class="exec">
+              <thead><tr><th>Módulo</th><th>Ver</th><th>Editar / Lançar</th><th>Excluir</th><th>Exportar</th></tr></thead>
+              <tbody id="usrPermissoesBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="btnCriarUsuario">SALVAR USUÁRIO E PERMISSÕES</button>
+          <button class="btn btn-outline" id="btnCancelarEdicaoUsuario" type="button" style="display:none">CANCELAR EDIÇÃO</button>
+        </div>
       </div>
     </div>
+
     <div class="panel">
       <div class="panel-head"><h3>Usuários cadastrados</h3><button class="btn btn-outline btn-sm" id="btnAtualizarUsuarios">Atualizar</button></div>
-      <div class="panel-body"><div id="usuariosMsg" class="alert alert-gold" style="display:none"></div><div class="table-wrap"><table class="exec"><thead><tr><th>Nome</th><th>E-mail</th><th>Acesso</th><th>Status</th><th>Último acesso</th><th>Ações</th></tr></thead><tbody id="usuariosBody"></tbody></table></div></div>
+      <div class="panel-body">
+        <div id="usuariosMsg" class="alert alert-gold" style="display:none"></div>
+        <div class="table-wrap"><table class="exec">
+          <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Último acesso</th><th>Ações</th></tr></thead>
+          <tbody id="usuariosBody"></tbody>
+        </table></div>
+      </div>
     </div>
   </section>
 </main>
@@ -859,18 +843,6 @@ async function iniciarAutenticacao(){
   if(session?.user){ await liberarSessao(session.user); return true; }
   gate.hidden=false; aplicarPermissoes(); return false;
 }
-async function liberarSessao(user){
-  AUTH_USER=user;
-  AUTH_ADMIN=false;
-  try{
-    const {data:perfil,error}=await authClient.from('profiles').select('role,ativo').eq('id',user.id).maybeSingle();
-    if(!error && perfil?.role) AUTH_ADMIN=String(perfil.role).toLowerCase()==='admin';
-    if(!error && perfil?.ativo===false){ await authClient.auth.signOut(); throw new Error('Usuário bloqueado'); }
-  }catch(e){ console.warn('Não foi possível consultar o perfil do usuário.',e); }
-  if(!AUTH_ADMIN) AUTH_ADMIN=ADMIN_EMAILS.includes((user.email||'').toLowerCase());
-  document.getElementById('authGate').hidden=true;
-  aplicarPermissoes();
-}
 async function efetuarLogin(e){
   e.preventDefault(); const msg=document.getElementById('loginMsg'), btn=document.getElementById('btnLogin'); msg.textContent=''; btn.disabled=true; btn.textContent='ENTRANDO...';
   try{ const email=document.getElementById('loginEmail').value.trim(), password=document.getElementById('loginSenha').value; const {data,error}=await authClient.auth.signInWithPassword({email,password}); if(error) throw error; await liberarSessao(data.user); await iniciarSistema(); }
@@ -878,24 +850,125 @@ async function efetuarLogin(e){
 }
 async function sairSistema(){ if(authClient) await authClient.auth.signOut(); AUTH_USER=null; AUTH_ADMIN=false; aplicarPermissoes(); location.reload(); }
 
-const ADMIN_USUARIOS_URL = SUPABASE_URL + '/functions/v1/admin-usuarios';
-async function chamarAdminUsuarios(method, body){
-  if(!AUTH_ADMIN) throw new Error('Acesso exclusivo do administrador.');
-  const {data:{session}}=await authClient.auth.getSession();
-  if(!session?.access_token) throw new Error('Sessão expirada. Entre novamente.');
-  const resp=await fetch(ADMIN_USUARIOS_URL,{method,headers:{'Authorization':'Bearer '+session.access_token,'apikey':SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
-  const out=await resp.json().catch(()=>({})); if(!resp.ok) throw new Error(out.error||'Falha ao administrar usuários.'); return out;
+
+const MODULOS_ACESSO=[
+ ['dashboard','Dashboard'],['mapaInicial','Mapa Inicial'],['mapaAtual','Mapa Atual / Final'],
+ ['movimentacoes','Movimentações'],['fichaAnimal','Ficha do Animal'],['inventario','Inventário / Auditoria'],
+ ['mortalidade','Mortalidade'],['relatorios','Relatórios'],['configuracoes','Configurações / Backup']
+];
+const PERFIS_ACESSO={
+ visualizacao:{dashboard:['ver'],mapaInicial:['ver'],mapaAtual:['ver'],movimentacoes:['ver'],fichaAnimal:['ver'],inventario:['ver'],mortalidade:['ver'],relatorios:['ver']},
+ gestor:{dashboard:['ver'],mapaInicial:['ver','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],mortalidade:['ver','exportar'],relatorios:['ver','exportar']},
+ controladoria:{dashboard:['ver'],mapaInicial:['ver','editar','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','editar','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],mortalidade:['ver','exportar'],relatorios:['ver','exportar']}
+};
+let AUTH_PERMISSIONS={};
+function moduloViewAcesso(v){
+ const x=String(v||'').toLowerCase();
+ if(x.includes('mapa-inicial')||x==='mapainicial')return'mapaInicial';
+ if(x.includes('mapa-atual')||x.includes('mapa-final')||x==='mapaatual')return'mapaAtual';
+ if(x.includes('moviment'))return'movimentacoes'; if(x.includes('ficha'))return'fichaAnimal';
+ if(x.includes('invent'))return'inventario'; if(x.includes('mortal'))return'mortalidade';
+ if(x.includes('relat'))return'relatorios'; if(x.includes('config')||x.includes('backup'))return'configuracoes';
+ if(x.includes('dashboard')||x==='home')return'dashboard'; return x;
 }
-function dataHoraBR(v){if(!v)return '—';try{return new Date(v).toLocaleString('pt-BR')}catch{return '—'}}
+function podeAcesso(mod,acao='ver'){return AUTH_ADMIN || (Array.isArray(AUTH_PERMISSIONS?.[mod])&&AUTH_PERMISSIONS[mod].includes(acao));}
+function exigirAdmin(acao='alterar dados'){if(AUTH_ADMIN)return true;toast(`Você não tem permissão para ${acao}.`,'err');return false;}
+function aplicarPermissoes(){
+ document.querySelectorAll('.admin-only').forEach(el=>el.hidden=!AUTH_ADMIN);
+ document.querySelectorAll('[data-view]').forEach(el=>{
+   const m=moduloViewAcesso(el.dataset.view);
+   if(m==='usuarios')el.style.display=AUTH_ADMIN?'':'none';
+   else el.style.display=podeAcesso(m,'ver')?'':'none';
+ });
+ const chip=document.getElementById('authUser');if(chip)chip.style.display=AUTH_USER?'inline-flex':'none';
+ const nm=document.getElementById('authUserName'),rl=document.getElementById('authUserRole');
+ if(AUTH_USER){
+   const meta=AUTH_USER.user_metadata||{};let nome=meta.full_name||meta.name||meta.nome||'';
+   if(!nome){const parte=(AUTH_USER.email||'Usuário').split('@')[0].replace(/[._-]+/g,' ').trim();nome=parte.replace(/\b\w/g,c=>c.toUpperCase());}
+   if(nm)nm.textContent=nome;if(rl)rl.textContent=AUTH_ADMIN?'Administrador':'Acesso personalizado';
+ }
+ const out=document.getElementById('btnLogout');if(out)out.style.display=AUTH_USER?'inline-block':'none';
+ // action-level buttons
+ document.querySelectorAll('section.view').forEach(sec=>{
+   const mod=moduloViewAcesso((sec.id||'').replace('view-',''));
+   sec.querySelectorAll('button,a').forEach(el=>{
+     if(sec.id==='view-usuarios')return;
+     const t=(el.textContent||'').toLowerCase();
+     let acao=null;
+     if(t.includes('excluir')||t.includes('apagar'))acao='excluir';
+     else if(t.includes('export')||t.includes('pdf')||t.includes('xlsx'))acao='exportar';
+     else if(t.includes('salvar')||t.includes('import')||t.includes('editar')||t.includes('novo')||t.includes('lançar')||t.includes('reprocess'))acao='editar';
+     if(acao&&!podeAcesso(mod,acao))el.style.display='none';
+   });
+ });
+}
+async function liberarSessao(user){
+ AUTH_USER=user;AUTH_ADMIN=false;AUTH_PERMISSIONS={};
+ try{
+   const {data:perfil,error}=await authClient.from('profiles').select('role,ativo,permissions').eq('id',user.id).maybeSingle();
+   if(error)throw error;
+   if(perfil?.ativo===false){await authClient.auth.signOut();throw new Error('Usuário bloqueado');}
+   AUTH_ADMIN=String(perfil?.role||'').toLowerCase()==='admin';
+   AUTH_PERMISSIONS=perfil?.permissions||{};
+ }catch(e){console.warn('Perfil/permissões:',e);}
+ if(!AUTH_ADMIN)AUTH_ADMIN=ADMIN_EMAILS.includes((user.email||'').toLowerCase());
+ document.getElementById('authGate').hidden=true;aplicarPermissoes();
+}
+async function chamarAdminUsers(payload){
+ if(!AUTH_ADMIN)throw new Error('Acesso exclusivo do administrador.');
+ const {data:{session}}=await authClient.auth.getSession();if(!session)throw new Error('Sessão expirada.');
+ const {data,error}=await authClient.functions.invoke('admin-users',{body:payload});
+ if(error)throw error;if(data?.error)throw new Error(data.error);return data;
+}
+function dataHoraBR(v){if(!v)return'—';try{return new Date(v).toLocaleString('pt-BR')}catch{return'—'}}
+function renderPermissoesFormulario(perms={}){
+ const body=document.getElementById('usrPermissoesBody');if(!body)return;
+ const admin=document.getElementById('usrRole')?.value==='admin';
+ body.innerHTML=MODULOS_ACESSO.map(([id,nome])=>`<tr><td><b>${nome}</b></td>${['ver','editar','excluir','exportar'].map(a=>`<td style="text-align:center"><input type="checkbox" data-usr-mod="${id}" data-usr-acao="${a}" ${(admin||perms?.[id]?.includes(a))?'checked':''} ${admin?'disabled':''}></td>`).join('')}</tr>`).join('');
+}
+function coletarPermissoesFormulario(){
+ const p={};document.querySelectorAll('[data-usr-mod]').forEach(c=>{if(c.checked){p[c.dataset.usrMod]=p[c.dataset.usrMod]||[];p[c.dataset.usrMod].push(c.dataset.usrAcao);}});return p;
+}
+function aplicarPerfilFormulario(){
+ const role=document.getElementById('usrRole').value;
+ if(role==='admin'){renderPermissoesFormulario({});return;}
+ if(role==='personalizado'){return;}
+ renderPermissoesFormulario(PERFIS_ACESSO[role]||{});
+}
+function limparFormularioUsuario(){
+ ['usrEditId','usrNome','usrEmail','usrSenha'].forEach(id=>document.getElementById(id).value='');
+ document.getElementById('usrRole').value='personalizado';document.getElementById('usuarioFormTitulo').textContent='Novo usuário';
+ document.getElementById('btnCriarUsuario').textContent='SALVAR USUÁRIO E PERMISSÕES';document.getElementById('btnCancelarEdicaoUsuario').style.display='none';
+ renderPermissoesFormulario({});
+}
 async function carregarUsuarios(){
- const body=document.getElementById('usuariosBody'); if(!body||!AUTH_ADMIN)return; body.innerHTML='<tr><td colspan="6">Carregando...</td></tr>';
- try{const out=await chamarAdminUsuarios('GET'); const users=out.users||[]; body.innerHTML=users.map(u=>`<tr><td>${esc(u.nome||'—')}</td><td>${esc(u.email||'—')}</td><td><span class="badge ${u.role==='admin'?'badge-gold':'badge-ativo'}">${u.role==='admin'?'Administrador':'Consulta'}</span></td><td><span class="user-status"><span class="user-dot" style="${u.ativo===false?'background:var(--vermelho)':''}"></span>${u.ativo===false?'Bloqueado':'Ativo'}</span></td><td>${esc(dataHoraBR(u.last_sign_in_at))}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="alterarSenhaUsuario('${u.id}')">Senha</button> <button class="btn btn-outline btn-sm" onclick="alternarUsuario('${u.id}',${u.ativo!==false})">${u.ativo===false?'Ativar':'Bloquear'}</button> <button class="btn btn-danger btn-sm" onclick="excluirUsuario('${u.id}')">Excluir</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum usuário cadastrado.</td></tr>';}
- catch(e){body.innerHTML=`<tr><td colspan="6" style="color:var(--vermelho)">${esc(e.message)}</td></tr>`;}
+ const body=document.getElementById('usuariosBody');if(!body||!AUTH_ADMIN)return;body.innerHTML='<tr><td colspan="6">Carregando...</td></tr>';
+ try{
+   const out=await chamarAdminUsers({action:'list'}),users=out.users||[];window.__USERS_ADMIN=users;
+   body.innerHTML=users.map((u,i)=>`<tr><td>${esc(u.nome||'—')}</td><td>${esc(u.email||'—')}</td><td><span class="badge ${u.role==='admin'?'badge-gold':'badge-ativo'}">${u.role==='admin'?'Administrador':(u.role||'Personalizado')}</span></td><td>${u.ativo===false?'Bloqueado':'Ativo'}</td><td>${esc(dataHoraBR(u.last_sign_in_at||u.created_at))}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="editarUsuarioAcesso(${i})">Acessos</button> <button class="btn btn-outline btn-sm" onclick="alternarUsuarioAcesso(${i})">${u.ativo===false?'Ativar':'Bloquear'}</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum usuário cadastrado.</td></tr>';
+ }catch(e){body.innerHTML=`<tr><td colspan="6" style="color:var(--vermelho)">${esc(e.message)}</td></tr>`;}
 }
-async function criarUsuario(){const nome=document.getElementById('usrNome').value.trim(),email=document.getElementById('usrEmail').value.trim(),senha=document.getElementById('usrSenha').value,role=document.getElementById('usrRole').value;if(!nome||!email||senha.length<6){toast('Preencha nome, e-mail e senha com pelo menos 6 caracteres.','err');return;}try{await chamarAdminUsuarios('POST',{nome,email,senha,role});['usrNome','usrEmail','usrSenha'].forEach(id=>document.getElementById(id).value='');document.getElementById('usrRole').value='usuario';toast('Usuário criado com sucesso.','ok');await carregarUsuarios();}catch(e){toast(e.message,'err')}}
-async function alterarSenhaUsuario(id){const senha=prompt('Digite a nova senha (mínimo 6 caracteres):');if(!senha)return;if(senha.length<6){toast('A senha precisa ter pelo menos 6 caracteres.','err');return;}try{await chamarAdminUsuarios('PATCH',{id,senha});toast('Senha atualizada.','ok')}catch(e){toast(e.message,'err')}}
-async function alternarUsuario(id,ativo){try{await chamarAdminUsuarios('PATCH',{id,ativo:!ativo});toast(!ativo?'Usuário ativado.':'Usuário bloqueado.','ok');await carregarUsuarios()}catch(e){toast(e.message,'err')}}
-async function excluirUsuario(id){confirmDialog('Excluir usuário','Este usuário perderá o acesso ao sistema. Deseja continuar?',async()=>{try{await chamarAdminUsuarios('DELETE',{id});toast('Usuário excluído.','ok');await carregarUsuarios()}catch(e){toast(e.message,'err')}})}
+function editarUsuarioAcesso(i){
+ const u=window.__USERS_ADMIN?.[i];if(!u)return;
+ document.getElementById('usrEditId').value=u.id;document.getElementById('usrNome').value=u.nome||'';document.getElementById('usrEmail').value=u.email||'';document.getElementById('usrSenha').value='';
+ document.getElementById('usrRole').value=u.role==='admin'?'admin':(u.role||'personalizado');
+ document.getElementById('usuarioFormTitulo').textContent='Editar usuário e permissões';document.getElementById('btnCriarUsuario').textContent='SALVAR ALTERAÇÕES';document.getElementById('btnCancelarEdicaoUsuario').style.display='';
+ renderPermissoesFormulario(u.permissions||{});document.getElementById('view-usuarios').scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function salvarUsuarioAcesso(){
+ const id=document.getElementById('usrEditId').value,nome=document.getElementById('usrNome').value.trim(),email=document.getElementById('usrEmail').value.trim().toLowerCase(),password=document.getElementById('usrSenha').value,role=document.getElementById('usrRole').value;
+ if(!nome||!email||(!id&&password.length<6)){toast('Preencha nome, e-mail e senha inicial com pelo menos 6 caracteres.','err');return;}
+ const permissions=role==='admin'?{}:coletarPermissoesFormulario();
+ try{
+   if(id)await chamarAdminUsers({action:'update',id,nome,email,password:password||undefined,role:role==='personalizado'?'usuario':role,ativo:true,permissions});
+   else await chamarAdminUsers({action:'create',nome,email,password,role:role==='personalizado'?'usuario':role,ativo:true,permissions});
+   toast(id?'Usuário e permissões atualizados.':'Usuário criado com permissões.','ok');limparFormularioUsuario();await carregarUsuarios();
+ }catch(e){toast(e.message||'Falha ao salvar usuário.','err');}
+}
+async function alternarUsuarioAcesso(i){
+ const u=window.__USERS_ADMIN?.[i];if(!u||u.role==='admin'){toast('Administrador não pode ser bloqueado por esta tela.','err');return;}
+ try{await chamarAdminUsers({action:'update',id:u.id,nome:u.nome,email:u.email,role:u.role,ativo:u.ativo===false,permissions:u.permissions||{}});toast(u.ativo===false?'Usuário ativado.':'Usuário bloqueado.','ok');await carregarUsuarios();}catch(e){toast(e.message,'err')}
+}
 
 /* ============================== UTIL ==================================== */
 const TIPOS_MOV = ['Nascimento','Morte','Transferência entre Seções','Animais sem auditar','Compra','Venda Frigorífico','Venda Terceiro','Reidentificação'];
@@ -3227,143 +3300,6 @@ function processarInventario(){
 }
 
 
-/* ===== CONTROLE DE ACESSO POR USUÁRIO ===== */
-const MODULOS_PERMISSAO=[
- ['dashboard','Dashboard'],['mapaInicial','Mapa Inicial'],['mapaAtual','Mapa Atual / Final'],
- ['movimentacoes','Movimentações'],['fichaAnimal','Ficha do Animal'],['inventario','Inventário / Auditoria'],
- ['mortalidade','Mortalidade'],['relatorios','Relatórios'],['configuracoes','Configurações / Backup']
-];
-const ACOES_PERMISSAO=['ver','editar','excluir','exportar'];
-const PERFIS_PERMISSAO={
- administrador:'all',
- visualizacao:{dashboard:['ver'],mapaInicial:['ver'],mapaAtual:['ver'],movimentacoes:['ver'],fichaAnimal:['ver'],inventario:['ver'],mortalidade:['ver'],relatorios:['ver']},
- gestor:{dashboard:['ver'],mapaInicial:['ver','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],mortalidade:['ver','exportar'],relatorios:['ver','exportar']},
- controladoria:{dashboard:['ver'],mapaInicial:['ver','editar','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','editar','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],mortalidade:['ver','exportar'],relatorios:['ver','exportar']}
-};
-function usuarioAtualSistema(){
-  return window.currentUser || window.usuarioLogado || window.USUARIO_ATUAL || (DB&&DB.usuarioAtual) || null;
-}
-function emailUsuario(u){ return String(u?.email||u?.usuario||u?.username||u?.login||'').toLowerCase(); }
-function ehAdminUsuario(u){
-  const p=String(u?.perfil||u?.role||u?.tipo||'').toLowerCase();
-  return p.includes('admin') || u?.admin===true || u?.isAdmin===true;
-}
-function permissoesStore(){ DB.config=DB.config||{}; DB.config.permissoesUsuarios=DB.config.permissoesUsuarios||{}; return DB.config.permissoesUsuarios; }
-function permissoesDoUsuario(u){
-  if(ehAdminUsuario(u)) return 'all';
-  const key=emailUsuario(u); return permissoesStore()[key] || {};
-}
-function pode(mod,acao='ver'){
-  const u=usuarioAtualSistema(); if(!u) return true; // preserva compatibilidade com versões antigas de login
-  const p=permissoesDoUsuario(u); if(p==='all') return true;
-  return Array.isArray(p?.[mod]) && p[mod].includes(acao);
-}
-function moduloDaView(v){
- const x=String(v||'').toLowerCase();
- if(x.includes('mapa-inicial')||x==='mapainicial')return'mapaInicial';
- if(x.includes('mapa-atual')||x.includes('mapa-final')||x==='mapaatual')return'mapaAtual';
- if(x.includes('moviment'))return'movimentacoes';
- if(x.includes('ficha'))return'fichaAnimal';
- if(x.includes('invent'))return'inventario';
- if(x.includes('mortal'))return'mortalidade';
- if(x.includes('relat'))return'relatorios';
- if(x.includes('config')||x.includes('backup'))return'configuracoes';
- if(x.includes('dashboard')||x==='home')return'dashboard';
- if(x.includes('permis'))return'permissoes';
- return x;
-}
-function aplicarPermissoesUI(){
- const u=usuarioAtualSistema(); if(!u)return;
- document.querySelectorAll('[data-view]').forEach(b=>{
-   const m=moduloDaView(b.dataset.view);
-   if(m==='permissoes') b.style.display=ehAdminUsuario(u)?'':'none';
-   else b.style.display=pode(m,'ver')?'':'none';
- });
- // Bloqueio complementar por tipo de ação nos módulos visíveis.
- document.querySelectorAll('button,a').forEach(el=>{
-   const txt=(el.textContent||'').toLowerCase();
-   const sec=el.closest('section.view'); if(!sec)return;
-   const m=moduloDaView((sec.id||'').replace('view-',''));
-   if(txt.includes('excluir')||txt.includes('apagar')){ if(!pode(m,'excluir')) el.style.display='none'; }
-   else if(txt.includes('export')||txt.includes('pdf')||txt.includes('xlsx')){ if(!pode(m,'exportar')) el.style.display='none'; }
-   else if(txt.includes('salvar')||txt.includes('import')||txt.includes('editar')||txt.includes('novo')||txt.includes('lançar')){ if(!pode(m,'editar')) el.style.display='none'; }
- });
-}
-function listaUsuariosSistema(){
- DB.config=DB.config||{};
- if(!Array.isArray(DB.config.usuarios)){
-   const legado=[DB?.usuarios,window.USUARIOS,window.users].find(Array.isArray)||[];
-   DB.config.usuarios=legado.map(u=>({...u}));
- }
- return DB.config.usuarios;
-}
-
-let usuarioEdicaoIndex=null;
-function abrirModalUsuario(index=null){
-  const users=listaUsuariosSistema(); usuarioEdicaoIndex=index;
-  const u=index===null?null:users[index];
-  document.getElementById('tituloModalUsuario').textContent=u?'Editar usuário':'Novo usuário';
-  document.getElementById('usrNome').value=u?.nome||u?.name||'';
-  document.getElementById('usrEmail').value=u?.email||u?.usuario||'';
-  document.getElementById('usrSenha').value=u?.senha||'';
-  document.getElementById('usrPerfil').value=u?.perfil||'personalizado';
-  document.getElementById('usrAtivo').value=String(u?.ativo!==false);
-  document.getElementById('modalUsuarioSistema').classList.add('open');
-}
-function fecharModalUsuarioSistema(){document.getElementById('modalUsuarioSistema')?.classList.remove('open');}
-async function salvarUsuarioCadastro(){
-  const nome=document.getElementById('usrNome').value.trim(),email=document.getElementById('usrEmail').value.trim().toLowerCase(),
-        senha=document.getElementById('usrSenha').value,perfil=document.getElementById('usrPerfil').value,ativo=document.getElementById('usrAtivo').value==='true';
-  if(!nome||!email||!senha){toast('Preencha nome, e-mail e senha.','err');return;}
-  const users=listaUsuariosSistema();
-  if(users.some((u,i)=>i!==usuarioEdicaoIndex&&emailUsuario(u)===email)){toast('Já existe usuário com este e-mail/login.','err');return;}
-  const anterior=usuarioEdicaoIndex===null?null:users[usuarioEdicaoIndex];
-  const u={...(anterior||{}),id:anterior?.id||('usr_'+Date.now().toString(36)),nome,email,usuario:email,senha,perfil,ativo};
-  if(usuarioEdicaoIndex===null) users.push(u); else users[usuarioEdicaoIndex]=u;
-  if(perfil==='administrador'){u.admin=true; delete permissoesStore()[email];}
-  else {u.admin=false;if(PERFIS_PERMISSAO[perfil]&&perfil!=='personalizado')permissoesStore()[email]=JSON.parse(JSON.stringify(PERFIS_PERMISSAO[perfil]));}
-  await saveDB('config'); fecharModalUsuarioSistema(); renderPermissoes(); toast('Usuário salvo.','ok');
-}
-async function alternarStatusUsuario(){
- const u=usuarioSelecionadoPerm();if(!u){toast('Selecione um usuário.','err');return;}
- if(ehAdminUsuario(u)){toast('Não inative o administrador principal por esta tela.','err');return;}
- u.ativo=u.ativo===false?true:false;await saveDB('config');renderPermissoes();toast(u.ativo?'Usuário ativado.':'Usuário inativado.','ok');
-}
-
-function renderPermissoes(){
- const sel=document.getElementById('permUsuario'); if(!sel)return;
- const users=listaUsuariosSistema();
- sel.innerHTML=users.map((u,i)=>`<option value="${i}">${u.ativo===false?'[INATIVO] ':''}${u.nome||u.name||u.email||u.usuario||('Usuário '+(i+1))} — ${u.perfil||'personalizado'}</option>`).join('');
- if(!users.length) sel.innerHTML='<option value="">Nenhum usuário cadastrado encontrado</option>';
- renderGradePermissoes();
-}
-function usuarioSelecionadoPerm(){
- const users=listaUsuariosSistema(),i=Number(document.getElementById('permUsuario')?.value); return users[i]||null;
-}
-function renderGradePermissoes(){
- const box=document.getElementById('permGrade');if(!box)return;
- const u=usuarioSelecionadoPerm(),p=u?permissoesDoUsuario(u):{};
- box.innerHTML=`<div class="table-wrap"><table class="exec"><thead><tr><th>Módulo</th><th>Ver</th><th>Editar/Lançar</th><th>Excluir</th><th>Exportar</th></tr></thead><tbody>
- ${MODULOS_PERMISSAO.map(([id,nome])=>`<tr><td><b>${nome}</b></td>${ACOES_PERMISSAO.map(a=>`<td style="text-align:center"><input type="checkbox" data-perm-mod="${id}" data-perm-acao="${a}" ${(p==='all'||p?.[id]?.includes(a))?'checked':''} ${ehAdminUsuario(u)?'disabled':''}></td>`).join('')}</tr>`).join('')}
- </tbody></table></div>`;
-}
-function aplicarPerfilSelecionado(){
- const perfil=document.getElementById('permPerfil').value;
- const cfg=PERFIS_PERMISSAO[perfil]; if(!cfg)return;
- document.querySelectorAll('[data-perm-mod]').forEach(c=>{
-   const m=c.dataset.permMod,a=c.dataset.permAcao;
-   c.checked=cfg==='all'||Array.isArray(cfg[m])&&cfg[m].includes(a);
- });
-}
-async function salvarPermissoesSelecionadas(){
- const u=usuarioSelecionadoPerm(); if(!u){toast('Selecione um usuário.','err');return;}
- if(ehAdminUsuario(u)){toast('Administrador mantém acesso total.','err');return;}
- const obj={};
- document.querySelectorAll('[data-perm-mod]').forEach(c=>{if(c.checked){obj[c.dataset.permMod]=obj[c.dataset.permMod]||[];obj[c.dataset.permMod].push(c.dataset.permAcao);}});
- permissoesStore()[emailUsuario(u)]=obj;
- await saveDB('config'); toast('Permissões salvas.','ok'); aplicarPermissoesUI();
-}
-
 function initEvents(){
   const fb=document.getElementById('btnFichaBuscar'); if(fb) fb.onclick=renderFichaAnimal; const fi=document.getElementById('fichaBusca'); if(fi) fi.addEventListener('keydown',e=>{if(e.key==='Enter')renderFichaAnimal();});
   const ma=document.getElementById('btnMortAplicar'); if(ma) ma.onclick=renderMortalidade;
@@ -3442,27 +3378,19 @@ function initEvents(){
   document.getElementById('btnExportRelXlsx').onclick = ()=> exportarRelatorio('xlsx');
   document.getElementById('btnExportRelPdf').onclick = ()=> exportarRelatorio('pdf');
 
-  // Usuários
-  const btnCriarUsuario=document.getElementById('btnCriarUsuario'); if(btnCriarUsuario) btnCriarUsuario.onclick=criarUsuario;
-  const btnAtualizarUsuarios=document.getElementById('btnAtualizarUsuarios'); if(btnAtualizarUsuarios) btnAtualizarUsuarios.onclick=carregarUsuarios;
 
   // Inventário / Auditoria
   const btnProcInv=document.getElementById('btnProcessarInventario');if(btnProcInv)btnProcInv.onclick=processarInventario;
   const btnLimInv=document.getElementById('btnLimparInventario');if(btnLimInv)btnLimInv.onclick=()=>{document.getElementById('invSisbovs').value='';document.getElementById('invLocal').value='';document.getElementById('invResumo').innerHTML='';document.getElementById('invDetalhe').innerHTML='';};
 
 
-  // Cadastro de usuários
-  const bnu=document.getElementById('btnNovoUsuario');if(bnu)bnu.onclick=()=>abrirModalUsuario(null);
-  const beu=document.getElementById('btnEditarUsuario');if(beu)beu.onclick=()=>{const i=Number(document.getElementById('permUsuario')?.value);if(Number.isFinite(i))abrirModalUsuario(i);};
-  const bau=document.getElementById('btnAlternarUsuario');if(bau)bau.onclick=alternarStatusUsuario;
-  const fmu=document.getElementById('fecharModalUsuario');if(fmu)fmu.onclick=fecharModalUsuarioSistema;
-  const cmu=document.getElementById('cancelarUsuario');if(cmu)cmu.onclick=fecharModalUsuarioSistema;
-  const sus=document.getElementById('salvarUsuarioSistema');if(sus)sus.onclick=salvarUsuarioCadastro;
-
-  // Usuários e Permissões
-  const pu=document.getElementById('permUsuario'); if(pu)pu.onchange=renderGradePermissoes;
-  const pap=document.getElementById('btnAplicarPerfil'); if(pap)pap.onclick=aplicarPerfilSelecionado;
-  const psp=document.getElementById('btnSalvarPermissoes'); if(psp)psp.onclick=salvarPermissoesSelecionadas;
+  // Usuários e acessos
+  const bcu=document.getElementById('btnCriarUsuario');if(bcu)bcu.onclick=salvarUsuarioAcesso;
+  const btnAtualUsr=document.getElementById('btnAtualizarUsuarios');if(btnAtualUsr)btnAtualUsr.onclick=carregarUsuarios;
+  const bapu=document.getElementById('btnAplicarPerfilUsuario');if(bapu)bapu.onclick=aplicarPerfilFormulario;
+  const bru=document.getElementById('usrRole');if(bru)bru.onchange=aplicarPerfilFormulario;
+  const bce=document.getElementById('btnCancelarEdicaoUsuario');if(bce)bce.onclick=limparFormularioUsuario;
+  renderPermissoesFormulario({});
 
   // Configurações / Backup
   document.getElementById('btnExportBackup').onclick = exportarBackup;
@@ -3537,106 +3465,6 @@ init();
 })();
 </script>
 
-
-<script>
-/* ===== SUPABASE AUTH + PERMISSÕES CENTRALIZADAS ===== */
-const SB_URL='https://ernbxfwhfqsriklqruhn.supabase.co';
-const SB_KEY='sb_publishable__ipSslWaw9EbT64RQ_gMmA_5hVstCNP';
-const sbAuth=window.supabase?.createClient(SB_URL,SB_KEY);
-window.SUPABASE_MAPA=sbAuth;
-
-async function carregarPerfilSupabase(){
-  if(!sbAuth)return null;
-  const {data:{session}}=await sbAuth.auth.getSession();
-  if(!session?.user)return null;
-  const {data,error}=await sbAuth.from('profiles').select('id,nome,email,role,ativo,permissions').eq('id',session.user.id).single();
-  if(error)throw error;
-  if(!data?.ativo){await sbAuth.auth.signOut();throw new Error('Usuário inativo.');}
-  window.currentUser={id:data.id,nome:data.nome,email:data.email||session.user.email,perfil:data.role,role:data.role,ativo:data.ativo,admin:data.role==='admin',permissions:data.permissions||{}};
-  return window.currentUser;
-}
-async function loginSupabaseMapa(email,password){
-  if(!sbAuth)throw new Error('Supabase indisponível.');
-  const {data,error}=await sbAuth.auth.signInWithPassword({email,password});if(error)throw error;
-  await carregarPerfilSupabase(); aplicarPermissoesUI(); return data;
-}
-async function logoutSupabaseMapa(){if(sbAuth)await sbAuth.auth.signOut();location.reload();}
-const _permissoesDoUsuarioLocal=window.permissoesDoUsuario;
-window.permissoesDoUsuario=function(u){
-  if(u?.role==='admin'||u?.perfil==='admin'||u?.admin===true)return'all';
-  if(u?.permissions)return u.permissions;
-  return _permissoesDoUsuarioLocal?_permissoesDoUsuarioLocal(u):{};
-};
-async function listarPerfisSupabase(){
-  if(!sbAuth)return[];
-  const {data,error}=await sbAuth.from('profiles').select('id,nome,email,role,ativo,permissions,created_at').order('nome');
-  if(error)throw error; return data||[];
-}
-async function salvarPermissoesSupabase(userId,role,ativo,permissions,nome,email){
-  if(!sbAuth)throw new Error('Supabase indisponível.');
-  const payload={role,ativo,permissions,nome,email};
-  const {error}=await sbAuth.from('profiles').update(payload).eq('id',userId);if(error)throw error;
-}
-document.addEventListener('DOMContentLoaded',async()=>{
-  try{const u=await carregarPerfilSupabase();if(u){setTimeout(()=>{renderAll?.();aplicarPermissoesUI?.();},0);}}catch(e){console.warn('Sessão Supabase:',e.message);}
-});
-</script>
-
-
-<script>
-/* ===== ADMINISTRAÇÃO DE USUÁRIOS VIA EDGE FUNCTION ===== */
-async function adminUsersCall(payload){
-  const {data:{session}}=await sbAuth.auth.getSession();
-  if(!session) throw new Error('Faça login como administrador.');
-  const {data,error}=await sbAuth.functions.invoke('admin-users',{body:payload});
-  if(error) throw error;
-  if(data?.error) throw new Error(data.error);
-  return data;
-}
-async function carregarUsuariosAdministracao(){
-  if(!window.currentUser?.admin)return[];
-  const r=await adminUsersCall({action:'list'});
-  DB.config=DB.config||{};DB.config.usuarios=r.users||[];
-  renderPermissoes();return r.users||[];
-}
-const _salvarUsuarioCadastroLocal=window.salvarUsuarioCadastro;
-window.salvarUsuarioCadastro=async function(){
- try{
-  const nome=document.getElementById('usrNome').value.trim(),email=document.getElementById('usrEmail').value.trim().toLowerCase(),
-        password=document.getElementById('usrSenha').value,perfil=document.getElementById('usrPerfil').value,ativo=document.getElementById('usrAtivo').value==='true';
-  if(!nome||!email||(usuarioEdicaoIndex===null&&!password)){toast('Preencha nome, e-mail e senha.','err');return;}
-  const role=perfil==='administrador'?'admin':perfil;
-  let permissions={};
-  if(PERFIS_PERMISSAO[perfil]&&PERFIS_PERMISSAO[perfil]!=='all')permissions=PERFIS_PERMISSAO[perfil];
-  if(usuarioEdicaoIndex===null){
-    await adminUsersCall({action:'create',nome,email,password,role,ativo,permissions});
-  }else{
-    const u=usuarioSelecionadoPerm();
-    await adminUsersCall({action:'update',id:u.id,nome,email,password:password||undefined,role,ativo,permissions:u.permissions||permissions});
-  }
-  fecharModalUsuarioSistema();await carregarUsuariosAdministracao();toast('Usuário salvo no Supabase.','ok');
- }catch(e){toast(e.message||'Erro ao salvar usuário.','err');}
-};
-const _salvarPermissoesSelecionadasLocal=window.salvarPermissoesSelecionadas;
-window.salvarPermissoesSelecionadas=async function(){
- try{
-  const u=usuarioSelecionadoPerm();if(!u)throw new Error('Selecione um usuário.');
-  const permissions={};
-  document.querySelectorAll('[data-perm-mod]').forEach(c=>{if(c.checked){permissions[c.dataset.permMod]=permissions[c.dataset.permMod]||[];permissions[c.dataset.permMod].push(c.dataset.permAcao);}});
-  await adminUsersCall({action:'update',id:u.id,nome:u.nome,email:u.email,role:u.role||u.perfil||'usuario',ativo:u.ativo!==false,permissions});
-  await carregarUsuariosAdministracao();toast('Permissões atualizadas no Supabase.','ok');
- }catch(e){toast(e.message||'Erro ao salvar permissões.','err');}
-};
-window.alternarStatusUsuario=async function(){
- try{
-  const u=usuarioSelecionadoPerm();if(!u)throw new Error('Selecione um usuário.');
-  if((u.role||u.perfil)==='admin')throw new Error('Administrador não pode ser inativado por esta tela.');
-  await adminUsersCall({action:'update',id:u.id,nome:u.nome,email:u.email,role:u.role||u.perfil||'usuario',ativo:u.ativo===false,permissions:u.permissions||{}});
-  await carregarUsuariosAdministracao();toast(u.ativo===false?'Usuário ativado.':'Usuário inativado.','ok');
- }catch(e){toast(e.message||'Erro ao alterar usuário.','err');}
-};
-document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{if(window.currentUser?.admin)carregarUsuariosAdministracao().catch(console.warn)},900));
-</script>
 
 </body>
 </html>
