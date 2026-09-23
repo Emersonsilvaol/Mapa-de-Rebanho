@@ -458,6 +458,18 @@ main{margin-left:var(--sidebar-w)!important;padding-top:82px!important;max-width
 @media print{nav.tabs.premium-sidebar{display:none!important}main{margin-left:0!important;padding-top:0!important}}
 </style>
 
+
+<style id="premium-color-fix">
+nav.tabs.premium-sidebar{
+  background:#0d5b43!important;
+  box-shadow:8px 0 24px rgba(13,91,67,.10)!important;
+}
+nav.tabs.premium-sidebar button.active{
+  background:rgba(255,255,255,.10)!important;
+  box-shadow:inset 3px 0 0 var(--dourado)!important;
+}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -2272,10 +2284,24 @@ function kpiCard(lbl,val,sub,icon,tone){
 }
 
 function renderHeaderCounters(){
-  const {animais} = buildMapaNaData(todayISO());
-  const ativos = animais.filter(a=>a.status==='ATIVO').length;
-  document.getElementById('headerHerdCount').textContent = ativos.toLocaleString('pt-BR')+' cabeças';
-  document.getElementById('headerDate').textContent = new Date().toLocaleDateString('pt-BR');
+  const elTotal=document.getElementById('headerHerdCount');
+  const elData=document.getElementById('headerDate');
+  if(elData) elData.textContent=new Date().toLocaleDateString('pt-BR');
+  let ativos=0;
+  try{
+    // Usa a mesma base já calculada pelo Mapa Atual quando disponível.
+    const base=(mapaAtualCache?.animais?.length ? mapaAtualCache.animais : buildMapaNaData(todayISO()).animais)||[];
+    ativos=base.filter(a=>String(a.status||'').toUpperCase()==='ATIVO').length;
+    // Fallback para a base de estado, evitando cabeçalho zerado enquanto o mapa possui animais.
+    if(!ativos && (DB.animais||[]).length){
+      const estado=calcularEstadoAte(todayISO());
+      if(Array.isArray(estado?.ativos)) ativos=estado.ativos.length;
+    }
+  }catch(e){
+    console.warn('Contador do cabeçalho:',e);
+    try{const estado=calcularEstadoAte(todayISO());ativos=Array.isArray(estado?.ativos)?estado.ativos.length:0}catch(_){}
+  }
+  if(elTotal) elTotal.textContent=Number(ativos||0).toLocaleString('pt-BR')+' cabeças';
 }
 
 function renderDashboard(){
@@ -2802,6 +2828,7 @@ function renderMapaAtual(){
     : '';
   renderAuditoriaMapaAtual(inconsistencias, ref);
   renderAnimaisTable();
+  renderHeaderCounters();
 }
 
 function renderAuditoriaMapaAtual(inconsistencias, ref){
@@ -3036,12 +3063,13 @@ function renderFichaAnimal(){
   const status=a.status==='MORTO'?'Morto':a.status==='VENDIDO'?'Vendido':'Ativo';
   out.innerHTML=`<div class="panel"><div class="panel-head"><h3>${a.sisbov||'Sem SISBOV'}</h3><span class="badge ${a.status==='ATIVO'?'badge-green':'badge-gold'}">${status}</span></div><div class="panel-body"><div class="grid2"><div class="detail-row"><span>Brinco</span><b>${a.brinco||'—'}</b></div><div class="detail-row"><span>Chip</span><b>${a.chip||'—'}</b></div><div class="detail-row"><span>Sexo</span><b>${a.sexo||'—'}</b></div><div class="detail-row"><span>Raça</span><b>${a.raca||'—'}</b></div><div class="detail-row"><span>Setor atual</span><b>${a.setorAtual||'—'}</b></div><div class="detail-row"><span>Categoria</span><b>${a.categoria||'—'}</b></div></div></div></div><div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Linha do tempo</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Data</th><th>Evento</th><th>Identificação</th><th>Origem</th><th>Destino</th><th>Detalhe</th></tr></thead><tbody>${movs.map(m=>`<tr><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td><td>${m.causaMorte||m.observacao||'—'}</td></tr>`).join('')||'<tr><td colspan="6">Sem movimentações.</td></tr>'}</tbody></table></div></div></div>`;
 }
+const BASE_DOCUMENTAL_MORTALIDADE=14951;
 function renderMortalidade(){
   const ini=document.getElementById('mortIni')?.value||'', fim=document.getElementById('mortFim')?.value||todayISO(), setor=document.getElementById('mortSetor')?.value||'';
   const lista=DB.movimentacoes.filter(m=>tipoOperacionalMov(m)==='Morte' && (!ini||m.data>=ini) && (!fim||m.data<=fim) && (!setor||m.setorOrigem===setor));
   const qtd=lista.reduce((s,m)=>s+(Number(m.quantidade)||1),0); const base=buildMapaNaData(ini||DB.config.dataMapaInicial).animais.filter(a=>a.status==='ATIVO'&&(!setor||a.setorAtual===setor)).length; const taxa=base?qtd/base*100:0;
   const causas={}; lista.forEach(m=>{const k=m.causaMorte||'Não informada';causas[k]=(causas[k]||0)+(Number(m.quantidade)||1)});
-  document.getElementById('mortResumo').innerHTML=`<div class="exec-kpis"><div class="kpi-card"><div><div class="kpi-lbl">MORTES</div><div class="kpi-val">${qtd.toLocaleString('pt-BR')}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">BASE NO INÍCIO</div><div class="kpi-val">${base.toLocaleString('pt-BR')}</div></div></div><div class="kpi-card tone-red"><div><div class="kpi-lbl">MORTALIDADE</div><div class="kpi-val">${taxa.toFixed(2).replace('.',',')}%</div></div></div></div>`;
+  document.getElementById('mortResumo').innerHTML=`<div class="exec-kpis"><div class="kpi-card"><div><div class="kpi-lbl">MORTES</div><div class="kpi-val">${qtd.toLocaleString('pt-BR')}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">BASE NO INÍCIO</div><div class="kpi-val">${Number(BASE_DOCUMENTAL_MORTALIDADE).toLocaleString('pt-BR')}</div></div></div><div class="kpi-card tone-red"><div><div class="kpi-lbl">MORTALIDADE</div><div class="kpi-val">${taxa.toFixed(2).replace('.',',')}%</div></div></div></div>`;
   document.getElementById('mortDetalhe').innerHTML=`<div class="panel"><div class="panel-head"><h3>Causas da morte</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Causa</th><th>Quantidade</th><th>%</th></tr></thead><tbody>${Object.entries(causas).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td><td>${qtd?(v/qtd*100).toFixed(1).replace('.',','):0}%</td></tr>`).join('')||'<tr><td colspan="3">Sem mortes no período.</td></tr>'}</tbody></table></div></div></div>`;
 }
 function renderConciliacao(){
@@ -3415,7 +3443,19 @@ function exportarInventarioXlsx(){
 function exportarInventarioPdf(){
  if(!INV_RESULTADO)return;
  const rows=dadosExportInventario();const w=window.open('','_blank');if(!w){toast('Permita pop-ups para exportar PDF.','err');return;}
- w.document.write(`<html><head><title>Resultado Auditoria</title><style>body{font-family:Arial;padding:24px;color:#26332e}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #ccd5d0;padding:6px;text-align:left}th{background:#0f3b2e;color:white}</style></head><body><h1>Inventário / Auditoria de Campo</h1><p>${new Date().toLocaleString('pt-BR')}</p><table><thead><tr><th>Situação</th><th>SISBOV</th><th>Sexo</th><th>Raça</th><th>Setor</th><th>Local</th><th>Detalhe</th></tr></thead><tbody>${rows.map(x=>`<tr>${Object.values(x).map(v=>`<td>${esc(String(v||''))}</td>`).join('')}</tr>`).join('')}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
+ w.document.write(`<html><head><title>Resultado Auditoria</title><style>body{font-family:Arial;padding:24px;color:#26332e}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #ccd5d0;padding:6px;text-align:left}th{background:#0f3b2e;color:white}</style>
+<style id="premium-color-fix">
+nav.tabs.premium-sidebar{
+  background:#0d5b43!important;
+  box-shadow:8px 0 24px rgba(13,91,67,.10)!important;
+}
+nav.tabs.premium-sidebar button.active{
+  background:rgba(255,255,255,.10)!important;
+  box-shadow:inset 3px 0 0 var(--dourado)!important;
+}
+</style>
+
+</head><body><h1>Inventário / Auditoria de Campo</h1><p>${new Date().toLocaleString('pt-BR')}</p><table><thead><tr><th>Situação</th><th>SISBOV</th><th>Sexo</th><th>Raça</th><th>Setor</th><th>Local</th><th>Detalhe</th></tr></thead><tbody>${rows.map(x=>`<tr>${Object.values(x).map(v=>`<td>${esc(String(v||''))}</td>`).join('')}</tr>`).join('')}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
 }
 
 
@@ -3538,6 +3578,8 @@ async function iniciarSistema(){
   document.getElementById('mapaAtualData').value = todayISO();
   document.getElementById('relFim').value = todayISO();
   initEvents(); aplicarPermissoes(); renderAll();
+  requestAnimationFrame(()=>renderHeaderCounters());
+  setTimeout(()=>renderHeaderCounters(),350);
 }
 async function init(){
   document.getElementById('loginForm').addEventListener('submit', efetuarLogin);
