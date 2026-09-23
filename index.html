@@ -2202,13 +2202,33 @@ function salvarDadosAnimal(d){
   a.sexo=a.sexo||''; a.raca=a.raca||''; a.nascimento=a.nascimento||'';
   return a;
 }
-function animalPorBrincoAtualOuHistorico(valor){
-  const q=String(valor||'').trim(); if(!q) return null;
-  const direto=DB.animais.find(a=>String(a.brinco||'').trim()===q); if(direto) return direto;
-  const reids=DB.movimentacoes.filter(x=>x.tipo==='Reidentificação' && String(x.brincoNovo||'').trim()===q).sort((a,b)=>b.data.localeCompare(a.data));
-  if(reids.length){ return DB.animais.find(a=>a.id===reids[0].animalId) || DB.animais.find(a=>String(a.brinco||'').trim()===String(reids[0].brincoAnterior||'').trim()); }
+function animalPorIdentificacaoAtualOuHistorico(valor, refISO){
+  const q=String(valor||'').replace(/\s+/g,'').trim(); if(!q) return null;
+  const igual=v=>String(v||'').replace(/\s+/g,'').trim()===q;
+  // 1) Cadastro original: aceita SISBOV, brinco ou chip.
+  let a=(DB.animais||[]).find(x=>igual(x.sisbov)||igual(x.brinco)||igual(x.chip));
+  if(a) return a;
+  // 2) Estado atual do mapa: importante após uma reidentificação anterior.
+  try{
+    const mapa=buildMapaNaData(refISO||todayISO());
+    const atual=(mapa?.animais||[]).find(x=>igual(x.sisbov)||igual(x.brinco)||igual(x.chip));
+    if(atual){
+      a=(DB.animais||[]).find(x=>x.id===atual.id);
+      if(a) return a;
+    }
+  }catch(e){}
+  // 3) Histórico de reidentificações: aceita tanto identificação antiga quanto nova.
+  const reid=(DB.movimentacoes||[])
+    .filter(x=>x.tipo==='Reidentificação' && [x.sisbovAnterior,x.sisbovNovo,x.sisbov,x.brincoAnterior,x.brincoNovo,x.brinco,x.chip].some(igual))
+    .sort((x,y)=>String(y.data||'').localeCompare(String(x.data||'')))[0];
+  if(reid){
+    a=(DB.animais||[]).find(x=>x.id===reid.animalId);
+    if(a) return a;
+  }
   return null;
 }
+// Compatibilidade com chamadas antigas.
+function animalPorBrincoAtualOuHistorico(valor){ return animalPorIdentificacaoAtualOuHistorico(valor); }
 function brincoJaPertenceOutroAnimal(brinco, animalId, movId){
   const q=String(brinco||'').trim(); if(!q) return false;
   if(DB.animais.some(a=>String(a.brinco||'').trim()===q && a.id!==animalId)) return true;
@@ -2226,8 +2246,8 @@ function formularioMov(m){
 
     <div id="reidFlow" style="display:none;margin-top:14px">
       <div style="background:#f7faf8;border:1px solid #dce7e1;border-radius:10px;padding:14px">
-        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">1. Localizar o animal pelo brinco anterior</div>
-        <div class="field"><label>Brinco anterior</label><input id="movBuscaAnimal" value="${d.brincoAnterior||d.brinco||''}" placeholder="Digite o brinco anterior" autocomplete="off"></div>
+        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">1. Localizar o animal pela identificação anterior</div>
+        <div class="field"><label>SISBOV, brinco ou chip anterior</label><div style="display:flex;gap:8px"><input id="movBuscaAnimal" style="flex:1" value="${d.sisbovAnterior||d.brincoAnterior||d.sisbov||d.brinco||''}" placeholder="Digite a identificação anterior" autocomplete="off"><button type="button" class="btn btn-outline" id="btnLocalizarReid">Localizar</button></div></div>
         <div class="alert alert-gold" id="animalLookupMsg" style="display:none;margin:10px 0 0"></div>
       </div>
 
@@ -2245,9 +2265,9 @@ function formularioMov(m){
         </div>
       </div>
 
-      <div id="reidNovoWrap" style="display:none;margin-top:12px;background:#eaf5ef;border:1px solid #bfe0cd;border-radius:10px;padding:14px">
+      <div id="reidNovoWrap" style="display:block;margin-top:12px;background:#eaf5ef;border:1px solid #bfe0cd;border-radius:10px;padding:14px">
         <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">3. Informar a nova identificação SISBOV</div>
-        <div class="field"><label>Novo SISBOV</label><input id="formMovBrincoNovo" value="${d.sisbovNovo||d.brincoNovo||''}" placeholder="Digite os 15 dígitos do novo SISBOV" inputmode="numeric" maxlength="15" autocomplete="off"></div>
+        <div class="field"><label>Novo SISBOV</label><input id="formMovBrincoNovo" value="${d.sisbovNovo||''}" placeholder="Localize o animal anterior e digite os 15 dígitos do novo SISBOV" inputmode="numeric" maxlength="15" autocomplete="off" disabled></div><div id="reidNovoStatus" style="font-size:11px;color:var(--cinza-600);margin-top:6px">Primeiro localize o animal pela identificação anterior.</div>
         <div style="font-size:11px;color:var(--cinza-600);margin-top:8px">O SISBOV será substituído pela nova identificação. Chip, sexo, raça, nascimento, categoria, setor, local e histórico permanecem no mesmo animal. O saldo do rebanho não será alterado.</div>
       </div>
     </div>
@@ -2291,20 +2311,20 @@ function abrirFormularioMov(m){
   const limparReid=()=>{
     document.getElementById('formMovBrincoAnterior').value='';
     document.getElementById('reidAnimalCard').style.display='none';
-    document.getElementById('reidNovoWrap').style.display='none';
+    const novo=document.getElementById('formMovBrincoNovo'); if(novo){novo.disabled=true;novo.value='';} const st=document.getElementById('reidNovoStatus'); if(st)st.textContent='Primeiro localize o animal pela identificação anterior.';
   };
   const preencherReid=()=>{
     const q=String(buscaReid.value||'').trim();
     if(!q){ msgReid.style.display='none'; limparReid(); return; }
-    const a=animalPorBrincoAtualOuHistorico(q);
+    const dataRef=document.getElementById('formMovData').value||todayISO();
+    const a=animalPorIdentificacaoAtualOuHistorico(q,dataRef);
     if(!a){
       limparReid();
       msgReid.style.display='block';
       msgReid.className='alert alert-red';
-      msgReid.innerHTML='<b>Brinco anterior não encontrado.</b> Confira o número. A reidentificação não cria outro animal.';
+      msgReid.innerHTML='<b>Identificação anterior não encontrada.</b> Digite o SISBOV, brinco ou chip que o animal possuía antes da troca.';
       return;
     }
-    const dataRef=document.getElementById('formMovData').value||todayISO();
     const d=dadosAnimalParaMov(a,dataRef);
     document.getElementById('formMovBrincoAnterior').value=q;
     setText('reidViewSisbov',d.sisbov||a.sisbov);
@@ -2316,7 +2336,7 @@ function abrirFormularioMov(m){
     setText('reidViewCategoria',d.categoria||calcCategoria(d.nascimento||a.nascimento||'',dataRef));
     setText('reidViewSetor',d.setorOrigem||a.setorAtual||a.setorInicial);
     document.getElementById('reidAnimalCard').style.display='block';
-    document.getElementById('reidNovoWrap').style.display='block';
+    const novo=document.getElementById('formMovBrincoNovo'); if(novo){novo.disabled=false;} const st=document.getElementById('reidNovoStatus'); if(st)st.textContent='Animal localizado. Digite agora o novo SISBOV de 15 dígitos.';
     msgReid.style.display='block';
     msgReid.className='alert alert-green';
     msgReid.innerHTML='<b>Animal localizado.</b> Os dados foram carregados automaticamente. Agora informe o novo SISBOV.';
@@ -2348,7 +2368,7 @@ function abrirFormularioMov(m){
     else preencherNormal();
   };
   tipoEl.addEventListener('change',ajustarFluxo);
-  ['input','change','blur'].forEach(ev=>buscaReid.addEventListener(ev,preencherReid));
+  ['change','blur'].forEach(ev=>buscaReid.addEventListener(ev,preencherReid)); const btnLocalizarReid=document.getElementById('btnLocalizarReid'); if(btnLocalizarReid)btnLocalizarReid.addEventListener('click',preencherReid); buscaReid.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();preencherReid();}});
   ['input','change','blur'].forEach(ev=>buscaNormal.addEventListener(ev,preencherNormal));
   document.getElementById('formMovData').addEventListener('change',()=>{
     if(tipoEl.value==='Reidentificação') preencherReid();
@@ -2369,7 +2389,7 @@ function salvarFormularioMov(m){
     if(!AUTH_ADMIN){toast('Acesso somente para administrador.','err');return;}
     const anterior=String(document.getElementById('formMovBrincoAnterior').value || document.getElementById('movBuscaAnimal').value||'').trim();
     const sisbovNovo=String(document.getElementById('formMovBrincoNovo').value||'').replace(/\D/g,'').trim();
-    const animal=animalPorBrincoAtualOuHistorico(anterior) || localizarPorIdentificador(anterior);
+    const animal=animalPorIdentificacaoAtualOuHistorico(anterior,d.data);
     if(!anterior||!sisbovNovo){toast('Informe a identificação anterior e o novo SISBOV.','err');return;}
     if(sisbovNovo.length!==15){toast('O novo SISBOV deve conter 15 dígitos.','err');return;}
     if(!animal){toast('Identificação anterior não encontrada. A reidentificação não cria um novo animal.','err');return;}
