@@ -474,6 +474,10 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
   <button data-view="movimentacoes"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
   <button data-view="mapaAtual"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Mapa Atual</span></button>
   <button data-view="relatorio"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h3M8 16h6"/></svg><span>Relatório do Período</span></button>
+  <button data-view="fichaAnimal"><span>Ficha do Animal</span></button>
+  <button data-view="mortalidade"><span>Mortalidade</span></button>
+  <button data-view="inventario"><span>Inventário / Auditoria</span></button>
+  <button data-view="permissoes"><span>Usuários e Permissões</span></button>
   <button data-view="config" class="admin-only">Configurações / Backup</button>
   <button data-view="usuarios" class="admin-only">Usuários</button>
 </nav>
@@ -581,7 +585,7 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
       <button class="btn btn-outline" id="btnExportAtualXlsx">Exportar XLSX</button>
       <button class="btn btn-outline" id="btnExportAtualPdf">Exportar PDF</button>
     </div>
-    <div id="mapaAtualAlertas"></div>
+    <div id="mapaAtualAlertas"></div><div id="mapaConciliacao" style="margin-bottom:12px"></div>
     <div class="panel" id="mapaAtualAuditoria">
       <div class="panel-head"><h3>Auditoria detalhada do Mapa Atual</h3><span class="sub">Causa, impacto e correção</span></div>
       <div class="panel-body" id="mapaAtualAuditoriaBody"></div>
@@ -590,7 +594,7 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
     <div class="panel" id="painelAnimais">
       <div class="panel-head">
         <h3>Detalhamento dos Animais — Mapa Final</h3>
-        <input id="buscaAnimal" placeholder="Pesquisar SISBOV, brinco, chip ou setor..." style="border:1px solid var(--cinza-300);border-radius:6px;padding:6px 10px;font-size:12.5px;min-width:240px;">
+        <input id="buscaAnimal" placeholder="Pesquisar SISBOV, brinco, chip, setor ou local..." style="border:1px solid var(--cinza-300);border-radius:6px;padding:6px 10px;font-size:12.5px;min-width:240px;">
       </div>
       <div class="panel-body">
         <div class="table-wrap"><table class="exec" id="animaisTable"><thead></thead><tbody></tbody></table></div>
@@ -623,6 +627,87 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
     <div id="relatorioConteudo"></div>
   </section>
 
+
+  <section id="view-fichaAnimal" class="view">
+    <h2 class="view-title">Ficha do Animal</h2>
+    <p class="view-sub">Consulte SISBOV atual ou antigo, brinco ou chip e veja o status e toda a linha do tempo.</p>
+    <div class="panel"><div class="panel-body"><div class="field" style="max-width:520px"><label>Identificação</label><div style="display:flex;gap:8px"><input id="fichaBusca" placeholder="SISBOV atual/antigo, brinco ou chip"><button class="btn btn-primary" id="btnFichaBuscar">Buscar</button></div></div></div></div>
+    <div id="fichaResultado" style="margin-top:12px"></div>
+  </section>
+
+  <section id="view-mortalidade" class="view">
+    <h2 class="view-title">Mortalidade</h2>
+    <p class="view-sub">Indicadores de mortalidade por período, seção, sexo, categoria e causa.</p>
+    <div class="toolbar"><div class="field"><label>Data inicial</label><input type="date" id="mortIni"></div><div class="field"><label>Data final</label><input type="date" id="mortFim"></div><div class="field"><label>Setor</label><select id="mortSetor"><option value="">Todos</option></select></div><button class="btn btn-primary btn-sm" id="btnMortAplicar" style="align-self:flex-end">Atualizar</button></div>
+    <div id="mortResumo"></div><div id="mortDetalhe" style="margin-top:12px"></div>
+  </section>
+  <!-- ================= INVENTÁRIO / AUDITORIA ================= -->
+  <section id="view-inventario" class="view">
+    <h2 class="view-title">Inventário / Auditoria de Campo</h2>
+    <p class="view-sub">Compare o rebanho esperado com os SISBOVs encontrados no campo, sem alterar o saldo.</p>
+    <div class="toolbar">
+      <div class="field"><label>Seção / Setor</label><select id="invSetor"><option value="">Selecione</option></select></div>
+      <div class="field"><label>Local</label><input id="invLocal" placeholder="Opcional"></div>
+      <div class="field" style="min-width:320px"><label>SISBOVs encontrados</label><textarea id="invSisbovs" rows="4" placeholder="Cole um SISBOV por linha, espaço ou vírgula"></textarea></div>
+      <button class="btn btn-primary btn-sm" id="btnProcessarInventario" style="align-self:flex-end">Processar Auditoria</button>
+      <button class="btn btn-outline btn-sm" id="btnLimparInventario" style="align-self:flex-end">Limpar</button>
+    </div>
+    <div id="invResumo" style="margin-top:12px"></div><div id="invDetalhe" style="margin-top:12px"></div>
+  </section>
+
+
+  
+<div class="modal-overlay" id="modalUsuarioSistema">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-head"><h3 id="tituloModalUsuario">Novo usuário</h3><button class="modal-close" id="fecharModalUsuario">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>Nome *</label><input id="usrNome" placeholder="Nome completo"></div>
+        <div class="field"><label>E-mail / Login *</label><input id="usrEmail" type="email" placeholder="usuario@empresa.com.br"></div>
+        <div class="field"><label>Senha *</label><input id="usrSenha" type="password" placeholder="Senha de acesso"></div>
+        <div class="field"><label>Perfil</label>
+          <select id="usrPerfil"><option value="personalizado">Personalizado</option><option value="administrador">Administrador</option><option value="controladoria">Controladoria</option><option value="gestor">Gestor</option><option value="visualizacao">Somente visualização</option></select>
+        </div>
+        <div class="field"><label>Status</label><select id="usrAtivo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div>
+      </div>
+      <div style="margin-top:12px;padding:10px 12px;background:#f6f7f8;border-radius:8px;font-size:12px">
+        A senha é usada para login nesta versão do sistema. Para produção com Supabase Auth, a autenticação deve ser migrada para o serviço de autenticação e a senha não deve ser armazenada em texto aberto no banco.
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-outline" id="cancelarUsuario">Cancelar</button><button class="btn btn-primary" id="salvarUsuarioSistema">Salvar usuário</button></div>
+  </div>
+</div>
+
+<!-- ================= USUÁRIOS E PERMISSÕES ================= -->
+  <section id="view-permissoes" class="view">
+    <h2 class="view-title">Usuários e Permissões</h2>
+    <p class="view-sub">O administrador define quais módulos e ações cada usuário pode acessar. Sem restrição por seção.</p>
+    <div class="panel">
+      <div class="panel-head"><h3>Gerenciar acesso</h3></div>
+      <div class="panel-body">
+        <div class="toolbar">
+          <button class="btn btn-primary btn-sm" id="btnNovoUsuario">+ Novo usuário</button>
+          <button class="btn btn-outline btn-sm" id="btnEditarUsuario">Editar usuário</button>
+          <button class="btn btn-outline btn-sm" id="btnAlternarUsuario">Ativar / Inativar</button>
+          <div class="field" style="min-width:280px"><label>Usuário</label><select id="permUsuario"></select></div>
+          <div class="field"><label>Perfil base</label>
+            <select id="permPerfil">
+              <option value="personalizado">Personalizado</option>
+              <option value="administrador">Administrador</option>
+              <option value="controladoria">Controladoria</option>
+              <option value="gestor">Gestor</option>
+              <option value="visualizacao">Somente visualização</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btnAplicarPerfil" style="align-self:flex-end">Aplicar perfil</button>
+          <button class="btn btn-gold btn-sm" id="btnSalvarPermissoes" style="align-self:flex-end">Salvar permissões</button>
+        </div>
+        <div id="permGrade" style="margin-top:14px"></div>
+        <p style="font-size:11.5px;color:var(--cinza-600);margin-top:12px">Administradores mantêm acesso total a Usuários e Permissões. Módulos não autorizados são removidos do menu e suas ações ficam bloqueadas.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= CONFIGURAÇÕES ================= -->
   <section id="view-config" class="view">
     <h2 class="view-title">Configurações / Backup</h2>
@@ -633,6 +718,8 @@ table.exec tr.dash-hover-data:hover td{background:#edf7f2!important}
           <p style="font-size:12.5px;color:var(--cinza-600);">Exporte todos os dados do sistema em um único arquivo JSON, ou restaure a partir de um backup anterior.</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-gold" id="btnExportBackup">Exportar Backup</button>
+            <button class="btn btn-outline" id="btnDesfazerOperacao">Desfazer última operação crítica</button>
+            <span id="ultimoPontoRecuperacao" style="font-size:11.5px;color:var(--cinza-600);align-self:center"></span>
             <button class="btn btn-outline" id="btnImportBackup">Importar Backup</button>
           </div>
         </div>
@@ -842,6 +929,8 @@ const HEADER_MAP_MOV = {
   'setororigem':'setorOrigem',
   'setordestino':'setorDestino',
   'local':'local','localdestino':'local','localdedestino':'local',
+  'destinoexterno':'destinoExterno','frigorifico':'destinoExterno','cliente':'destinoExterno',
+  'causadamorte':'causaMorte','causamorte':'causaMorte',
   'sexo':'sexo',
   'raca':'raca',
   'datadenascimento':'nascimento','datanascimento':'nascimento','nascimento':'nascimento',
@@ -967,7 +1056,7 @@ function normalizarSetoresPersistidos(){
   DB.setores=ordenarSetores(existentes);
   const canon=v=>{ const k=chaveSetor(v); return DB.setores.find(x=>chaveSetor(x)===k)||String(v||'').replace(/\s+/g,' ').trim(); };
   DB.animais.forEach(a=>{ if(a.setorInicial) a.setorInicial=canon(a.setorInicial); });
-  DB.movimentacoes.forEach(m=>{ if(m.setorOrigem) m.setorOrigem=canon(m.setorOrigem); if(m.setorDestino) m.setorDestino=canon(m.setorDestino); });
+  DB.movimentacoes.forEach(m=>{ if(m.setorOrigem) m.setorOrigem=canon(m.setorOrigem); if(m.setorDestino) m.setorDestino=canon(m.setorDestino); if(m.destinoExterno==null)m.destinoExterno=''; if(m.causaMorte==null)m.causaMorte=''; });
 }
 const VISUAL_PADRAO={titulo:'MAPA PECUÁRIO',subtitulo:'Fazenda Bodoquena',rodape:'Mapa Pecuário — Controle de Rebanho',icone:'',fonte:'system',tamanho:'14',primaria:'#0A2A21',escura:'#0F3B2E',media:'#1C5C46',destaque:'#C9A24B',fundo:'#F7F8F7',texto:'#2B322F'};
 const ICONE_MARCA_ORIGINAL=document.getElementById('brandMark')?.innerHTML||'';
@@ -1302,6 +1391,8 @@ function processarImportMov(rows){
       setorOrigem: String(r.setorOrigem||'').trim(),
       setorDestino: String(r.setorDestino||'').trim(),
       local: String(r.local||'').trim(),
+      destinoExterno: String(r.destinoExterno||'').trim(),
+      causaMorte: String(r.causaMorte||'').trim(),
       sexo: String(r.sexo||'').trim() ? normSexo(r.sexo) : '',
       raca: String(r.raca||'').trim(),
       nascimento: nascISO,
@@ -1326,7 +1417,7 @@ function processarImportMov(rows){
 
 function chaveMovimentacao(m){
   return [m.data,m.tipo,normalizarSisbov(m.sisbov),String(m.brinco||'').trim(),
-    String(m.chip||'').trim(),String(m.setorOrigem||'').trim(),String(m.setorDestino||'').trim(),String(m.local||'').trim(),
+    String(m.chip||'').trim(),String(m.setorOrigem||'').trim(),String(m.setorDestino||'').trim(),String(m.local||'').trim(),String(m.destinoExterno||'').trim(),String(m.causaMorte||'').trim(),
     Number(m.quantidade)||1].join('|');
 }
 function separarMovimentacoesNovas(lista){
@@ -1349,10 +1440,12 @@ function baixarModeloInicial(){
   XLSX.writeFile(wb, 'modelo_mapa_inicial.xlsx');
 }
 function baixarModeloMov(){
-  const ws = XLSX.utils.json_to_sheet([{
-    'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Nascimento','SISBOV':'','BRINCO':'','SETOR ORIGEM':'','SETOR DESTINO':'Guaicurus','LOCAL':'Pasto 01',
-    'SEXO':'Fêmea','RAÇA':'Nelore','DATA DE NASCIMENTO':'10/09/2026','QUANTIDADE':1,'OBSERVAÇÃO':''
-  }]);
+  const ws = XLSX.utils.json_to_sheet([
+    {'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Nascimento','SISBOV':'','BRINCO':'','SETOR ORIGEM':'','SETOR DESTINO':'Guaicurus','LOCAL':'Pasto 01','DESTINO EXTERNO':'','CAUSA DA MORTE':'','SEXO':'Fêmea','RAÇA':'Nelore','DATA DE NASCIMENTO':'10/09/2026','QUANTIDADE':1,'OBSERVAÇÃO':''},
+    {'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Transferência entre Seções','SISBOV':'','BRINCO':'','SETOR ORIGEM':'Guaicurus','SETOR DESTINO':'Tope','LOCAL':'Pasto 02','DESTINO EXTERNO':'','CAUSA DA MORTE':'','SEXO':'','RAÇA':'','DATA DE NASCIMENTO':'','QUANTIDADE':1,'OBSERVAÇÃO':''},
+    {'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Morte','SISBOV':'','BRINCO':'','SETOR ORIGEM':'Guaicurus','SETOR DESTINO':'','LOCAL':'Pasto 01','DESTINO EXTERNO':'','CAUSA DA MORTE':'Doença','SEXO':'','RAÇA':'','DATA DE NASCIMENTO':'','QUANTIDADE':1,'OBSERVAÇÃO':''},
+    {'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Venda Frigorífico','SISBOV':'','BRINCO':'','SETOR ORIGEM':'Guaicurus','SETOR DESTINO':'','LOCAL':'','DESTINO EXTERNO':'Frigorífico','CAUSA DA MORTE':'','SEXO':'','RAÇA':'','DATA DE NASCIMENTO':'','QUANTIDADE':1,'OBSERVAÇÃO':''}
+  ]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Movimentações');
   XLSX.writeFile(wb, 'modelo_movimentacoes.xlsx');
@@ -1422,6 +1515,8 @@ function confirmarImportMov(res){
     <div class="detail-row"><span>Linhas válidas</span><b style="color:var(--verde-ok);">${res.validos.length}</b></div>
     <div class="detail-row"><span>Linhas com erro</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
     ${res.erros.length? `<p style="font-size:11.5px;color:var(--cinza-600);margin-top:8px;">Ex.: ${res.erros.slice(0,5).map(e=>`linha ${e.linha} (${e.motivo})`).join('; ')}</p>`:''}
+    <div class="alert ${res.erros.length?'alert-gold':'alert-green'}" style="margin-top:10px"><span><b>Pré-validação:</b> ${res.erros.length?'existem linhas bloqueadas; somente as válidas serão gravadas.':'arquivo pronto para importação.'}</span></div>
+    ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
   openModal('Confirmar Importação — Movimentações', body, [
@@ -2328,9 +2423,11 @@ function formularioMov(m){
         <div class="field"><label>Raça</label><input id="formMovRaca" value="${d.raca||''}" placeholder="PENDENTE"></div>
         <div class="field"><label>Data de nascimento</label><input type="date" id="formMovNasc" value="${d.nascimento||''}"></div>
         <div class="field"><label>Categoria no evento</label><input id="formMovCategoria" value="${d.categoria||calcCategoria(d.nascimento||'',d.data||todayISO())}" readonly></div>
-        <div class="field"><label>Setor origem</label><select id="formMovOrigem"><option value="">PENDENTE</option>${setores}</select></div>
-        <div class="field"><label>Setor destino</label><select id="formMovDestino"><option value="">PENDENTE</option>${DB.setores.map(x=>`<option ${d.setorDestino===x?'selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="field" id="wrapMovOrigem"><label id="labelMovOrigem">Setor origem</label><select id="formMovOrigem"><option value="">PENDENTE</option>${setores}</select></div>
+        <div class="field" id="wrapMovDestino"><label>Setor destino</label><select id="formMovDestino"><option value="">PENDENTE</option>${DB.setores.map(x=>`<option ${d.setorDestino===x?'selected':''}>${x}</option>`).join('')}</select></div>
         <div class="field"><label>Local</label><input id="formMovLocal" value="${d.local||''}" placeholder="Ex.: Pasto 01, Curral, Confinamento"></div>
+        <div class="field" id="wrapDestinoExterno" style="display:none"><label>Destino externo</label><input id="formMovDestinoExterno" value="${d.destinoExterno||''}" placeholder="Ex.: JBS, propriedade compradora, cliente"></div>
+        <div class="field" id="wrapCausaMorte" style="display:none"><label>Causa da morte</label><select id="formMovCausaMorte"><option value="">Selecione</option>${['Acidente','Ataque de animal','Atolamento','Cobra','Doença','Intoxicação','Problema metabólico','Problema reprodutivo/parto','Raio','Causa desconhecida','Outros'].map(x=>`<option ${d.causaMorte===x?'selected':''}>${x}</option>`).join('')}</select></div>
         <div class="field"><label>Quantidade</label><input type="number" min="1" id="formMovQtd" value="${d.quantidade||1}"></div>
       </div>
     </div>
@@ -2405,10 +2502,22 @@ function abrirFormularioMov(m){
     }else if(q){msgNormal.style.display='block';msgNormal.className='alert alert-gold';msgNormal.textContent='Animal não encontrado no Mapa Inicial. Preencha os dados manualmente.';}
     else msgNormal.style.display='none';
   };
+  const ajustarCamposPorTipo=()=>{
+    const t=tipoEl.value;
+    const origem=document.getElementById('wrapMovOrigem'), destino=document.getElementById('wrapMovDestino');
+    const ext=document.getElementById('wrapDestinoExterno'), causa=document.getElementById('wrapCausaMorte');
+    if(origem) origem.style.display=['Nascimento','Compra','Reidentificação'].includes(t)?'none':'';
+    if(destino) destino.style.display=['Nascimento','Compra','Transferência entre Seções'].includes(t)?'':'none';
+    if(ext) ext.style.display=['Venda Frigorífico','Venda Terceiro'].includes(t)?'':'none';
+    if(causa) causa.style.display=t==='Morte'?'':'none';
+    if(t==='Nascimento'||t==='Compra'){ const o=document.getElementById('formMovOrigem'); if(o)o.value=''; }
+    if(['Morte','Venda Frigorífico','Venda Terceiro','Reidentificação'].includes(t)){ const d=document.getElementById('formMovDestino'); if(d)d.value=''; }
+  };
   const ajustarFluxo=()=>{
     const reid=tipoEl.value==='Reidentificação';
     document.getElementById('reidFlow').style.display=reid?'block':'none';
     document.getElementById('normalMovFlow').style.display=reid?'none':'block';
+    ajustarCamposPorTipo();
     if(reid){ preencherReid(); setTimeout(()=>buscaReid.focus(),30); }
     else preencherNormal();
   };
@@ -2428,8 +2537,15 @@ function abrirFormularioMov(m){
 }
 function salvarFormularioMov(m){
   if(!exigirAdmin('salvar movimentações')) return;
-  const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,local:(document.getElementById('formMovLocal')?.value||'').trim(),quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
+  const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,local:(document.getElementById('formMovLocal')?.value||'').trim(),destinoExterno:(document.getElementById('formMovDestinoExterno')?.value||'').trim(),causaMorte:(document.getElementById('formMovCausaMorte')?.value||'').trim(),quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
+  if(['Nascimento','Compra'].includes(d.tipo) && !d.setorDestino){toast('Informe o setor destino.','err');return;}
+  if(d.tipo==='Transferência entre Seções' && (!d.setorOrigem||!d.setorDestino)){toast('Na transferência, informe setor de origem e setor de destino.','err');return;}
+  if(['Morte','Venda Frigorífico','Venda Terceiro'].includes(d.tipo) && !d.setorOrigem){toast('Informe o setor de origem do animal.','err');return;}
+  if(d.tipo==='Morte' && !d.causaMorte){toast('Informe a causa da morte.','err');return;}
+  if(['Venda Frigorífico','Venda Terceiro'].includes(d.tipo) && !d.destinoExterno){toast('Informe o destino externo da venda.','err');return;}
+  if(['Nascimento','Compra'].includes(d.tipo)) d.setorOrigem='';
+  if(['Morte','Venda Frigorífico','Venda Terceiro'].includes(d.tipo)) d.setorDestino='';
   if(['Morte','Venda Frigorífico'].includes(d.tipo)){
     const conflito=conflitoMorteFrigorifico(d,m?.id||'');
     if(conflito){
@@ -2456,7 +2572,7 @@ function salvarFormularioMov(m){
     const brincoNovo=sisbovNovo.slice(8,14);
     if(brincoJaPertenceOutroAnimal(brincoNovo,animal.id,m?.id)){toast('O brinco correspondente ao novo SISBOV já pertence a outro animal. Reidentificação bloqueada.','err');return;}
     const atual={...d,animalId:animal.id,sisbov:sisbovNovo,sisbovAnterior,sisbovNovo,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,
-      chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:baseAtual.setorOrigem||'',local:baseAtual.local||''};
+      chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:'',local:baseAtual.local||''};
     if(m) Object.assign(m,atual); else {atual.id=uid('mv');DB.movimentacoes.push(atual);}
     saveDB('mov'); closeModal(); renderAll(); toast('Reidentificação registrada. O mesmo animal recebeu o novo SISBOV sem alterar o saldo.','ok'); return;
   }
@@ -2533,13 +2649,13 @@ function renderMovimentacoes(){
   paginaMov = Math.min(paginaMov, totalPag);
   const slice = lista.slice((paginaMov-1)*PAGE_SIZE, paginaMov*PAGE_SIZE);
 
-  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
+  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Destino externo</th><th>Causa da morte</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
   const tbody = slice.map(m=>`<tr>
     <td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'<span class="no-sisbov">agregado</span>')}</td>
-    <td>${m.tipo==='Reidentificação'?`${m.brincoAnterior||m.brinco||'—'} → ${m.brincoNovo||'—'}`:(m.brinco||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td>
+    <td>${m.tipo==='Reidentificação'?`${m.brincoAnterior||m.brinco||'—'} → ${m.brincoNovo||'—'}`:(m.brinco||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td><td>${m.destinoExterno||'—'}</td><td>${m.causaMorte||'—'}</td>
     <td>${valorExibicao(m.sexo)}</td><td>${valorExibicao(m.raca)}</td><td>${m.nascimento?formatBR(m.nascimento):'<span class="pending">PENDENTE</span>'}</td><td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td><td>${m.observacao||''}</td>${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditMov" data-id="${m.id}">EDITAR</button> <button class="btn btn-danger btn-sm btnDeleteMov" data-id="${m.id}">EXCLUIR</button></td>`:''}</tr>`).join('');
   document.getElementById('movTable').querySelector('thead').innerHTML = thead;
-  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${AUTH_ADMIN?14:13}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
+  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${AUTH_ADMIN?16:15}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
   document.getElementById('movPager').innerHTML = `Página ${paginaMov} de ${totalPag}
     <button class="btn btn-outline btn-sm" ${paginaMov<=1?'disabled':''} id="movPrev">‹</button>
     <button class="btn btn-outline btn-sm" ${paginaMov>=totalPag?'disabled':''} id="movNext">›</button>`;
@@ -2625,7 +2741,7 @@ function renderAnimaisTable(){
     <td>${a.sisbov? `<span class="link-sisbov" data-id="${a.id}">${a.sisbov}</span>` : `<span class="no-sisbov" data-id="${a.id}" style="cursor:pointer;">sem SISBOV</span>`}</td>
     <td>${a.brinco||'—'}</td><td>${a.chip||'—'}</td><td>${a.sexo}</td><td>${a.raca}</td>
     <td>${formatBR(a.nascimento)}</td><td>${a.categoria}</td><td class="num">${a.idadeMeses!==null?a.idadeMeses:'—'}</td>
-    <td><span class="badge badge-ativo">${a.status||'ATIVO'}</span></td></tr>`).join('') || `<tr><td colspan="12" style="text-align:center;color:var(--cinza-600);">Nenhum animal encontrado.</td></tr>`;
+    <td><span class="badge badge-ativo">${a.status||'ATIVO'}</span></td></tr>`).join('') || `<tr><td colspan="14" style="text-align:center;color:var(--cinza-600);">Nenhum animal encontrado.</td></tr>`;
   document.getElementById('animaisPager').innerHTML = `${lista.length.toLocaleString('pt-BR')} animal(is) · Página ${paginaAnimais} de ${totalPag}
     <button class="btn btn-outline btn-sm" ${paginaAnimais<=1?'disabled':''} id="anPrev">‹</button>
     <button class="btn btn-outline btn-sm" ${paginaAnimais>=totalPag?'disabled':''} id="anNext">›</button>`;
@@ -2738,10 +2854,10 @@ function renderRelatorio(){
   html += `<h3 class="bloco-title">BLOCO 2 — Movimentações do Período</h3>
     <div class="panel"><div class="panel-head"><h3>Lançamentos</h3><span style="font-size:11.5px;color:var(--cinza-600);">${movsPeriodo.length} lançamento(s)</span></div>
     <div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr>
-    <th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th></tr></thead><tbody>
+    <th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Destino externo</th><th>Causa da morte</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th></tr></thead><tbody>
     ${movsPeriodo.map(m=>`<tr><td>${formatBR(m.data)}</td><td>${rotuloTipoMov(m.tipo)}</td><td>${m.sisbov||'—'}</td><td>${m.brinco||'—'}</td>
-      <td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td><td>${m.sexo}</td><td>${m.raca}</td><td>${formatBR(m.nascimento)}</td>
-      <td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td></tr>`).join('') || `<tr><td colspan="12" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação no período.</td></tr>`}
+      <td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td><td>${m.destinoExterno||'—'}</td><td>${m.causaMorte||'—'}</td><td>${m.sexo}</td><td>${m.raca}</td><td>${formatBR(m.nascimento)}</td>
+      <td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td></tr>`).join('') || `<tr><td colspan="14" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação no período.</td></tr>`}
     </tbody></table></div></div></div>`;
 
   html += `<h3 class="bloco-title">BLOCO 3 — Mapa Final do Período (${formatBR(fim)})</h3>
@@ -2785,14 +2901,51 @@ function renderAuditoriaPanel(){
     </tbody></table></div>`;
 }
 
+function localizarFichaAnimal(q){
+  q=String(q||'').trim(); if(!q) return null;
+  const mapa=buildMapaNaData(todayISO());
+  let a=mapa.animais.find(x=>[x.sisbov,x.brinco,x.chip].some(v=>String(v||'')===q));
+  if(a) return a;
+  const reid=DB.movimentacoes.slice().reverse().find(m=>m.tipo==='Reidentificação' && [m.sisbovAnterior,m.brincoAnterior,m.sisbovNovo,m.brincoNovo].some(v=>String(v||'')===q));
+  if(reid) return mapa.animais.find(x=>x.id===reid.animalId || String(x.sisbov||'')===String(reid.sisbovNovo||''))||null;
+  return null;
+}
+function renderFichaAnimal(){
+  const out=document.getElementById('fichaResultado'); if(!out) return;
+  const q=document.getElementById('fichaBusca')?.value||''; if(!q){out.innerHTML='';return;}
+  const a=localizarFichaAnimal(q); if(!a){out.innerHTML='<div class="alert alert-gold"><span>Animal não localizado.</span></div>';return;}
+  const movs=DB.movimentacoes.filter(m=>m.animalId===a.id || [m.sisbov,m.sisbovAnterior,m.sisbovNovo,m.brinco,m.brincoAnterior,m.brincoNovo,m.chip].some(v=>v && [a.sisbov,a.brinco,a.chip,q].includes(String(v)))).sort((x,y)=>String(x.data).localeCompare(String(y.data)));
+  const status=a.status==='MORTO'?'Morto':a.status==='VENDIDO'?'Vendido':'Ativo';
+  out.innerHTML=`<div class="panel"><div class="panel-head"><h3>${a.sisbov||'Sem SISBOV'}</h3><span class="badge ${a.status==='ATIVO'?'badge-green':'badge-gold'}">${status}</span></div><div class="panel-body"><div class="grid2"><div class="detail-row"><span>Brinco</span><b>${a.brinco||'—'}</b></div><div class="detail-row"><span>Chip</span><b>${a.chip||'—'}</b></div><div class="detail-row"><span>Sexo</span><b>${a.sexo||'—'}</b></div><div class="detail-row"><span>Raça</span><b>${a.raca||'—'}</b></div><div class="detail-row"><span>Setor atual</span><b>${a.setorAtual||'—'}</b></div><div class="detail-row"><span>Categoria</span><b>${a.categoria||'—'}</b></div></div></div></div><div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Linha do tempo</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Data</th><th>Evento</th><th>Identificação</th><th>Origem</th><th>Destino</th><th>Detalhe</th></tr></thead><tbody>${movs.map(m=>`<tr><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td><td>${m.causaMorte||m.observacao||'—'}</td></tr>`).join('')||'<tr><td colspan="6">Sem movimentações.</td></tr>'}</tbody></table></div></div></div>`;
+}
+function renderMortalidade(){
+  const ini=document.getElementById('mortIni')?.value||'', fim=document.getElementById('mortFim')?.value||todayISO(), setor=document.getElementById('mortSetor')?.value||'';
+  const lista=DB.movimentacoes.filter(m=>tipoOperacionalMov(m)==='Morte' && (!ini||m.data>=ini) && (!fim||m.data<=fim) && (!setor||m.setorOrigem===setor));
+  const qtd=lista.reduce((s,m)=>s+(Number(m.quantidade)||1),0); const base=buildMapaNaData(ini||DB.config.dataMapaInicial).animais.filter(a=>a.status==='ATIVO'&&(!setor||a.setorAtual===setor)).length; const taxa=base?qtd/base*100:0;
+  const causas={}; lista.forEach(m=>{const k=m.causaMorte||'Não informada';causas[k]=(causas[k]||0)+(Number(m.quantidade)||1)});
+  document.getElementById('mortResumo').innerHTML=`<div class="exec-kpis"><div class="kpi-card"><div><div class="kpi-lbl">MORTES</div><div class="kpi-val">${qtd.toLocaleString('pt-BR')}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">BASE NO INÍCIO</div><div class="kpi-val">${base.toLocaleString('pt-BR')}</div></div></div><div class="kpi-card tone-red"><div><div class="kpi-lbl">MORTALIDADE</div><div class="kpi-val">${taxa.toFixed(2).replace('.',',')}%</div></div></div></div>`;
+  document.getElementById('mortDetalhe').innerHTML=`<div class="panel"><div class="panel-head"><h3>Causas da morte</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Causa</th><th>Quantidade</th><th>%</th></tr></thead><tbody>${Object.entries(causas).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td><td>${qtd?(v/qtd*100).toFixed(1).replace('.',','):0}%</td></tr>`).join('')||'<tr><td colspan="3">Sem mortes no período.</td></tr>'}</tbody></table></div></div></div>`;
+}
+function renderConciliacao(){
+  const el=document.getElementById('mapaConciliacao'); if(!el) return; const ref=document.getElementById('mapaAtualData')?.value||todayISO();
+  const inicial=DB.animais.filter(a=>a.origem==='inicial'||a.origem==='cadastro').length; const mov=DB.movimentacoes.filter(m=>m.data<=ref); const q=m=>Number(m.quantidade)||1;
+  const entradas=mov.filter(m=>['Nascimento','Compra','Animais sem auditar'].includes(tipoOperacionalMov(m))).reduce((s,m)=>s+q(m),0); const saidas=mov.filter(m=>['Morte','Venda Frigorífico','Venda Terceiro'].includes(tipoOperacionalMov(m))).reduce((s,m)=>s+q(m),0); const esperado=inicial+entradas-saidas; const atual=buildMapaNaData(ref).animais.filter(a=>a.status==='ATIVO').length; const dif=atual-esperado;
+  el.innerHTML=`<div class="panel"><div class="panel-head"><h3>Conciliação automática do saldo</h3><span class="badge ${dif===0?'badge-green':'badge-gold'}">${dif===0?'CONCILIADO':'DIFERENÇA '+dif}</span></div><div class="panel-body"><div class="detail-row"><span>Saldo inicial</span><b>${inicial.toLocaleString('pt-BR')}</b></div><div class="detail-row"><span>+ Entradas / Nascimentos</span><b>${entradas.toLocaleString('pt-BR')}</b></div><div class="detail-row"><span>− Mortes / Vendas</span><b>${saidas.toLocaleString('pt-BR')}</b></div><div class="detail-row"><span>= Saldo documental esperado</span><b>${esperado.toLocaleString('pt-BR')}</b></div><div class="detail-row"><span>Mapa Atual calculado</span><b>${atual.toLocaleString('pt-BR')}</b></div></div></div>`;
+}
+
 function renderAll(){
+  renderPermissoes();
+  setTimeout(aplicarPermissoesUI,0);
+  renderInventario();
   popularFiltrosLocal();
   renderHeaderCounters();
   renderDashboard();
   renderMapaInicial();
   renderMovimentacoes();
   renderMapaAtual();
+  renderConciliacao();
   renderRelatorio();
+  renderMortalidade();
   renderSetores();
 }
 
@@ -2898,7 +3051,7 @@ function exportarMovimentacoes(formato){
       'Brinco Anterior':m.tipo==='Reidentificação'?(m.brincoAnterior||m.brinco||''):m.brinco,
       'Brinco Novo':m.tipo==='Reidentificação'?(m.brincoNovo||''):m.brinco,
       'Setor Origem':m.setorOrigem,
-      'Setor Destino':m.setorDestino,'Local':m.local||'','Sexo':m.sexo,'Raça':m.raca,'Nascimento':formatBR(m.nascimento),'Quantidade':m.quantidade,'Observação':m.observacao
+      'Setor Destino':m.setorDestino,'Local':m.local||'','Destino Externo':m.destinoExterno||'','Causa da Morte':m.causaMorte||'','Sexo':m.sexo,'Raça':m.raca,'Nascimento':formatBR(m.nascimento),'Quantidade':m.quantidade,'Observação':m.observacao
     }))}], 'movimentacoes.xlsx');
   } else {
     const doc = novoPDF('MOVIMENTAÇÕES', '');
@@ -2941,7 +3094,7 @@ function exportarRelatorio(formato){
       {nome:'Mapa Inicial', aoa:iniGrid.aoa, styleMatrix:iniGrid.styleMatrix, merges:iniGrid.merges, colWidths:colW},
       {nome:'Animais Mapa Inicial', json: detalheParaJSON(c.inicioAtivos, 'inicial')},
       {nome:'Movimentações', json: c.movsPeriodo.map(m=>({
-        'Data':formatBR(m.data),'Tipo':m.tipo,'SISBOV':m.sisbov,'Brinco':m.brinco,'Origem':m.setorOrigem,'Destino':m.setorDestino,'Local':m.local||'',
+        'Data':formatBR(m.data),'Tipo':m.tipo,'SISBOV':m.sisbov,'Brinco':m.brinco,'Origem':m.setorOrigem,'Destino':m.setorDestino,'Local':m.local||'','Destino Externo':m.destinoExterno||'','Causa da Morte':m.causaMorte||'',
         'Sexo':m.sexo,'Raça':m.raca,'Nascimento':formatBR(m.nascimento),'Categoria':calcCategoria(m.nascimento,m.data),'Quantidade':m.quantidade
       }))},
       {nome:'Mapa Final', aoa:fimGrid.aoa, styleMatrix:fimGrid.styleMatrix, merges:fimGrid.merges, colWidths:colW},
@@ -2986,6 +3139,7 @@ function exportarBackup(){
   toast('Backup exportado.', 'ok');
 }
 function importarBackup(file){
+  criarPontoRecuperacao('Restauração de backup');
   if(!exigirAdmin('importar backup')) return;
   const reader = new FileReader();
   reader.onload = e=>{
@@ -3014,6 +3168,8 @@ function irParaView(view){
   if(view==='movimentacoes') renderMovimentacoes();
   if(view==='mapaAtual') renderMapaAtual();
   if(view==='relatorio') renderRelatorio();
+  if(view==='fichaAnimal') renderFichaAnimal();
+  if(view==='mortalidade') renderMortalidade();
   if(view==='config'){ renderSetores(); renderAuditoriaPanel(); renderEditorVisual(); }
 }
 document.getElementById('mainTabs').addEventListener('click', e=>{
@@ -3025,7 +3181,194 @@ document.addEventListener('click', e=>{
   if(g) irParaView(g.dataset.goto);
 });
 
+
+/* ===== EVOLUÇÕES: INVENTÁRIO, CATEGORIA, LOCAL ATUAL E RECUPERAÇÃO ===== */
+function categoriaAutomaticaAnimal(a,dataRef){ return calcCategoria(a?.nascimento||'',dataRef||todayISO()); }
+function normalizarListaSisbov(txt){ return [...new Set(String(txt||'').split(/[\s,;]+/).map(normalizarSisbov).filter(Boolean))]; }
+function obterLocalAtualAnimal(a,dataRef){
+  const limite=dataRef||'9999-12-31'; let local=a?.localInicial||a?.local||'';
+  (DB.movimentacoes||[]).filter(m=>(m.animalId===a.id||normalizarSisbov(m.sisbov)===normalizarSisbov(a.sisbov))&&(!m.data||m.data<=limite))
+   .sort((x,y)=>String(x.data||'').localeCompare(String(y.data||''))).forEach(m=>{if(m.local)local=m.local;});
+  return local;
+}
+function criarPontoRecuperacao(motivo){
+  try{localStorage.setItem('mapaPontoRecuperacao',JSON.stringify({criadoEm:new Date().toISOString(),motivo:motivo||'Operação crítica',
+    dados:{animais:structuredClone(DB.animais||[]),movimentacoes:structuredClone(DB.movimentacoes||[]),setores:structuredClone(DB.setores||[]),config:structuredClone(DB.config||{})}}));
+    atualizarPontoRecuperacaoUI(); return true;}catch(e){console.warn(e);return false;}
+}
+function atualizarPontoRecuperacaoUI(){
+ const el=document.getElementById('ultimoPontoRecuperacao');if(!el)return;
+ try{const x=JSON.parse(localStorage.getItem('mapaPontoRecuperacao')||'null');el.textContent=x?`Último ponto: ${new Date(x.criadoEm).toLocaleString('pt-BR')} — ${x.motivo}`:'Nenhum ponto de recuperação salvo neste navegador.';}catch(e){el.textContent='Nenhum ponto de recuperação salvo.'}
+}
+function desfazerUltimaOperacao(){
+ let x=null;try{x=JSON.parse(localStorage.getItem('mapaPontoRecuperacao')||'null')}catch(e){}
+ if(!x?.dados){toast('Não existe ponto de recuperação disponível.','err');return;}
+ confirmDialog('Desfazer última operação crítica',`Restaurar o estado salvo em <b>${new Date(x.criadoEm).toLocaleString('pt-BR')}</b> antes de <b>${x.motivo}</b>?`,async()=>{
+   DB.animais=x.dados.animais||[];DB.movimentacoes=x.dados.movimentacoes||[];DB.setores=x.dados.setores||[];DB.config=x.dados.config||{};
+   await saveDB('animais');await saveDB('movimentacoes');await saveDB('setores');await saveDB('config');renderAll();toast('Ponto de recuperação restaurado.','ok');
+ });
+}
+function renderInventario(){
+ const sel=document.getElementById('invSetor');if(!sel)return;const atual=sel.value;
+ sel.innerHTML='<option value="">Selecione</option>'+(DB.setores||[]).map(x=>`<option>${x}</option>`).join('');if((DB.setores||[]).includes(atual))sel.value=atual;
+}
+function processarInventario(){
+ const setor=document.getElementById('invSetor').value,local=(document.getElementById('invLocal').value||'').trim();
+ if(!setor){toast('Selecione a seção/setor.','err');return;}
+ const encontrados=normalizarListaSisbov(document.getElementById('invSisbovs').value);if(!encontrados.length){toast('Informe os SISBOVs encontrados.','err');return;}
+ const estado=calcularEstadoAte(todayISO());let esperados=(estado.ativos||[]).filter(a=>(a.setorAtual||a.setor||a.setorInicial)===setor);
+ if(local)esperados=esperados.filter(a=>obterLocalAtualAnimal(a,todayISO())===local);
+ const mapEsp=new Map(esperados.map(a=>[normalizarSisbov(a.sisbov),a])),setEnc=new Set(encontrados);
+ const ok=esperados.filter(a=>setEnc.has(normalizarSisbov(a.sisbov))),faltantes=esperados.filter(a=>!setEnc.has(normalizarSisbov(a.sisbov)));
+ const sobras=encontrados.filter(x=>!mapEsp.has(x)).map(sis=>{const a=(estado.ativos||[]).find(z=>normalizarSisbov(z.sisbov)===sis);return{sisbov:sis,animal:a,outroSetor:a?(a.setorAtual||a.setor||a.setorInicial):''};});
+ document.getElementById('invResumo').innerHTML=`<div class="exec-kpis"><div class="kpi"><span>Esperado</span><b>${esperados.length}</b></div><div class="kpi"><span>Encontrado correto</span><b>${ok.length}</b></div><div class="kpi"><span>Faltante</span><b>${faltantes.length}</b></div><div class="kpi"><span>Sobra / outro setor</span><b>${sobras.length}</b></div></div>`;
+ const linhas=[...faltantes.map(a=>['Faltante',a.sisbov,a.brinco||'—',setor,obterLocalAtualAnimal(a,todayISO())||'—',categoriaAutomaticaAnimal(a,todayISO())]),...sobras.map(x=>[x.outroSetor?'Outro setor':'Não localizado',x.sisbov,x.animal?.brinco||'—',x.outroSetor||'—',x.animal?obterLocalAtualAnimal(x.animal,todayISO())||'—':'—',x.animal?categoriaAutomaticaAnimal(x.animal,todayISO()):'—'])];
+ document.getElementById('invDetalhe').innerHTML=`<div class="panel"><div class="panel-head"><h3>Divergências da Auditoria</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Situação</th><th>SISBOV</th><th>Brinco</th><th>Setor cadastrado</th><th>Local atual</th><th>Categoria atual</th></tr></thead><tbody>${linhas.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')||'<tr><td colspan="6">Nenhuma divergência.</td></tr>'}</tbody></table></div></div></div>`;
+}
+
+
+/* ===== CONTROLE DE ACESSO POR USUÁRIO ===== */
+const MODULOS_PERMISSAO=[
+ ['dashboard','Dashboard'],['mapaInicial','Mapa Inicial'],['mapaAtual','Mapa Atual / Final'],
+ ['movimentacoes','Movimentações'],['fichaAnimal','Ficha do Animal'],['inventario','Inventário / Auditoria'],
+ ['mortalidade','Mortalidade'],['relatorios','Relatórios'],['configuracoes','Configurações / Backup']
+];
+const ACOES_PERMISSAO=['ver','editar','excluir','exportar'];
+const PERFIS_PERMISSAO={
+ administrador:'all',
+ visualizacao:{dashboard:['ver'],mapaInicial:['ver'],mapaAtual:['ver'],movimentacoes:['ver'],fichaAnimal:['ver'],inventario:['ver'],mortalidade:['ver'],relatorios:['ver']},
+ gestor:{dashboard:['ver'],mapaInicial:['ver','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],mortalidade:['ver','exportar'],relatorios:['ver','exportar']},
+ controladoria:{dashboard:['ver'],mapaInicial:['ver','editar','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','editar','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],mortalidade:['ver','exportar'],relatorios:['ver','exportar']}
+};
+function usuarioAtualSistema(){
+  return window.currentUser || window.usuarioLogado || window.USUARIO_ATUAL || (DB&&DB.usuarioAtual) || null;
+}
+function emailUsuario(u){ return String(u?.email||u?.usuario||u?.username||u?.login||'').toLowerCase(); }
+function ehAdminUsuario(u){
+  const p=String(u?.perfil||u?.role||u?.tipo||'').toLowerCase();
+  return p.includes('admin') || u?.admin===true || u?.isAdmin===true;
+}
+function permissoesStore(){ DB.config=DB.config||{}; DB.config.permissoesUsuarios=DB.config.permissoesUsuarios||{}; return DB.config.permissoesUsuarios; }
+function permissoesDoUsuario(u){
+  if(ehAdminUsuario(u)) return 'all';
+  const key=emailUsuario(u); return permissoesStore()[key] || {};
+}
+function pode(mod,acao='ver'){
+  const u=usuarioAtualSistema(); if(!u) return true; // preserva compatibilidade com versões antigas de login
+  const p=permissoesDoUsuario(u); if(p==='all') return true;
+  return Array.isArray(p?.[mod]) && p[mod].includes(acao);
+}
+function moduloDaView(v){
+ const x=String(v||'').toLowerCase();
+ if(x.includes('mapa-inicial')||x==='mapainicial')return'mapaInicial';
+ if(x.includes('mapa-atual')||x.includes('mapa-final')||x==='mapaatual')return'mapaAtual';
+ if(x.includes('moviment'))return'movimentacoes';
+ if(x.includes('ficha'))return'fichaAnimal';
+ if(x.includes('invent'))return'inventario';
+ if(x.includes('mortal'))return'mortalidade';
+ if(x.includes('relat'))return'relatorios';
+ if(x.includes('config')||x.includes('backup'))return'configuracoes';
+ if(x.includes('dashboard')||x==='home')return'dashboard';
+ if(x.includes('permis'))return'permissoes';
+ return x;
+}
+function aplicarPermissoesUI(){
+ const u=usuarioAtualSistema(); if(!u)return;
+ document.querySelectorAll('[data-view]').forEach(b=>{
+   const m=moduloDaView(b.dataset.view);
+   if(m==='permissoes') b.style.display=ehAdminUsuario(u)?'':'none';
+   else b.style.display=pode(m,'ver')?'':'none';
+ });
+ // Bloqueio complementar por tipo de ação nos módulos visíveis.
+ document.querySelectorAll('button,a').forEach(el=>{
+   const txt=(el.textContent||'').toLowerCase();
+   const sec=el.closest('section.view'); if(!sec)return;
+   const m=moduloDaView((sec.id||'').replace('view-',''));
+   if(txt.includes('excluir')||txt.includes('apagar')){ if(!pode(m,'excluir')) el.style.display='none'; }
+   else if(txt.includes('export')||txt.includes('pdf')||txt.includes('xlsx')){ if(!pode(m,'exportar')) el.style.display='none'; }
+   else if(txt.includes('salvar')||txt.includes('import')||txt.includes('editar')||txt.includes('novo')||txt.includes('lançar')){ if(!pode(m,'editar')) el.style.display='none'; }
+ });
+}
+function listaUsuariosSistema(){
+ DB.config=DB.config||{};
+ if(!Array.isArray(DB.config.usuarios)){
+   const legado=[DB?.usuarios,window.USUARIOS,window.users].find(Array.isArray)||[];
+   DB.config.usuarios=legado.map(u=>({...u}));
+ }
+ return DB.config.usuarios;
+}
+
+let usuarioEdicaoIndex=null;
+function abrirModalUsuario(index=null){
+  const users=listaUsuariosSistema(); usuarioEdicaoIndex=index;
+  const u=index===null?null:users[index];
+  document.getElementById('tituloModalUsuario').textContent=u?'Editar usuário':'Novo usuário';
+  document.getElementById('usrNome').value=u?.nome||u?.name||'';
+  document.getElementById('usrEmail').value=u?.email||u?.usuario||'';
+  document.getElementById('usrSenha').value=u?.senha||'';
+  document.getElementById('usrPerfil').value=u?.perfil||'personalizado';
+  document.getElementById('usrAtivo').value=String(u?.ativo!==false);
+  document.getElementById('modalUsuarioSistema').classList.add('open');
+}
+function fecharModalUsuarioSistema(){document.getElementById('modalUsuarioSistema')?.classList.remove('open');}
+async function salvarUsuarioCadastro(){
+  const nome=document.getElementById('usrNome').value.trim(),email=document.getElementById('usrEmail').value.trim().toLowerCase(),
+        senha=document.getElementById('usrSenha').value,perfil=document.getElementById('usrPerfil').value,ativo=document.getElementById('usrAtivo').value==='true';
+  if(!nome||!email||!senha){toast('Preencha nome, e-mail e senha.','err');return;}
+  const users=listaUsuariosSistema();
+  if(users.some((u,i)=>i!==usuarioEdicaoIndex&&emailUsuario(u)===email)){toast('Já existe usuário com este e-mail/login.','err');return;}
+  const anterior=usuarioEdicaoIndex===null?null:users[usuarioEdicaoIndex];
+  const u={...(anterior||{}),id:anterior?.id||('usr_'+Date.now().toString(36)),nome,email,usuario:email,senha,perfil,ativo};
+  if(usuarioEdicaoIndex===null) users.push(u); else users[usuarioEdicaoIndex]=u;
+  if(perfil==='administrador'){u.admin=true; delete permissoesStore()[email];}
+  else {u.admin=false;if(PERFIS_PERMISSAO[perfil]&&perfil!=='personalizado')permissoesStore()[email]=JSON.parse(JSON.stringify(PERFIS_PERMISSAO[perfil]));}
+  await saveDB('config'); fecharModalUsuarioSistema(); renderPermissoes(); toast('Usuário salvo.','ok');
+}
+async function alternarStatusUsuario(){
+ const u=usuarioSelecionadoPerm();if(!u){toast('Selecione um usuário.','err');return;}
+ if(ehAdminUsuario(u)){toast('Não inative o administrador principal por esta tela.','err');return;}
+ u.ativo=u.ativo===false?true:false;await saveDB('config');renderPermissoes();toast(u.ativo?'Usuário ativado.':'Usuário inativado.','ok');
+}
+
+function renderPermissoes(){
+ const sel=document.getElementById('permUsuario'); if(!sel)return;
+ const users=listaUsuariosSistema();
+ sel.innerHTML=users.map((u,i)=>`<option value="${i}">${u.ativo===false?'[INATIVO] ':''}${u.nome||u.name||u.email||u.usuario||('Usuário '+(i+1))} — ${u.perfil||'personalizado'}</option>`).join('');
+ if(!users.length) sel.innerHTML='<option value="">Nenhum usuário cadastrado encontrado</option>';
+ renderGradePermissoes();
+}
+function usuarioSelecionadoPerm(){
+ const users=listaUsuariosSistema(),i=Number(document.getElementById('permUsuario')?.value); return users[i]||null;
+}
+function renderGradePermissoes(){
+ const box=document.getElementById('permGrade');if(!box)return;
+ const u=usuarioSelecionadoPerm(),p=u?permissoesDoUsuario(u):{};
+ box.innerHTML=`<div class="table-wrap"><table class="exec"><thead><tr><th>Módulo</th><th>Ver</th><th>Editar/Lançar</th><th>Excluir</th><th>Exportar</th></tr></thead><tbody>
+ ${MODULOS_PERMISSAO.map(([id,nome])=>`<tr><td><b>${nome}</b></td>${ACOES_PERMISSAO.map(a=>`<td style="text-align:center"><input type="checkbox" data-perm-mod="${id}" data-perm-acao="${a}" ${(p==='all'||p?.[id]?.includes(a))?'checked':''} ${ehAdminUsuario(u)?'disabled':''}></td>`).join('')}</tr>`).join('')}
+ </tbody></table></div>`;
+}
+function aplicarPerfilSelecionado(){
+ const perfil=document.getElementById('permPerfil').value;
+ const cfg=PERFIS_PERMISSAO[perfil]; if(!cfg)return;
+ document.querySelectorAll('[data-perm-mod]').forEach(c=>{
+   const m=c.dataset.permMod,a=c.dataset.permAcao;
+   c.checked=cfg==='all'||Array.isArray(cfg[m])&&cfg[m].includes(a);
+ });
+}
+async function salvarPermissoesSelecionadas(){
+ const u=usuarioSelecionadoPerm(); if(!u){toast('Selecione um usuário.','err');return;}
+ if(ehAdminUsuario(u)){toast('Administrador mantém acesso total.','err');return;}
+ const obj={};
+ document.querySelectorAll('[data-perm-mod]').forEach(c=>{if(c.checked){obj[c.dataset.permMod]=obj[c.dataset.permMod]||[];obj[c.dataset.permMod].push(c.dataset.permAcao);}});
+ permissoesStore()[emailUsuario(u)]=obj;
+ await saveDB('config'); toast('Permissões salvas.','ok'); aplicarPermissoesUI();
+}
+
 function initEvents(){
+  const fb=document.getElementById('btnFichaBuscar'); if(fb) fb.onclick=renderFichaAnimal; const fi=document.getElementById('fichaBusca'); if(fi) fi.addEventListener('keydown',e=>{if(e.key==='Enter')renderFichaAnimal();});
+  const ma=document.getElementById('btnMortAplicar'); if(ma) ma.onclick=renderMortalidade;
+  const ms=document.getElementById('mortSetor'); if(ms){ ms.innerHTML='<option value="">Todos</option>'+DB.setores.map(x=>`<option>${x}</option>`).join(''); }
+  const mf=document.getElementById('mortFim'); if(mf&&!mf.value) mf.value=todayISO();
   // Mapa Inicial
   document.getElementById('btnImportInicial').onclick = ()=> document.getElementById('fileInicial').click();
   document.getElementById('fileInicial').onchange = async e=>{
@@ -3077,7 +3420,7 @@ function initEvents(){
 
   // Mapa Atual
   document.getElementById('btnHoje').onclick = ()=>{ document.getElementById('mapaAtualData').value = todayISO(); renderMapaAtual(); };
-  document.getElementById('btnAtualizarMapa').onclick = renderMapaAtual;
+  document.getElementById('btnAtualizarMapa').onclick = ()=>{renderMapaAtual();renderConciliacao();};
   document.getElementById('mapaFiltroLocal').onchange=()=>{paginaAnimais=1;renderMapaAtual();};
   document.getElementById('btnVerAnimais').onclick = ()=>{
     const p = document.getElementById('painelAnimais');
@@ -3103,8 +3446,28 @@ function initEvents(){
   const btnCriarUsuario=document.getElementById('btnCriarUsuario'); if(btnCriarUsuario) btnCriarUsuario.onclick=criarUsuario;
   const btnAtualizarUsuarios=document.getElementById('btnAtualizarUsuarios'); if(btnAtualizarUsuarios) btnAtualizarUsuarios.onclick=carregarUsuarios;
 
+  // Inventário / Auditoria
+  const btnProcInv=document.getElementById('btnProcessarInventario');if(btnProcInv)btnProcInv.onclick=processarInventario;
+  const btnLimInv=document.getElementById('btnLimparInventario');if(btnLimInv)btnLimInv.onclick=()=>{document.getElementById('invSisbovs').value='';document.getElementById('invLocal').value='';document.getElementById('invResumo').innerHTML='';document.getElementById('invDetalhe').innerHTML='';};
+
+
+  // Cadastro de usuários
+  const bnu=document.getElementById('btnNovoUsuario');if(bnu)bnu.onclick=()=>abrirModalUsuario(null);
+  const beu=document.getElementById('btnEditarUsuario');if(beu)beu.onclick=()=>{const i=Number(document.getElementById('permUsuario')?.value);if(Number.isFinite(i))abrirModalUsuario(i);};
+  const bau=document.getElementById('btnAlternarUsuario');if(bau)bau.onclick=alternarStatusUsuario;
+  const fmu=document.getElementById('fecharModalUsuario');if(fmu)fmu.onclick=fecharModalUsuarioSistema;
+  const cmu=document.getElementById('cancelarUsuario');if(cmu)cmu.onclick=fecharModalUsuarioSistema;
+  const sus=document.getElementById('salvarUsuarioSistema');if(sus)sus.onclick=salvarUsuarioCadastro;
+
+  // Usuários e Permissões
+  const pu=document.getElementById('permUsuario'); if(pu)pu.onchange=renderGradePermissoes;
+  const pap=document.getElementById('btnAplicarPerfil'); if(pap)pap.onclick=aplicarPerfilSelecionado;
+  const psp=document.getElementById('btnSalvarPermissoes'); if(psp)psp.onclick=salvarPermissoesSelecionadas;
+
   // Configurações / Backup
   document.getElementById('btnExportBackup').onclick = exportarBackup;
+  const btnDesf=document.getElementById('btnDesfazerOperacao');if(btnDesf)btnDesf.onclick=desfazerUltimaOperacao;
+  atualizarPontoRecuperacaoUI();
   document.getElementById('btnImportBackup').onclick = ()=> document.getElementById('fileBackup').click();
   document.getElementById('fileBackup').onchange = e=>{
     const file = e.target.files[0]; if(!file) return;
@@ -3172,6 +3535,107 @@ init();
  });
  document.addEventListener('scroll',hide,true);
 })();
+</script>
+
+
+<script>
+/* ===== SUPABASE AUTH + PERMISSÕES CENTRALIZADAS ===== */
+const SB_URL='https://ernbxfwhfqsriklqruhn.supabase.co';
+const SB_KEY='sb_publishable__ipSslWaw9EbT64RQ_gMmA_5hVstCNP';
+const sbAuth=window.supabase?.createClient(SB_URL,SB_KEY);
+window.SUPABASE_MAPA=sbAuth;
+
+async function carregarPerfilSupabase(){
+  if(!sbAuth)return null;
+  const {data:{session}}=await sbAuth.auth.getSession();
+  if(!session?.user)return null;
+  const {data,error}=await sbAuth.from('profiles').select('id,nome,email,role,ativo,permissions').eq('id',session.user.id).single();
+  if(error)throw error;
+  if(!data?.ativo){await sbAuth.auth.signOut();throw new Error('Usuário inativo.');}
+  window.currentUser={id:data.id,nome:data.nome,email:data.email||session.user.email,perfil:data.role,role:data.role,ativo:data.ativo,admin:data.role==='admin',permissions:data.permissions||{}};
+  return window.currentUser;
+}
+async function loginSupabaseMapa(email,password){
+  if(!sbAuth)throw new Error('Supabase indisponível.');
+  const {data,error}=await sbAuth.auth.signInWithPassword({email,password});if(error)throw error;
+  await carregarPerfilSupabase(); aplicarPermissoesUI(); return data;
+}
+async function logoutSupabaseMapa(){if(sbAuth)await sbAuth.auth.signOut();location.reload();}
+const _permissoesDoUsuarioLocal=window.permissoesDoUsuario;
+window.permissoesDoUsuario=function(u){
+  if(u?.role==='admin'||u?.perfil==='admin'||u?.admin===true)return'all';
+  if(u?.permissions)return u.permissions;
+  return _permissoesDoUsuarioLocal?_permissoesDoUsuarioLocal(u):{};
+};
+async function listarPerfisSupabase(){
+  if(!sbAuth)return[];
+  const {data,error}=await sbAuth.from('profiles').select('id,nome,email,role,ativo,permissions,created_at').order('nome');
+  if(error)throw error; return data||[];
+}
+async function salvarPermissoesSupabase(userId,role,ativo,permissions,nome,email){
+  if(!sbAuth)throw new Error('Supabase indisponível.');
+  const payload={role,ativo,permissions,nome,email};
+  const {error}=await sbAuth.from('profiles').update(payload).eq('id',userId);if(error)throw error;
+}
+document.addEventListener('DOMContentLoaded',async()=>{
+  try{const u=await carregarPerfilSupabase();if(u){setTimeout(()=>{renderAll?.();aplicarPermissoesUI?.();},0);}}catch(e){console.warn('Sessão Supabase:',e.message);}
+});
+</script>
+
+
+<script>
+/* ===== ADMINISTRAÇÃO DE USUÁRIOS VIA EDGE FUNCTION ===== */
+async function adminUsersCall(payload){
+  const {data:{session}}=await sbAuth.auth.getSession();
+  if(!session) throw new Error('Faça login como administrador.');
+  const {data,error}=await sbAuth.functions.invoke('admin-users',{body:payload});
+  if(error) throw error;
+  if(data?.error) throw new Error(data.error);
+  return data;
+}
+async function carregarUsuariosAdministracao(){
+  if(!window.currentUser?.admin)return[];
+  const r=await adminUsersCall({action:'list'});
+  DB.config=DB.config||{};DB.config.usuarios=r.users||[];
+  renderPermissoes();return r.users||[];
+}
+const _salvarUsuarioCadastroLocal=window.salvarUsuarioCadastro;
+window.salvarUsuarioCadastro=async function(){
+ try{
+  const nome=document.getElementById('usrNome').value.trim(),email=document.getElementById('usrEmail').value.trim().toLowerCase(),
+        password=document.getElementById('usrSenha').value,perfil=document.getElementById('usrPerfil').value,ativo=document.getElementById('usrAtivo').value==='true';
+  if(!nome||!email||(usuarioEdicaoIndex===null&&!password)){toast('Preencha nome, e-mail e senha.','err');return;}
+  const role=perfil==='administrador'?'admin':perfil;
+  let permissions={};
+  if(PERFIS_PERMISSAO[perfil]&&PERFIS_PERMISSAO[perfil]!=='all')permissions=PERFIS_PERMISSAO[perfil];
+  if(usuarioEdicaoIndex===null){
+    await adminUsersCall({action:'create',nome,email,password,role,ativo,permissions});
+  }else{
+    const u=usuarioSelecionadoPerm();
+    await adminUsersCall({action:'update',id:u.id,nome,email,password:password||undefined,role,ativo,permissions:u.permissions||permissions});
+  }
+  fecharModalUsuarioSistema();await carregarUsuariosAdministracao();toast('Usuário salvo no Supabase.','ok');
+ }catch(e){toast(e.message||'Erro ao salvar usuário.','err');}
+};
+const _salvarPermissoesSelecionadasLocal=window.salvarPermissoesSelecionadas;
+window.salvarPermissoesSelecionadas=async function(){
+ try{
+  const u=usuarioSelecionadoPerm();if(!u)throw new Error('Selecione um usuário.');
+  const permissions={};
+  document.querySelectorAll('[data-perm-mod]').forEach(c=>{if(c.checked){permissions[c.dataset.permMod]=permissions[c.dataset.permMod]||[];permissions[c.dataset.permMod].push(c.dataset.permAcao);}});
+  await adminUsersCall({action:'update',id:u.id,nome:u.nome,email:u.email,role:u.role||u.perfil||'usuario',ativo:u.ativo!==false,permissions});
+  await carregarUsuariosAdministracao();toast('Permissões atualizadas no Supabase.','ok');
+ }catch(e){toast(e.message||'Erro ao salvar permissões.','err');}
+};
+window.alternarStatusUsuario=async function(){
+ try{
+  const u=usuarioSelecionadoPerm();if(!u)throw new Error('Selecione um usuário.');
+  if((u.role||u.perfil)==='admin')throw new Error('Administrador não pode ser inativado por esta tela.');
+  await adminUsersCall({action:'update',id:u.id,nome:u.nome,email:u.email,role:u.role||u.perfil||'usuario',ativo:u.ativo===false,permissions:u.permissions||{}});
+  await carregarUsuariosAdministracao();toast(u.ativo===false?'Usuário ativado.':'Usuário inativado.','ok');
+ }catch(e){toast(e.message||'Erro ao alterar usuário.','err');}
+};
+document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{if(window.currentUser?.admin)carregarUsuariosAdministracao().catch(console.warn)},900));
 </script>
 
 </body>
