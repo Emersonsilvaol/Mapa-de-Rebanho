@@ -470,6 +470,98 @@ nav.tabs.premium-sidebar button.active{
 }
 </style>
 
+
+<style id="premium-v4-visual">
+:root{
+  --premium-deep:#063d31;
+  --premium-side:#04372e;
+  --premium-green:#0b6a4f;
+  --premium-gold:#d9ad45;
+  --premium-soft:#eef5f1;
+}
+body{background:#f4f7f5!important}
+.app-header{
+  min-height:92px!important;
+  background:
+    radial-gradient(circle at 62% 20%,rgba(255,255,255,.10),transparent 25%),
+    linear-gradient(105deg,#063d31 0%,#07503d 55%,#086247 100%)!important;
+  border-bottom:1px solid rgba(255,255,255,.10)!important;
+  box-shadow:0 8px 26px rgba(3,48,38,.15)!important;
+}
+.app-header .brand-title,
+.app-header h1{letter-spacing:-.6px!important;text-shadow:0 1px 2px rgba(0,0,0,.15)}
+.app-header .pill{
+  background:rgba(1,44,34,.38)!important;
+  border:1px solid rgba(219,180,76,.34)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important;
+  backdrop-filter:blur(8px);
+}
+nav.tabs.premium-sidebar{
+  top:92px!important;
+  width:272px!important;
+  background:
+    radial-gradient(circle at 35% 92%,rgba(33,132,88,.22),transparent 24%),
+    linear-gradient(180deg,#043a30 0%,#032f28 100%)!important;
+  padding:18px 12px 26px!important;
+  border-right:1px solid rgba(218,178,69,.10)!important;
+  box-shadow:12px 0 32px rgba(4,53,43,.12)!important;
+}
+nav.tabs.premium-sidebar .nav-section{
+  color:#62d5b5!important;
+  opacity:.82;
+  font-size:10px!important;
+  letter-spacing:1.65px!important;
+  padding:20px 14px 8px!important;
+}
+nav.tabs.premium-sidebar button{
+  min-height:50px!important;
+  border-radius:11px!important;
+  padding:8px 11px!important;
+  gap:12px!important;
+  color:rgba(255,255,255,.82)!important;
+  font-weight:700!important;
+}
+nav.tabs.premium-sidebar button .tab-ico{
+  width:22px!important;height:22px!important;flex:0 0 22px!important;
+  padding:7px!important;
+  box-sizing:content-box!important;
+  border-radius:10px!important;
+  background:linear-gradient(145deg,rgba(19,124,89,.42),rgba(255,255,255,.04))!important;
+  border:1px solid rgba(95,221,180,.18)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 5px 12px rgba(0,0,0,.10)!important;
+}
+nav.tabs.premium-sidebar button:hover{
+  background:linear-gradient(90deg,rgba(255,255,255,.075),rgba(255,255,255,.025))!important;
+  transform:translateX(3px)!important;
+}
+nav.tabs.premium-sidebar button.active{
+  color:#fff!important;
+  background:linear-gradient(90deg,rgba(216,172,65,.28),rgba(31,125,91,.28))!important;
+  border:1px solid rgba(222,181,74,.58)!important;
+  box-shadow:inset 3px 0 0 #e4b94d,0 7px 18px rgba(0,0,0,.14)!important;
+}
+nav.tabs.premium-sidebar button.active .tab-ico{
+  color:#f1c65d!important;
+  background:rgba(222,179,68,.14)!important;
+  border-color:rgba(236,194,84,.45)!important;
+}
+main{
+  margin-left:272px!important;
+  padding-top:112px!important;
+  background:linear-gradient(180deg,#f5f8f6 0,#f8faf9 100%)!important;
+}
+.panel,.kpi-card{
+  border:1px solid #e2ebe6!important;
+  box-shadow:0 7px 22px rgba(21,65,51,.055)!important;
+}
+.kpi-card{border-radius:14px!important}
+.view-title{font-size:28px!important;letter-spacing:-.7px!important}
+@media(max-width:900px){
+  nav.tabs.premium-sidebar{width:78px!important}
+  main{margin-left:78px!important}
+}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -2283,31 +2375,35 @@ function kpiCard(lbl,val,sub,icon,tone){
     <div><div class="kpi-val">${val}</div><div class="kpi-lbl">${lbl}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
 }
 
+function setHeaderHerdCount(valor){
+  const el=document.getElementById('headerHerdCount');
+  const n=Number(valor);
+  if(el && Number.isFinite(n) && n>=0) el.textContent=n.toLocaleString('pt-BR')+' cabeças';
+}
 function renderHeaderCounters(){
-  const elTotal=document.getElementById('headerHerdCount');
   const elData=document.getElementById('headerDate');
   if(elData) elData.textContent=new Date().toLocaleDateString('pt-BR');
-  let ativos=0;
   try{
-    // Usa a mesma base já calculada pelo Mapa Atual quando disponível.
-    const base=(mapaAtualCache?.animais?.length ? mapaAtualCache.animais : buildMapaNaData(todayISO()).animais)||[];
-    ativos=base.filter(a=>String(a.status||'').toUpperCase()==='ATIVO').length;
-    // Fallback para a base de estado, evitando cabeçalho zerado enquanto o mapa possui animais.
-    if(!ativos && (DB.animais||[]).length){
-      const estado=calcularEstadoAte(todayISO());
-      if(Array.isArray(estado?.ativos)) ativos=estado.ativos.length;
+    const mapa=buildMapaNaData(todayISO());
+    const lista=Array.isArray(mapa?.animais)?mapa.animais:[];
+    const ativos=lista.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
+    if(ativos.length || lista.length){
+      setHeaderHerdCount(ativos.length);
+      return;
     }
-  }catch(e){
-    console.warn('Contador do cabeçalho:',e);
-    try{const estado=calcularEstadoAte(todayISO());ativos=Array.isArray(estado?.ativos)?estado.ativos.length:0}catch(_){}
-  }
-  if(elTotal) elTotal.textContent=Number(ativos||0).toLocaleString('pt-BR')+' cabeças';
+    const estado=calcularEstadoAte(todayISO());
+    if(Array.isArray(estado?.ativos)){
+      setHeaderHerdCount(estado.ativos.length);
+      return;
+    }
+  }catch(e){ console.warn('Contador do rebanho:',e); }
 }
 
 function renderDashboard(){
   const ref=todayISO();
   const {animais}=buildMapaNaData(ref);
-  const ativos=animais.filter(a=>a.status==='ATIVO');
+  const ativos=animais.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
+  setHeaderHerdCount(ativos.length);
   const inicial=DB.animais.filter(a=>a.origem==='inicial').length;
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   const tipo=m=>norm(tipoOperacionalMov(m)||m.tipo);
@@ -2816,6 +2912,8 @@ function renderMapaAtual(){
   const ref = dataInput.value;
   mapaAtualCache = buildMapaNaData(ref);
   const {animais, inconsistencias} = mapaAtualCache;
+  const ativosCabecalho = animais.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
+  setHeaderHerdCount(ativosCabecalho.length);
   popularFiltrosLocal();
   const localFiltro=document.getElementById('mapaFiltroLocal')?.value||'';
   const ativos = animais.filter(a=>a.status==='ATIVO').filter(a=>!localFiltro || String(a.localAtual||'')===localFiltro);
@@ -3455,6 +3553,98 @@ nav.tabs.premium-sidebar button.active{
 }
 </style>
 
+
+<style id="premium-v4-visual">
+:root{
+  --premium-deep:#063d31;
+  --premium-side:#04372e;
+  --premium-green:#0b6a4f;
+  --premium-gold:#d9ad45;
+  --premium-soft:#eef5f1;
+}
+body{background:#f4f7f5!important}
+.app-header{
+  min-height:92px!important;
+  background:
+    radial-gradient(circle at 62% 20%,rgba(255,255,255,.10),transparent 25%),
+    linear-gradient(105deg,#063d31 0%,#07503d 55%,#086247 100%)!important;
+  border-bottom:1px solid rgba(255,255,255,.10)!important;
+  box-shadow:0 8px 26px rgba(3,48,38,.15)!important;
+}
+.app-header .brand-title,
+.app-header h1{letter-spacing:-.6px!important;text-shadow:0 1px 2px rgba(0,0,0,.15)}
+.app-header .pill{
+  background:rgba(1,44,34,.38)!important;
+  border:1px solid rgba(219,180,76,.34)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important;
+  backdrop-filter:blur(8px);
+}
+nav.tabs.premium-sidebar{
+  top:92px!important;
+  width:272px!important;
+  background:
+    radial-gradient(circle at 35% 92%,rgba(33,132,88,.22),transparent 24%),
+    linear-gradient(180deg,#043a30 0%,#032f28 100%)!important;
+  padding:18px 12px 26px!important;
+  border-right:1px solid rgba(218,178,69,.10)!important;
+  box-shadow:12px 0 32px rgba(4,53,43,.12)!important;
+}
+nav.tabs.premium-sidebar .nav-section{
+  color:#62d5b5!important;
+  opacity:.82;
+  font-size:10px!important;
+  letter-spacing:1.65px!important;
+  padding:20px 14px 8px!important;
+}
+nav.tabs.premium-sidebar button{
+  min-height:50px!important;
+  border-radius:11px!important;
+  padding:8px 11px!important;
+  gap:12px!important;
+  color:rgba(255,255,255,.82)!important;
+  font-weight:700!important;
+}
+nav.tabs.premium-sidebar button .tab-ico{
+  width:22px!important;height:22px!important;flex:0 0 22px!important;
+  padding:7px!important;
+  box-sizing:content-box!important;
+  border-radius:10px!important;
+  background:linear-gradient(145deg,rgba(19,124,89,.42),rgba(255,255,255,.04))!important;
+  border:1px solid rgba(95,221,180,.18)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 5px 12px rgba(0,0,0,.10)!important;
+}
+nav.tabs.premium-sidebar button:hover{
+  background:linear-gradient(90deg,rgba(255,255,255,.075),rgba(255,255,255,.025))!important;
+  transform:translateX(3px)!important;
+}
+nav.tabs.premium-sidebar button.active{
+  color:#fff!important;
+  background:linear-gradient(90deg,rgba(216,172,65,.28),rgba(31,125,91,.28))!important;
+  border:1px solid rgba(222,181,74,.58)!important;
+  box-shadow:inset 3px 0 0 #e4b94d,0 7px 18px rgba(0,0,0,.14)!important;
+}
+nav.tabs.premium-sidebar button.active .tab-ico{
+  color:#f1c65d!important;
+  background:rgba(222,179,68,.14)!important;
+  border-color:rgba(236,194,84,.45)!important;
+}
+main{
+  margin-left:272px!important;
+  padding-top:112px!important;
+  background:linear-gradient(180deg,#f5f8f6 0,#f8faf9 100%)!important;
+}
+.panel,.kpi-card{
+  border:1px solid #e2ebe6!important;
+  box-shadow:0 7px 22px rgba(21,65,51,.055)!important;
+}
+.kpi-card{border-radius:14px!important}
+.view-title{font-size:28px!important;letter-spacing:-.7px!important}
+@media(max-width:900px){
+  nav.tabs.premium-sidebar{width:78px!important}
+  main{margin-left:78px!important}
+}
+</style>
+
 </head><body><h1>Inventário / Auditoria de Campo</h1><p>${new Date().toLocaleString('pt-BR')}</p><table><thead><tr><th>Situação</th><th>SISBOV</th><th>Sexo</th><th>Raça</th><th>Setor</th><th>Local</th><th>Detalhe</th></tr></thead><tbody>${rows.map(x=>`<tr>${Object.values(x).map(v=>`<td>${esc(String(v||''))}</td>`).join('')}</tr>`).join('')}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
 }
 
@@ -3580,6 +3770,7 @@ async function iniciarSistema(){
   initEvents(); aplicarPermissoes(); renderAll();
   requestAnimationFrame(()=>renderHeaderCounters());
   setTimeout(()=>renderHeaderCounters(),350);
+  setTimeout(()=>renderHeaderCounters(),1200);
 }
 async function init(){
   document.getElementById('loginForm').addEventListener('submit', efetuarLogin);
