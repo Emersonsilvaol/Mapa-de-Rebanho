@@ -1131,7 +1131,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.2.0 · IMPORTAÇÃO NASCIMENTO CORRIGIDA</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1.6 · IMPORTAÇÃO ESTÁVEL</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -1139,8 +1139,6 @@ body.modal-aberto .app-header{
 <input type="file" id="fileLogo" accept="image/png,image/jpeg,image/svg+xml,image/gif" style="display:none;">
 
 <script>
-window.__BUILD_MAPA_REBANHO__='V24.2.0-NASCIMENTO-FIX-REAL';
-console.info('[MAPA DE REBANHO] BUILD V24.2.0-NASCIMENTO-FIX-REAL');
 /* ==========================================================================
    MAPA PECUÁRIO — Sistema de Controle de Rebanho
    Estrutura: UTIL > STORAGE > IMPORT > ENGINE (reconstrução) > RENDER > EVENTOS
@@ -1939,13 +1937,13 @@ function auditarBaixasHistoricas(){
 function processarImportMov(rows){
   const validos=[], erros=[];
 
-  // Classifica o lote usando SOMENTE a coluna TIPO normalizada.
-  const tiposBrutos=rows.map(raw=>{
+  // Detecta se o arquivo é predominantemente de nascimento.
+  const tiposLote=rows.map(raw=>{
     const r=normalizarLinha(raw,HEADER_MAP_MOV);
     return stripAccents(String(r.tipo||'')).toLowerCase().trim();
   });
-  const totalNascimento=tiposBrutos.filter(t=>t.includes('nasc')).length;
-  const loteNascimento=rows.length>0 && (totalNascimento/rows.length)>=0.80;
+  const qtdNasc=tiposLote.filter(t=>t.includes('nasc')).length;
+  const loteNascimento=rows.length>0 && (qtdNasc/rows.length)>=0.80;
 
   rows.forEach((raw,idx)=>{
     const r=normalizarLinha(raw,HEADER_MAP_MOV);
@@ -1954,7 +1952,7 @@ function processarImportMov(rows){
     const tipoRaw=stripAccents(String(r.tipo||'')).toLowerCase().trim();
     const sis=normalizarSisbov(r.sisbov);
     const causa=String(r.causaMorte||'').trim();
-    const destinoExterno=String(r.destinoExterno||'').trim();
+    const destExt=String(r.destinoExterno||'').trim();
 
     let tipo=TIPOS_MOV.find(t=>stripAccents(t).toLowerCase()===tipoRaw);
     if(!tipo){
@@ -1964,20 +1962,17 @@ function processarImportMov(rows){
       else if(tipoRaw.includes('audit')||tipoRaw.includes('animal')) tipo='Animais sem auditar';
       else if(tipoRaw.includes('compr')) tipo='Compra';
       else if(tipoRaw.includes('frigo')) tipo='Venda Frigorífico';
-      else if(tipoRaw.includes('terceir')||tipoRaw.includes('venda')) tipo='Venda Terceiro';
+      else if(tipoRaw.includes('terceir')) tipo='Venda Terceiro';
     }
 
-    // REGRA DEFINITIVA PARA PLANILHA DE NASCIMENTOS:
-    // Em lote predominantemente de Nascimento, uma linha isolada marcada como Morte
-    // só é Morte se houver evidência de morte: causa informada OU animal já existente.
-    // SISBOV novo + sem causa = Nascimento. A regra é aplicada ANTES de qualquer
-    // validação que exija animal existente.
-    if(loteNascimento && tipo==='Morte' && sis && !causa){
-      const existente=resolverAnimalHistorico({sisbov:sis});
-      if(!existente) tipo='Nascimento';
+    // Caso real encontrado no arquivo:
+    // em lote de nascimento, linha marcada como Morte SEM causa e com SISBOV novo
+    // é tratada como Nascimento ANTES da validação de existência.
+    if(loteNascimento && tipo==='Morte' && sis && !causa && !destExt){
+      const jaExiste=resolverAnimalHistorico({sisbov:sis});
+      if(!jaExiste) tipo='Nascimento';
     }
-    // Tipo vazio/residual em lote de nascimento, sem sinal de saída, também é nascimento.
-    if(loteNascimento && (!tipo || !TIPOS_MOV.includes(tipo)) && sis && !causa && !destinoExterno){
+    if(loteNascimento && !tipo && sis && !causa && !destExt){
       tipo='Nascimento';
     }
 
@@ -1989,47 +1984,49 @@ function processarImportMov(rows){
       id:uid('mv'),data:dataISO,tipo,sisbov:sis,
       brinco:String(r.brinco||'').trim(),chip:String(r.chip||'').trim(),
       setorOrigem:String(r.setorOrigem||'').trim(),setorDestino:String(r.setorDestino||'').trim(),
-      local:String(r.local||'').trim(),destinoExterno,causaMorte:causa,
+      local:String(r.local||'').trim(),destinoExterno:destExt,causaMorte:causa,
       sexo:String(r.sexo||'').trim()?normSexo(r.sexo):'',raca:String(r.raca||'').trim(),
       nascimento:toISODate(r.nascimento),quantidade:parseInt(r.quantidade)||1,
       observacao:String(r.observacao||'').trim(),eventoAuditoria:tipo==='Compra'
     };
 
-    // NASCIMENTO É TRATADO ANTES DA BUSCA OBRIGATÓRIA DE ANIMAL.
+    // Nascimento NÃO exige animal previamente cadastrado.
     if(atual.tipo==='Nascimento'){
-      if(!atual.sisbov){erros.push({linha:linhaNum,motivo:'Nascimento bloqueado: SISBOV não informado.'});return;}
+      if(!atual.sisbov){
+        erros.push({linha:linhaNum,motivo:'Nascimento bloqueado: SISBOV não informado.'});return;
+      }
       const existente=resolverAnimalHistorico({sisbov:atual.sisbov});
-      const repetido=validos.some(x=>x.tipo==='Nascimento'&&normalizarSisbov(x.sisbov)===atual.sisbov);
+      const repetido=validos.some(x=>x.tipo==='Nascimento' && normalizarSisbov(x.sisbov)===atual.sisbov);
       if(existente||repetido){
-        erros.push({linha:linhaNum,motivo:`Nascimento bloqueado: SISBOV ${atual.sisbov} já está cadastrado ou repetido neste arquivo.`});return;
+        erros.push({linha:linhaNum,motivo:`Nascimento bloqueado: SISBOV ${atual.sisbov} já cadastrado ou repetido no arquivo.`});return;
       }
       atual.animalNovo=true;
       validos.push(atual);
       return;
     }
 
-    // Demais tipos: só agora procuram animal existente.
     const animalHist=resolverAnimalHistorico(atual);
     if(animalHist){
       atual.animalId=animalHist.id;
       const dados=dadosAnimalParaMov(animalHist,atual.data);
-      ['brinco','chip','sexo','raca','nascimento'].forEach(k=>{if(dados[k])atual[k]=dados[k];});
-      if(!atual.setorOrigem&&dados.setorOrigem)atual.setorOrigem=dados.setorOrigem;
+      ['brinco','chip','sexo','raca','nascimento'].forEach(k=>{if(dados[k]) atual[k]=dados[k];});
+      if(!atual.setorOrigem&&dados.setorOrigem) atual.setorOrigem=dados.setorOrigem;
     }else{
       vincularMovimentacaoAoAnimal(atual);
     }
 
     if((TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)||atual.tipo==='Transferência entre Seções'||atual.tipo==='Reidentificação')&&!atual.animalId){
-      erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado (${atual.tipo}): animal não localizado no cadastro nem no histórico de reidentificações.`});return;
+      erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado (${atual.tipo}): animal não localizado no cadastro nem no histórico de reidentificações.`});
+      return;
     }
+
     const motivo=motivoBloqueioMovimentacao(atual,'',validos);
     if(motivo){erros.push({linha:linhaNum,motivo});return;}
     validos.push(atual);
   });
 
-  return {validos,erros,total:rows.length,debug:{loteNascimento,totalNascimento}};
+  return {validos,erros,total:rows.length};
 }
-
 function confirmarImportMov(res){
   const body = `
     <p style="font-size:13px;"><b>${(res.validos.length+res.erros.length).toLocaleString('pt-BR')}</b> movimentações encontradas no arquivo.</p>
@@ -2040,7 +2037,7 @@ function confirmarImportMov(res){
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
-  openModal('Confirmar Importação — Movimentações · V24.2.0', body, [
+  openModal('Confirmar Importação — Movimentações · V24.1.6', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
     {label:'Confirmar Importação', cls:'btn-primary', onClick:()=>{
       const separadas=separarMovimentacoesNovas(res.validos);
