@@ -1959,7 +1959,13 @@ function processarImportMov(rows){
     // Nascimento. Só preservamos outro tipo quando ele estiver EXPLICITAMENTE reconhecido.
     // Não usamos SETOR ORIGEM/DESTINO para decidir isso, pois planilhas de nascimento antigas
     // podem preencher o setor em colunas diferentes.
-    if(lotePredominanteNascimento && (!tipo || !tipoRaw)) tipo='Nascimento';
+    // V24.1.2 — regra de lote: se >=90% das linhas são Nascimento, uma linha isolada
+    // sem qualquer sinal real de saída também é Nascimento, mesmo que a célula TIPO venha
+    // com valor residual/errado de uma planilha anterior. Isso resolve linhas novas que não
+    // existem no cadastro (comportamento esperado para nascimento).
+    const temSinalSaida = !!String(r.destinoExterno||'').trim() || !!String(r.causaMorte||'').trim();
+    const tipoSaidaExplicito = ['morte','venda frigorifico','venda terceiro'].includes(tipoRaw);
+    if(lotePredominanteNascimento && !temSinalSaida && !tipoSaidaExplicito) tipo='Nascimento';
     if(!dataISO){ erros.push({linha:linhaNum, motivo:'Data inválida'}); return; }
     if(!tipo){ erros.push({linha:linhaNum, motivo:'Tipo de movimentação não reconhecido'}); return; }
     const qtd = parseInt(r.quantidade)||1;
@@ -2138,7 +2144,7 @@ function confirmarImportMov(res){
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
-  openModal('Confirmar Importação — Movimentações · V24.1.1', body, [
+  openModal('Confirmar Importação — Movimentações · V24.1.2', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
     {label:'Confirmar Importação', cls:'btn-primary', onClick:()=>{
       const separadas=separarMovimentacoesNovas(res.validos);
