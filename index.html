@@ -950,6 +950,178 @@ input:focus,select:focus,textarea:focus{
 .badge-success,.status-success,.positive{background:var(--ui-soft)!important;color:var(--ui-accent)!important}
 </style>
 
+
+<style id="executive-neutral-final">
+/* Paleta final: branco + grafite quente + verde apenas como acento */
+:root{
+ --sidebar-w:198px!important;
+ --neutral-950:#202522;
+ --neutral-900:#292f2c;
+ --neutral-700:#58615d;
+ --neutral-200:#e5e8e6;
+ --neutral-100:#f1f3f2;
+ --neutral-50:#f7f8f8;
+ --accent:#476b5c;
+ --accent-soft:#edf2ef;
+}
+
+/* LOGIN REAL */
+#authGate{
+ background:#fff!important;
+ background-image:none!important;
+}
+#authGate:before,#authGate:after{
+ display:none!important;
+ content:none!important;
+ background:none!important;
+}
+#authGate .auth-card{
+ background:#fff!important;
+ border:1px solid #e7e9e8!important;
+ box-shadow:0 20px 60px rgba(25,30,28,.08)!important;
+}
+#authGate .auth-brand{color:var(--neutral-950)!important}
+#authGate .auth-foot b{color:var(--neutral-700)!important}
+
+/* HEADER REAL */
+header.app-header{
+ background:#fff!important;
+ background-image:none!important;
+ color:var(--neutral-950)!important;
+ min-height:64px!important;
+ padding:8px 20px!important;
+ border-bottom:1px solid var(--neutral-200)!important;
+ box-shadow:0 2px 12px rgba(24,31,28,.045)!important;
+}
+header.app-header .brand-mark{
+ width:46px!important;height:46px!important;
+ box-shadow:none!important;
+ border:1px solid var(--neutral-200)!important;
+}
+header.app-header .brand-text h1{color:var(--neutral-950)!important;font-size:19px!important}
+header.app-header .header-actions .pill{
+ background:var(--neutral-50)!important;
+ color:var(--neutral-950)!important;
+ border:1px solid var(--neutral-200)!important;
+ box-shadow:none!important;
+}
+header.app-header .user-chip{color:var(--neutral-700)!important}
+header.app-header .btn-logout{
+ color:var(--neutral-700)!important;
+ border-color:#d9dddb!important;
+ background:#fff!important;
+}
+
+/* SIDEBAR REAL — mais estreita e neutra */
+nav.tabs.premium-sidebar{
+ top:64px!important;
+ width:var(--sidebar-w)!important;
+ padding:12px 8px!important;
+ background:#262c29!important;
+ background-image:none!important;
+ box-shadow:none!important;
+ border-right:1px solid #343b37!important;
+}
+nav.tabs.premium-sidebar .nav-section{
+ color:#89928e!important;
+ padding:13px 9px 5px!important;
+ font-size:8.5px!important;
+ letter-spacing:1.1px!important;
+}
+nav.tabs.premium-sidebar button{
+ min-height:38px!important;
+ padding:8px 9px!important;
+ gap:9px!important;
+ margin:1px 0!important;
+ font-size:11.5px!important;
+ color:#d5dad7!important;
+ border-radius:8px!important;
+}
+nav.tabs.premium-sidebar button:hover{
+ background:#313835!important;
+ color:#fff!important;
+ transform:none!important;
+}
+nav.tabs.premium-sidebar button.active{
+ background:#f4f6f5!important;
+ background-image:none!important;
+ color:#1e2723!important;
+ box-shadow:inset 3px 0 0 var(--accent)!important;
+}
+nav.tabs.premium-sidebar .tab-ico{width:16px!important;height:16px!important;flex-basis:16px!important}
+main{
+ margin-left:var(--sidebar-w)!important;
+ padding-top:70px!important;
+}
+
+/* DASHBOARD — densidade maior e menos áreas mortas */
+#view-dashboard.exec-dashboard{padding:6px 8px 18px!important}
+#view-dashboard .exec-hero{
+ margin-bottom:8px!important;
+ padding:0 2px!important;
+ min-height:0!important;
+}
+#view-dashboard .exec-hero h1{font-size:22px!important;margin-bottom:2px!important}
+#view-dashboard .exec-hero p{font-size:11px!important;margin:0!important}
+#view-dashboard .exec-sync-top{margin:0 0 8px!important;padding:6px 10px!important}
+#view-dashboard .exec-kpis{
+ grid-template-columns:repeat(5,minmax(130px,1fr))!important;
+ gap:8px!important;margin-bottom:8px!important;
+}
+#view-dashboard .kpi-card{
+ min-height:76px!important;
+ padding:10px 11px!important;
+ border-radius:10px!important;
+}
+#view-dashboard .kpi-label{font-size:9.5px!important}
+#view-dashboard .kpi-val{font-size:23px!important;margin-top:3px!important}
+#view-dashboard .kpi-sub{font-size:9.5px!important;margin-top:2px!important}
+#view-dashboard .exec-row{
+ gap:8px!important;
+ margin-bottom:8px!important;
+ align-items:stretch!important;
+}
+#view-dashboard .exec-row-main{grid-template-columns:1.15fr 1fr .85fr!important}
+#view-dashboard .exec-row-3{grid-template-columns:1fr 1fr 1fr!important}
+#view-dashboard .exec-row-bottom{grid-template-columns:.8fr .8fr 1.25fr .9fr!important}
+#view-dashboard .panel{
+ border-radius:10px!important;
+ box-shadow:0 3px 12px rgba(25,31,28,.035)!important;
+}
+#view-dashboard .panel-head{padding:8px 10px!important}
+#view-dashboard .panel-head h3,#view-dashboard .panel-head strong{font-size:11.5px!important}
+#view-dashboard .panel-body{
+ padding:8px 10px!important;
+ min-height:0!important;
+}
+#view-dashboard .exec-row-main .panel-body{min-height:128px!important}
+#view-dashboard .exec-row-3 .panel-body{min-height:116px!important}
+#view-dashboard .exec-row-bottom .panel-body{min-height:105px!important}
+#view-dashboard .bar-row{margin:4px 0!important}
+#view-dashboard .mini-bars{height:88px!important}
+#view-dashboard .mini-pair{height:72px!important}
+#view-dashboard .evolution-wrap{height:102px!important}
+#view-dashboard .evolution-line{height:74px!important}
+#view-dashboard .dash-donut{width:104px!important;height:104px!important}
+#view-dashboard .dash-donut:after{width:64px!important;height:64px!important}
+#view-dashboard .dashboard-mortality{margin-top:8px!important}
+
+/* tira verde de cabeçalhos de tabelas que overrides antigos deixaram */
+thead th{
+ background:#f1f3f2!important;
+ color:#27302c!important;
+}
+.modal-header{
+ background:#2b312e!important;
+ background-image:none!important;
+}
+
+@media(max-width:1100px){
+ :root{--sidebar-w:176px!important}
+ #view-dashboard .exec-kpis{grid-template-columns:repeat(3,1fr)!important}
+}
+</style>
+
 </head>
 <body>
 <div id="authGate">
