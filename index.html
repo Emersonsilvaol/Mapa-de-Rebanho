@@ -1131,7 +1131,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1.7 · IMPORTAÇÃO ROBUSTA</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1.8 · NASCIMENTO + MORTE NO MESMO ARQUIVO</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;" onchange="tratarArquivoMovimentacao(this)">
@@ -2004,7 +2004,13 @@ function processarImportMov(rows){
     // é tratada como Nascimento ANTES da validação de existência.
     if(loteNascimento && tipo==='Morte' && sis && !causa && !destExt){
       const jaExiste=resolverAnimalHistorico({sisbov:sis});
-      if(!jaExiste) tipo='Nascimento';
+      // Se o mesmo SISBOV já apareceu antes no próprio arquivo como Nascimento,
+      // esta linha é uma Morte posterior do animal recém-nascido e deve continuar Morte.
+      const nasceuNoMesmoArquivo=validos.some(x=>
+        x.tipo==='Nascimento' && normalizarSisbov(x.sisbov)===sis &&
+        (!x.data || !dataISO || x.data<=dataISO)
+      );
+      if(!jaExiste && !nasceuNoMesmoArquivo) tipo='Nascimento';
     }
     if(loteNascimento && !tipo && sis && !causa && !destExt){
       tipo='Nascimento';
@@ -2046,7 +2052,24 @@ function processarImportMov(rows){
       ['brinco','chip','sexo','raca','nascimento'].forEach(k=>{if(dados[k]) atual[k]=dados[k];});
       if(!atual.setorOrigem&&dados.setorOrigem) atual.setorOrigem=dados.setorOrigem;
     }else{
-      vincularMovimentacaoAoAnimal(atual);
+      // Permite sequência válida dentro do MESMO arquivo:
+      // Nascimento em uma data e Morte/Venda/Transferência posterior do mesmo SISBOV.
+      const nascimentoPendente=[...validos].reverse().find(x=>
+        x.tipo==='Nascimento' &&
+        normalizarSisbov(x.sisbov)===atual.sisbov &&
+        (!x.data || !atual.data || x.data<=atual.data)
+      );
+      if(nascimentoPendente){
+        atual.animalId=nascimentoPendente.animalId || nascimentoPendente._animalIdPendente || ('pend_'+atual.sisbov);
+        nascimentoPendente._animalIdPendente=atual.animalId;
+        ['brinco','chip','sexo','raca','nascimento'].forEach(k=>{
+          if(!atual[k] && nascimentoPendente[k]) atual[k]=nascimentoPendente[k];
+        });
+        if(!atual.setorOrigem) atual.setorOrigem=nascimentoPendente.setorDestino||nascimentoPendente.setorOrigem||'';
+        atual.animalLocalizadoNoLote=true;
+      }else{
+        vincularMovimentacaoAoAnimal(atual);
+      }
     }
 
     if((TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)||atual.tipo==='Transferência entre Seções'||atual.tipo==='Reidentificação')&&!atual.animalId){
@@ -2071,7 +2094,7 @@ function confirmarImportMov(res){
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
-  openModal('Confirmar Importação — Movimentações · V24.1.7', body, [
+  openModal('Confirmar Importação — Movimentações · V24.1.8', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
     {label:'Confirmar Importação', cls:'btn-primary', onClick:()=>{
       const separadas=separarMovimentacoesNovas(res.validos);
@@ -2093,7 +2116,14 @@ function confirmarImportMov(res){
           }
         }
       });
-      movimentacoesNovas.forEach(vincularMovimentacaoAoAnimal);
+      // Substitui qualquer vínculo temporário usado na pré-validação pelo animalId real
+      // criado para o nascimento do mesmo arquivo.
+      movimentacoesNovas.forEach(m=>{
+        if(String(m.animalId||'').startsWith('pend_')) delete m.animalId;
+        vincularMovimentacaoAoAnimal(m);
+        delete m._animalIdPendente;
+        delete m.animalLocalizadoNoLote;
+      });
       DB.movimentacoes = DB.movimentacoes.concat(movimentacoesNovas);
       saveDB('animais'); saveDB('mov');
       closeModal();
