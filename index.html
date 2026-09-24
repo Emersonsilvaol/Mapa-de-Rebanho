@@ -1131,7 +1131,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1.1 · NASCIMENTO FIX</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.2.0 · IMPORTAÇÃO NASCIMENTO CORRIGIDA</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -1139,6 +1139,8 @@ body.modal-aberto .app-header{
 <input type="file" id="fileLogo" accept="image/png,image/jpeg,image/svg+xml,image/gif" style="display:none;">
 
 <script>
+window.__BUILD_MAPA_REBANHO__='V24.2.0-NASCIMENTO-FIX-REAL';
+console.info('[MAPA DE REBANHO] BUILD V24.2.0-NASCIMENTO-FIX-REAL');
 /* ==========================================================================
    MAPA PECUÁRIO — Sistema de Controle de Rebanho
    Estrutura: UTIL > STORAGE > IMPORT > ENGINE (reconstrução) > RENDER > EVENTOS
@@ -1935,230 +1937,97 @@ function auditarBaixasHistoricas(){
 }
 
 function processarImportMov(rows){
-  const validos = [], erros = [];
-  const tiposLote = rows.map(raw=>{ const rr=normalizarLinha(raw, HEADER_MAP_MOV); return stripAccents(String(rr.tipo||'')).toLowerCase().trim(); });
-  const qtdNascimentoLote = tiposLote.filter(t=>t.includes('nasc')).length;
-  const lotePredominanteNascimento = rows.length>0 && (qtdNascimentoLote/rows.length)>=0.90;
-  rows.forEach((raw, idx)=>{
-    const r = normalizarLinha(raw, HEADER_MAP_MOV);
-    const linhaNum = idx+2;
-    const dataISO = toISODate(r.data);
-    const tipoRaw = stripAccents(String(r.tipo||'')).toLowerCase().trim();
-    let tipo = TIPOS_MOV.find(t=> stripAccents(t).toLowerCase()===tipoRaw );
+  const validos=[], erros=[];
+
+  // Classifica o lote usando SOMENTE a coluna TIPO normalizada.
+  const tiposBrutos=rows.map(raw=>{
+    const r=normalizarLinha(raw,HEADER_MAP_MOV);
+    return stripAccents(String(r.tipo||'')).toLowerCase().trim();
+  });
+  const totalNascimento=tiposBrutos.filter(t=>t.includes('nasc')).length;
+  const loteNascimento=rows.length>0 && (totalNascimento/rows.length)>=0.80;
+
+  rows.forEach((raw,idx)=>{
+    const r=normalizarLinha(raw,HEADER_MAP_MOV);
+    const linhaNum=idx+2;
+    const dataISO=toISODate(r.data);
+    const tipoRaw=stripAccents(String(r.tipo||'')).toLowerCase().trim();
+    const sis=normalizarSisbov(r.sisbov);
+    const causa=String(r.causaMorte||'').trim();
+    const destinoExterno=String(r.destinoExterno||'').trim();
+
+    let tipo=TIPOS_MOV.find(t=>stripAccents(t).toLowerCase()===tipoRaw);
     if(!tipo){
       if(tipoRaw.includes('nasc')) tipo='Nascimento';
       else if(tipoRaw.includes('mort')) tipo='Morte';
       else if(tipoRaw.includes('transf')) tipo='Transferência entre Seções';
-      else if(tipoRaw.includes('audit') || tipoRaw.includes('animal')) tipo='Animais sem auditar';
+      else if(tipoRaw.includes('audit')||tipoRaw.includes('animal')) tipo='Animais sem auditar';
       else if(tipoRaw.includes('compr')) tipo='Compra';
       else if(tipoRaw.includes('frigo')) tipo='Venda Frigorífico';
-      else if(tipoRaw.includes('terceir')) tipo='Venda Terceiro';
+      else if(tipoRaw.includes('terceir')||tipoRaw.includes('venda')) tipo='Venda Terceiro';
     }
-    // CORREÇÃO V24.1.1 — lote de nascimento:
-    // Se >=90% do arquivo é Nascimento, linhas com TIPO vazio/não reconhecido também são
-    // Nascimento. Só preservamos outro tipo quando ele estiver EXPLICITAMENTE reconhecido.
-    // Não usamos SETOR ORIGEM/DESTINO para decidir isso, pois planilhas de nascimento antigas
-    // podem preencher o setor em colunas diferentes.
-    // V24.1.4 — regra de lote: se >=90% das linhas são Nascimento, uma linha isolada
-    // sem qualquer sinal real de saída também é Nascimento, mesmo que a célula TIPO venha
-    // com valor residual/errado de uma planilha anterior. Isso resolve linhas novas que não
-    // existem no cadastro (comportamento esperado para nascimento).
-    const temDestinoExterno = !!String(r.destinoExterno||'').trim();
-    const temCausaMorte = !!String(r.causaMorte||'').trim();
-    const temSinalSaida = temDestinoExterno || temCausaMorte;
 
-    // V24.1.4 — CORREÇÃO DA CAUSA RAIZ DO LOTE DE NASCIMENTOS.
-    // No arquivo real, 104/106 linhas chegam como Nascimento e as duas últimas
-    // chegam indevidamente como Morte. Se o lote é predominantemente Nascimento,
-    // uma linha marcada como Morte SEM causa da morte e SEM destino externo não
-    // possui os dados mínimos de uma morte real e deve seguir o padrão do lote.
-    // Vendas nunca são convertidas. Morte com causa também nunca é convertida.
-    const vendaExplicita = tipoRaw.includes('frigo') || tipoRaw.includes('terceir') || tipoRaw.includes('venda');
-    const morteReal = tipoRaw.includes('mort') && temCausaMorte;
-    if(lotePredominanteNascimento && !temSinalSaida && !vendaExplicita && !morteReal){
+    // REGRA DEFINITIVA PARA PLANILHA DE NASCIMENTOS:
+    // Em lote predominantemente de Nascimento, uma linha isolada marcada como Morte
+    // só é Morte se houver evidência de morte: causa informada OU animal já existente.
+    // SISBOV novo + sem causa = Nascimento. A regra é aplicada ANTES de qualquer
+    // validação que exija animal existente.
+    if(loteNascimento && tipo==='Morte' && sis && !causa){
+      const existente=resolverAnimalHistorico({sisbov:sis});
+      if(!existente) tipo='Nascimento';
+    }
+    // Tipo vazio/residual em lote de nascimento, sem sinal de saída, também é nascimento.
+    if(loteNascimento && (!tipo || !TIPOS_MOV.includes(tipo)) && sis && !causa && !destinoExterno){
       tipo='Nascimento';
     }
-    if(!dataISO){ erros.push({linha:linhaNum, motivo:'Data inválida'}); return; }
-    if(!tipo){ erros.push({linha:linhaNum, motivo:'Tipo de movimentação não reconhecido'}); return; }
-    const qtd = parseInt(r.quantidade)||1;
-    const nascISO = toISODate(r.nascimento);
-    if(dataISO > todayISO()){ erros.push({linha:linhaNum, motivo:'Data de movimentação futura'}); return; }
-    validos.push({
-      id: uid('mv'),
-      data: dataISO,
-      tipo,
-      sisbov: normalizarSisbov(r.sisbov),
-      brinco: String(r.brinco||'').trim(),
-      chip: String(r.chip||'').trim(),
-      setorOrigem: String(r.setorOrigem||'').trim(),
-      setorDestino: String(r.setorDestino||'').trim(),
-      local: String(r.local||'').trim(),
-      destinoExterno: String(r.destinoExterno||'').trim(),
-      causaMorte: String(r.causaMorte||'').trim(),
-      sexo: String(r.sexo||'').trim() ? normSexo(r.sexo) : '',
-      raca: String(r.raca||'').trim(),
-      nascimento: nascISO,
-      quantidade: qtd,
-      observacao: String(r.observacao||'').trim(),
-      eventoAuditoria: tipo==='Compra'
-    });
-    const atual=validos[validos.length-1];
 
-    // V24.1.4 — correção específica para lote de NASCIMENTOS.
-    // Caso isolado observado: em um arquivo com >=90% de Nascimento, algumas linhas
-    // chegam com TIPO='Morte' por erro/resíduo da planilha. Se o SISBOV é NOVO,
-    // não há causa da morte nem destino externo, a linha é inequivocamente uma entrada
-    // neste contexto e deve ser tratada como Nascimento. Uma morte real de animal já
-    // cadastrado continua Morte; uma linha com causa da morte também continua Morte.
-    if(lotePredominanteNascimento && atual.tipo==='Morte' &&
-       !String(atual.causaMorte||'').trim() && !String(atual.destinoExterno||'').trim()){
-      const animalJaExiste=resolverAnimalHistorico({sisbov:normalizarSisbov(atual.sisbov)});
-      if(!animalJaExiste){
-        atual.tipo='Nascimento';
-        tipo='Nascimento';
-      }
-    }
+    if(!dataISO){erros.push({linha:linhaNum,motivo:'Data inválida'});return;}
+    if(!tipo){erros.push({linha:linhaNum,motivo:'Tipo de movimentação não reconhecido'});return;}
+    if(dataISO>todayISO()){erros.push({linha:linhaNum,motivo:'Data de movimentação futura'});return;}
 
-    // ENTRADAS criam um novo animal. Não devem exigir que o SISBOV já exista.
-    // Para Nascimento, o comportamento correto é exatamente o oposto de uma saída:
-    // se o SISBOV ainda não existe, a linha é válida e o animal será criado na confirmação.
+    const atual={
+      id:uid('mv'),data:dataISO,tipo,sisbov:sis,
+      brinco:String(r.brinco||'').trim(),chip:String(r.chip||'').trim(),
+      setorOrigem:String(r.setorOrigem||'').trim(),setorDestino:String(r.setorDestino||'').trim(),
+      local:String(r.local||'').trim(),destinoExterno,causaMorte:causa,
+      sexo:String(r.sexo||'').trim()?normSexo(r.sexo):'',raca:String(r.raca||'').trim(),
+      nascimento:toISODate(r.nascimento),quantidade:parseInt(r.quantidade)||1,
+      observacao:String(r.observacao||'').trim(),eventoAuditoria:tipo==='Compra'
+    };
+
+    // NASCIMENTO É TRATADO ANTES DA BUSCA OBRIGATÓRIA DE ANIMAL.
     if(atual.tipo==='Nascimento'){
-      const sis=normalizarSisbov(atual.sisbov);
-      if(!sis){
-        validos.pop();
-        erros.push({linha:linhaNum,motivo:'Nascimento bloqueado: SISBOV não informado.'});
-        return;
+      if(!atual.sisbov){erros.push({linha:linhaNum,motivo:'Nascimento bloqueado: SISBOV não informado.'});return;}
+      const existente=resolverAnimalHistorico({sisbov:atual.sisbov});
+      const repetido=validos.some(x=>x.tipo==='Nascimento'&&normalizarSisbov(x.sisbov)===atual.sisbov);
+      if(existente||repetido){
+        erros.push({linha:linhaNum,motivo:`Nascimento bloqueado: SISBOV ${atual.sisbov} já está cadastrado ou repetido neste arquivo.`});return;
       }
-      const existente=resolverAnimalHistorico({sisbov:sis});
-      const nascimentoNoLote=validos.slice(0,-1).find(x=>x.tipo==='Nascimento' && normalizarSisbov(x.sisbov)===sis);
-      if(existente || nascimentoNoLote){
-        validos.pop();
-        erros.push({linha:linhaNum,motivo:`Nascimento bloqueado: SISBOV ${sis} já está cadastrado ou repetido neste arquivo.`});
-        return;
-      }
-      atual.sisbov=sis;
       atual.animalNovo=true;
+      validos.push(atual);
       return;
     }
 
+    // Demais tipos: só agora procuram animal existente.
     const animalHist=resolverAnimalHistorico(atual);
     if(animalHist){
       atual.animalId=animalHist.id;
       const dados=dadosAnimalParaMov(animalHist,atual.data);
-      ['brinco','chip','sexo','raca','nascimento'].forEach(k=>{ if(dados[k]) atual[k]=dados[k]; });
-      if(!atual.setorOrigem && dados.setorOrigem) atual.setorOrigem=dados.setorOrigem;
+      ['brinco','chip','sexo','raca','nascimento'].forEach(k=>{if(dados[k])atual[k]=dados[k];});
+      if(!atual.setorOrigem&&dados.setorOrigem)atual.setorOrigem=dados.setorOrigem;
     }else{
       vincularMovimentacaoAoAnimal(atual);
     }
 
-    // Somente movimentações que pressupõem um animal existente exigem localização.
-    if(TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo) && !atual.animalId){
-      validos.pop();
-      erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado (${atual.tipo}): animal não localizado no cadastro nem no histórico de reidentificações.`});
-      return;
+    if((TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)||atual.tipo==='Transferência entre Seções'||atual.tipo==='Reidentificação')&&!atual.animalId){
+      erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado (${atual.tipo}): animal não localizado no cadastro nem no histórico de reidentificações.`});return;
     }
-    const motivo=motivoBloqueioMovimentacao(atual,'',validos.slice(0,-1));
-    if(motivo){
-      validos.pop();
-      erros.push({linha:linhaNum,motivo});
-      return;
-    }
+    const motivo=motivoBloqueioMovimentacao(atual,'',validos);
+    if(motivo){erros.push({linha:linhaNum,motivo});return;}
+    validos.push(atual);
   });
-  return {validos, erros};
-}
 
-function chaveMovimentacao(m){
-  return [m.data,m.tipo,normalizarSisbov(m.sisbov),String(m.brinco||'').trim(),
-    String(m.chip||'').trim(),String(m.setorOrigem||'').trim(),String(m.setorDestino||'').trim(),String(m.local||'').trim(),String(m.destinoExterno||'').trim(),String(m.causaMorte||'').trim(),
-    Number(m.quantidade)||1].join('|');
-}
-function separarMovimentacoesNovas(lista){
-  const existentes=new Set(DB.movimentacoes.map(chaveMovimentacao));
-  const novas=[], duplicadas=[];
-  lista.forEach(m=>{
-    const chave=chaveMovimentacao(m);
-    if(existentes.has(chave)) duplicadas.push(m);
-    else { existentes.add(chave); novas.push(m); }
-  });
-  return {novas, duplicadas};
-}
-
-function baixarModeloInicial(){
-  const ws = XLSX.utils.json_to_sheet([{
-    'SETOR':'Guaicurus','SISBOV':'','BRINCO':'','CHIP':'','SEXO':'Fêmea','RAÇA':'Nelore','DATA DE NASCIMENTO':'10/01/2024'
-  }]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Mapa Inicial');
-  XLSX.writeFile(wb, 'modelo_mapa_inicial.xlsx');
-}
-function baixarModeloMov(){
-  const ws = XLSX.utils.json_to_sheet([
-    {'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Nascimento','SISBOV':'','BRINCO':'','SETOR ORIGEM':'','SETOR DESTINO':'Guaicurus','LOCAL':'Pasto 01','DESTINO EXTERNO':'','CAUSA DA MORTE':'','SEXO':'Fêmea','RAÇA':'Nelore','DATA DE NASCIMENTO':'10/09/2026','QUANTIDADE':1,'OBSERVAÇÃO':''},
-    {'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Transferência entre Seções','SISBOV':'','BRINCO':'','SETOR ORIGEM':'Guaicurus','SETOR DESTINO':'Tope','LOCAL':'Pasto 02','DESTINO EXTERNO':'','CAUSA DA MORTE':'','SEXO':'','RAÇA':'','DATA DE NASCIMENTO':'','QUANTIDADE':1,'OBSERVAÇÃO':''},
-    {'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Morte','SISBOV':'','BRINCO':'','SETOR ORIGEM':'Guaicurus','SETOR DESTINO':'','LOCAL':'Pasto 01','DESTINO EXTERNO':'','CAUSA DA MORTE':'Doença','SEXO':'','RAÇA':'','DATA DE NASCIMENTO':'','QUANTIDADE':1,'OBSERVAÇÃO':''},
-    {'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Venda Frigorífico','SISBOV':'','BRINCO':'','SETOR ORIGEM':'Guaicurus','SETOR DESTINO':'','LOCAL':'','DESTINO EXTERNO':'Frigorífico','CAUSA DA MORTE':'','SEXO':'','RAÇA':'','DATA DE NASCIMENTO':'','QUANTIDADE':1,'OBSERVAÇÃO':''}
-  ]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Movimentações');
-  XLSX.writeFile(wb, 'modelo_movimentacoes.xlsx');
-}
-
-function integrarMapaInicial(animaisNovos){
-  animaisNovos.forEach(novo=>{
-    novo.sisbov=normalizarSisbov(novo.sisbov);
-    const existentes=novo.sisbov ? DB.animais.filter(a=>normalizarSisbov(a.sisbov)===novo.sisbov) : [];
-    const alvo=existentes.find(a=>a.origem==='inicial') || existentes[0];
-    if(alvo){
-      const id=alvo.id;
-      Object.assign(alvo,novo,{id,origem:'inicial'});
-      DB.movimentacoes.forEach(m=>{ if(m.animalId===id || normalizarSisbov(m.sisbov)===novo.sisbov) m.animalId=id; });
-    } else DB.animais.push(novo);
-  });
-  // Remove duplicados do Mapa Inicial pelo SISBOV, mantendo o cadastro mais recente.
-  const vistos=new Set();
-  DB.animais=DB.animais.filter(a=>{
-    const k=normalizarSisbov(a.sisbov);
-    if(a.origem!=='inicial' || !k) return true;
-    if(vistos.has(k)) return false;
-    vistos.add(k); return true;
-  });
-  saveDB('animais');
-}
-
-function confirmarImportInicial(res){
-  const total = res.validos.length;
-  const body = `
-    <p style="font-size:13px;"><b>${total.toLocaleString('pt-BR')}</b> animais encontrados no arquivo.</p>
-    <div class="detail-row"><span>Linhas válidas</span><b style="color:var(--verde-ok);">${res.validos.length}</b></div>
-    <div class="detail-row"><span>Linhas bloqueadas</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
-    <div class="detail-row"><span>Duplicidades de SISBOV (ignoradas)</span><b style="color:var(--vermelho);">${res.duplicados.length}</b></div>
-    ${res.erros.length? `<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Linha</th><th>Motivo do bloqueio</th></tr></thead><tbody>${res.erros.map(e=>`<tr><td><span class="badge badge-red">BLOQUEADO</span></td><td>${e.linha}</td><td>${e.motivo}</td></tr>`).join('')}</tbody></table></div>`:''}
-    <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">Os animais válidos serão adicionados ao Mapa Inicial existente (sem apagar os dados atuais).</p>
-  `;
-  openModal('Confirmar Importação — Mapa Inicial', body, [
-    {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
-    {label:'Confirmar Importação', cls:'btn-primary', onClick:()=>{
-      integrarMapaInicial(res.validos);
-      closeModal();
-      toast(`${res.validos.length} animais importados com sucesso.`, 'ok');
-      renderAll();
-    }}
-  ]);
-}
-
-function reprocessarDadosMovimentacoes(){
-  const total=DB.movimentacoes.length;
-  let encontrados=0, atualizados=0;
-  const naoEncontrados=[];
-  DB.movimentacoes.forEach(m=>{
-    const antes=JSON.stringify([m.brinco,m.chip,m.sexo,m.raca,m.nascimento,m.animalId]);
-    const r=vincularMovimentacaoAoAnimal(m);
-    if(r.animal){ encontrados++; if(JSON.stringify([m.brinco,m.chip,m.sexo,m.raca,m.nascimento,m.animalId])!==antes) atualizados++; }
-    else if(m.sisbov) naoEncontrados.push(m.sisbov);
-  });
-  saveDB('mov'); renderAll();
-  const unicos=[...new Set(naoEncontrados)];
-  openModal('Reprocessamento concluído', `<p>Movimentações processadas: <b>${total.toLocaleString('pt-BR')}</b></p><p>Animais encontrados: <b>${encontrados.toLocaleString('pt-BR')}</b></p><p>Animais não encontrados: <b>${unicos.length.toLocaleString('pt-BR')}</b></p><p>Dados atualizados: <b>${atualizados.toLocaleString('pt-BR')}</b></p>${unicos.length?`<div class="table-wrap"><table class="exec"><thead><tr><th>SISBOV</th><th>Status</th><th>Dados pendentes</th></tr></thead><tbody>${unicos.map(x=>`<tr><td>${x}</td><td>NÃO ENCONTRADO</td><td>Sexo / Raça / Nascimento</td></tr>`).join('')}</tbody></table></div>`:''}`, [{label:'FECHAR',cls:'btn-primary',onClick:closeModal}], true);
+  return {validos,erros,total:rows.length,debug:{loteNascimento,totalNascimento}};
 }
 
 function confirmarImportMov(res){
@@ -2171,7 +2040,7 @@ function confirmarImportMov(res){
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
-  openModal('Confirmar Importação — Movimentações · V24.1.4', body, [
+  openModal('Confirmar Importação — Movimentações · V24.2.0', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
     {label:'Confirmar Importação', cls:'btn-primary', onClick:()=>{
       const separadas=separarMovimentacoesNovas(res.validos);
