@@ -794,10 +794,10 @@ body.modal-aberto .app-header{
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
         Importar Mapa Inicial
       </button>
-      <button class="btn btn-outline" id="btnModeloInicial">Baixar Modelo XLSX</button>
+      <button class="btn btn-outline" id="btnModeloInicial" type="button" onclick="baixarModeloInicial()">Baixar Modelo XLSX</button>
       <div class="spacer"></div>
-      <button class="btn btn-outline" id="btnExportInicialXlsx">Exportar XLSX</button>
-      <button class="btn btn-outline" id="btnExportInicialPdf">Exportar PDF</button>
+      <button class="btn btn-outline" id="btnExportInicialXlsx" type="button" onclick="exportarMapaInicial('xlsx')">Exportar XLSX</button>
+      <button class="btn btn-outline" id="btnExportInicialPdf" type="button" onclick="exportarMapaInicial('pdf')">Exportar PDF</button>
       <button class="btn btn-danger admin-only" id="btnExcluirTudo" hidden>EXCLUIR TUDO</button>
     </div>
     <div class="panel" style="margin-top:12px;margin-bottom:12px;">
@@ -869,10 +869,10 @@ body.modal-aberto .app-header{
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
         Importar Movimentações
       </button>
-      <button class="btn btn-outline" id="btnModeloMov">Baixar Modelo XLSX</button>
+      <button class="btn btn-outline" id="btnModeloMov" type="button" onclick="baixarModeloMov()">Baixar Modelo XLSX</button>
       <div class="spacer"></div>
-      <button class="btn btn-outline" id="btnExportMovXlsx">Exportar XLSX</button>
-      <button class="btn btn-outline" id="btnExportMovPdf">Exportar PDF</button>
+      <button class="btn btn-outline" id="btnExportMovXlsx" type="button" onclick="exportarMovimentacoes('xlsx')">Exportar XLSX</button>
+      <button class="btn btn-outline" id="btnExportMovPdf" type="button" onclick="exportarMovimentacoes('pdf')">Exportar PDF</button>
       <button class="btn btn-outline" id="btnReprocessarMov">REPROCESSAR DADOS DOS ANIMAIS</button>
       <button class="btn btn-danger admin-only" id="btnExcluirTudoMov" hidden>EXCLUIR TUDO</button>
       <button class="btn btn-outline admin-only" type="button" data-goto="reidentificacao">REIDENTIFICAÇÃO</button>
@@ -912,8 +912,8 @@ body.modal-aberto .app-header{
       <div class="field"><label>Local</label><select id="mapaFiltroLocal"><option value="">Todos</option></select></div>
       <div class="spacer"></div>
       <button class="btn btn-outline" id="btnVerAnimais">Ocultar/Mostrar Detalhamento</button>
-      <button class="btn btn-outline" id="btnExportAtualXlsx">Exportar XLSX</button>
-      <button class="btn btn-outline" id="btnExportAtualPdf">Exportar PDF</button>
+      <button class="btn btn-outline" id="btnExportAtualXlsx" type="button" onclick="exportarMapaAtual('xlsx')">Exportar XLSX</button>
+      <button class="btn btn-outline" id="btnExportAtualPdf" type="button" onclick="exportarMapaAtual('pdf')">Exportar PDF</button>
     </div>
     <div id="mapaAtualAlertas"></div>
     <div id="mapaAtualResumo"></div>
@@ -947,8 +947,8 @@ body.modal-aberto .app-header{
       <div class="field"><label>&nbsp;</label><button class="btn btn-primary btn-sm" id="btnAplicarRel">Aplicar</button></div>
       <div class="field"><label>&nbsp;</label><button class="btn btn-outline btn-sm" id="btnLimparRel">Limpar</button></div>
       <div class="spacer"></div>
-      <button class="btn btn-outline" id="btnExportRelXlsx">Exportar XLSX</button>
-      <button class="btn btn-outline" id="btnExportRelPdf">Exportar PDF</button>
+      <button class="btn btn-outline" id="btnExportRelXlsx" type="button" onclick="exportarRelatorio('xlsx')">Exportar XLSX</button>
+      <button class="btn btn-outline" id="btnExportRelPdf" type="button" onclick="exportarRelatorio('pdf')">Exportar PDF</button>
     </div>
     <div id="relatorioConteudo"></div>
   </section>
@@ -1131,7 +1131,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1.9 · IMPORTAÇÃO SALVANDO</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none"></div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;" onchange="tratarArquivoMovimentacao(this)">
@@ -2125,7 +2125,7 @@ function confirmarImportMov(res){
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
-  openModal('Confirmar Importação — Movimentações · V24.1.9', body, [
+  openModal('Confirmar Importação — Movimentações · ', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
     {label:'Confirmar Importação', cls:'btn-primary', onClick:async ()=>{
       const separadas=separarMovimentacoesNovas(res.validos);
@@ -2528,6 +2528,43 @@ function renderDetalheTable(containerId, lista, modo){
   el.innerHTML = `<div class="table-wrap"><table class="exec"><thead>${cabecalho}</thead><tbody>${linhas}</tbody></table></div>
     <p style="font-size:11px;color:var(--cinza-600);margin-top:6px;">${lista.length.toLocaleString('pt-BR')} animal(is) listado(s) — categoria calculada automaticamente pela data de nascimento.</p>`;
   el.querySelectorAll('.btnEditAnimal').forEach(b=>b.onclick=()=>abrirEdicaoAnimal(b.dataset.id));
+}
+
+
+function garantirBibliotecaExportacao(tipo){
+  if(tipo==='xlsx' && (typeof XLSX==='undefined' || !XLSX.utils)){
+    toast('Biblioteca XLSX não carregada. Verifique a conexão e recarregue a página.','err');
+    return false;
+  }
+  if(tipo==='pdf' && (typeof jspdf==='undefined' || !jspdf.jsPDF)){
+    toast('Biblioteca PDF não carregada. Verifique a conexão e recarregue a página.','err');
+    return false;
+  }
+  return true;
+}
+
+function baixarModeloInicial(){
+  if(!garantirBibliotecaExportacao('xlsx')) return;
+  const ws=XLSX.utils.json_to_sheet([{
+    'SETOR':'Guaicurus','SISBOV':'','BRINCO':'','CHIP':'','SEXO':'Fêmea',
+    'RAÇA':'Nelore','DATA DE NASCIMENTO':'10/01/2024'
+  }]);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Mapa Inicial');
+  XLSX.writeFile(wb,'modelo_mapa_inicial.xlsx');
+}
+
+function baixarModeloMov(){
+  if(!garantirBibliotecaExportacao('xlsx')) return;
+  const ws=XLSX.utils.json_to_sheet([{
+    'DATA DA MOVIMENTAÇÃO':'10/09/2026','TIPO':'Nascimento','SISBOV':'','BRINCO':'',
+    'SETOR ORIGEM':'','SETOR DESTINO':'Guaicurus','LOCAL':'','DESTINO EXTERNO':'',
+    'CAUSA DA MORTE':'','SEXO':'Fêmea','RAÇA':'Nelore',
+    'DATA DE NASCIMENTO':'10/09/2026','QUANTIDADE':1,'OBSERVAÇÃO':''
+  }]);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Movimentações');
+  XLSX.writeFile(wb,'modelo_movimentacoes.xlsx');
 }
 
 /* ===== EXPORTAÇÃO DO MAPA CONSOLIDADO — mesma identidade visual em XLSX e PDF ===== */
@@ -3690,6 +3727,7 @@ function resumoToAOA(resumo, titulo){
   return aoa;
 }
 function exportarXLSXMultiplo(abas, filename){
+  if(!garantirBibliotecaExportacao('xlsx')) return;
   const wb = XLSX.utils.book_new();
   abas.forEach(({nome, aoa, json, merges, styleMatrix, colWidths})=>{
     const ws = json ? XLSX.utils.json_to_sheet(json) : XLSX.utils.aoa_to_sheet(aoa);
@@ -3714,6 +3752,7 @@ function exportarXLSXMultiplo(abas, filename){
   toast('Arquivo XLSX exportado.', 'ok');
 }
 function novoPDF(titulo, periodoTxt){
+  if(!garantirBibliotecaExportacao('pdf')) return null;
   const doc = new jspdf.jsPDF({orientation:'landscape'});
   doc.setFillColor(15,59,46); doc.rect(0,0,297,16,'F');
   doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont(undefined,'bold');
@@ -3760,6 +3799,7 @@ function exportarMapaInicial(formato){
     ], 'mapa_inicial.xlsx');
   } else {
     const doc = novoPDF('MAPA INICIAL', 'Data de referência: '+formatBR(ref));
+    if(!doc) return;
     let y = exportarGridPDF(doc, base, 20);
     doc.addPage();
     doc.setFontSize(11); doc.setTextColor(15,59,46); doc.setFont(undefined,'bold');
@@ -3783,6 +3823,7 @@ function exportarMovimentacoes(formato){
     }))}], 'movimentacoes.xlsx');
   } else {
     const doc = novoPDF('MOVIMENTAÇÕES', '');
+    if(!doc) return;
     doc.autoTable({startY:20, head:[['Data','Tipo','SISBOV','Origem','Destino','Local','Sexo','Qtd.']],
       body: lista.map(m=>[formatBR(m.data), m.tipo, m.sisbov||'—', m.setorOrigem||'—', m.setorDestino||'—', m.local||'—', m.sexo, {content:m.quantidade,styles:{halign:'right'}}]),
       headStyles:autoTableHead()});
@@ -3802,6 +3843,7 @@ function exportarMapaAtual(formato){
     ], 'mapa_final.xlsx');
   } else {
     const doc = novoPDF('MAPA FINAL', 'Referência: '+formatBR(ref));
+    if(!doc) return;
     exportarGridPDF(doc, ativos, 20);
     doc.addPage();
     doc.setFontSize(11); doc.setTextColor(15,59,46); doc.setFont(undefined,'bold');
@@ -3830,6 +3872,7 @@ function exportarRelatorio(formato){
     ], 'relatorio_periodo.xlsx');
   } else {
     const doc = novoPDF('RELATÓRIO DO PERÍODO', formatBR(c.ini)+' até '+formatBR(c.fim));
+    if(!doc) return;
     doc.setFontSize(11); doc.setTextColor(15,59,46); doc.setFont(undefined,'bold');
     doc.text('BLOCO 1 — Mapa Inicial do Período', 10, 18);
     let y = exportarGridPDF(doc, c.inicioAtivos, 22);
