@@ -741,7 +741,7 @@ body.modal-aberto .app-header{
   <button data-view="fichaAnimal"><svg class="tab-ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20c1-5 13-5 14 0"/></svg><span>Ficha do Animal</span></button>
   <div class="nav-section">OPERAÇÕES</div>
   <button data-view="movimentacoes"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
-  <button data-view="reidentificacao" class="admin-only"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M5 7h11M13 4l3 3-3 3"/><path d="M19 17H8M11 14l-3 3 3 3"/></svg><span>Reidentificação</span></button>
+  <button data-view="reidentificacao"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M5 7h11M13 4l3 3-3 3"/><path d="M19 17H8M11 14l-3 3 3 3"/></svg><span>Reidentificação</span></button>
   <button data-view="inventario"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Inventário / Auditoria</span></button>
   <div class="nav-section">GESTÃO</div>
   <button data-view="relatorio"><svg class="tab-ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h3M8 16h6"/></svg><span>Relatório do Período</span></button>
@@ -1135,7 +1135,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V20 · REID + PERMISSÕES FIX</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V21 · PERMISSÕES + REID FIX</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -1245,6 +1245,12 @@ function aplicarPermissoes(){
    });
  });
 }
+
+// API única e estável para reaplicar permissões após qualquer renderização.
+function aplicarPermissoesUI(){
+  return aplicarPermissoes();
+}
+
 async function liberarSessao(user){
  AUTH_USER=user;AUTH_ADMIN=false;AUTH_PERMISSIONS={};
  try{
@@ -3777,7 +3783,10 @@ function localizarReidPage(){
   const novo=document.getElementById('reidPageNovo');novo.disabled=false;novo.focus();
 }
 async function salvarReidPage(){
-  if(!exigirAdmin('salvar reidentificação'))return;
+  if(!podeAcesso('movimentacoes','editar')){
+    toast('Você não tem permissão para salvar reidentificações.','err');
+    return;
+  }
 
   const busca=document.getElementById('reidPageBusca');
   const novoEl=document.getElementById('reidPageNovo');
@@ -3871,6 +3880,9 @@ function iniciarReidPage(){
 
 /* ============================== NAVEGAÇÃO / EVENTOS ========================= */
 function irParaView(view){
+  const mod=moduloViewAcesso(view);
+  if(view==='usuarios' && !AUTH_ADMIN){toast('Acesso exclusivo do administrador.','err');return;}
+  if(view!=='usuarios' && !podeAcesso(mod,'ver')){toast('Você não tem permissão para acessar este módulo.','err');return;}
   document.querySelectorAll('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.view===view));
   document.querySelectorAll('main .view').forEach(v=> v.classList.toggle('active', v.id==='view-'+view));
   if(view==='dashboard') renderDashboard();
@@ -4333,7 +4345,10 @@ async function iniciarSistema(){
 async function init(){
   document.getElementById('loginForm').addEventListener('submit', efetuarLogin);
   document.getElementById('btnLogout').addEventListener('click', sairSistema);
-  document.getElementById('mainTabs').addEventListener('click',e=>{if(e.target?.dataset?.view==='usuarios'&&AUTH_ADMIN)setTimeout(carregarUsuarios,0);});
+  document.getElementById('mainTabs').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-view]');
+    if(b?.dataset?.view==='usuarios'&&AUTH_ADMIN)setTimeout(carregarUsuarios,0);
+  });
   const autenticado=await iniciarAutenticacao();
   if(autenticado) await iniciarSistema();
 }
