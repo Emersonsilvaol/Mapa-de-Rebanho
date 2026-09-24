@@ -1959,7 +1959,7 @@ function processarImportMov(rows){
     // Nascimento. Só preservamos outro tipo quando ele estiver EXPLICITAMENTE reconhecido.
     // Não usamos SETOR ORIGEM/DESTINO para decidir isso, pois planilhas de nascimento antigas
     // podem preencher o setor em colunas diferentes.
-    // V24.1.2 — regra de lote: se >=90% das linhas são Nascimento, uma linha isolada
+    // V24.1.3 — regra de lote: se >=90% das linhas são Nascimento, uma linha isolada
     // sem qualquer sinal real de saída também é Nascimento, mesmo que a célula TIPO venha
     // com valor residual/errado de uma planilha anterior. Isso resolve linhas novas que não
     // existem no cadastro (comportamento esperado para nascimento).
@@ -1991,6 +1991,21 @@ function processarImportMov(rows){
       eventoAuditoria: tipo==='Compra'
     });
     const atual=validos[validos.length-1];
+
+    // V24.1.3 — correção específica para lote de NASCIMENTOS.
+    // Caso isolado observado: em um arquivo com >=90% de Nascimento, algumas linhas
+    // chegam com TIPO='Morte' por erro/resíduo da planilha. Se o SISBOV é NOVO,
+    // não há causa da morte nem destino externo, a linha é inequivocamente uma entrada
+    // neste contexto e deve ser tratada como Nascimento. Uma morte real de animal já
+    // cadastrado continua Morte; uma linha com causa da morte também continua Morte.
+    if(lotePredominanteNascimento && atual.tipo==='Morte' &&
+       !String(atual.causaMorte||'').trim() && !String(atual.destinoExterno||'').trim()){
+      const animalJaExiste=resolverAnimalHistorico({sisbov:normalizarSisbov(atual.sisbov)});
+      if(!animalJaExiste){
+        atual.tipo='Nascimento';
+        tipo='Nascimento';
+      }
+    }
 
     // ENTRADAS criam um novo animal. Não devem exigir que o SISBOV já exista.
     // Para Nascimento, o comportamento correto é exatamente o oposto de uma saída:
@@ -2144,7 +2159,7 @@ function confirmarImportMov(res){
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
-  openModal('Confirmar Importação — Movimentações · V24.1.2', body, [
+  openModal('Confirmar Importação — Movimentações · V24.1.3', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
     {label:'Confirmar Importação', cls:'btn-primary', onClick:()=>{
       const separadas=separarMovimentacoesNovas(res.validos);
