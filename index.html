@@ -915,11 +915,7 @@ body.modal-aberto .app-header{
       <button class="btn btn-outline" id="btnExportAtualXlsx">Exportar XLSX</button>
       <button class="btn btn-outline" id="btnExportAtualPdf">Exportar PDF</button>
     </div>
-    <div id="mapaAtualAlertas"></div><div id="mapaConciliacao" style="margin-bottom:12px"></div>
-    <div class="panel" id="mapaAtualAuditoria">
-      <div class="panel-head"><h3>Auditoria detalhada do Mapa Atual</h3><span class="sub">Causa, impacto e correção</span></div>
-      <div class="panel-body" id="mapaAtualAuditoriaBody"></div>
-    </div>
+    <div id="mapaAtualAlertas"></div>
     <div id="mapaAtualResumo"></div>
     <div class="panel" id="painelAnimais">
       <div class="panel-head">
@@ -1135,7 +1131,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24 · TRAVAS DE BAIXA + IDENTIDADE</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1 · MAPA FINAL LIMPO</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -3644,7 +3640,6 @@ function renderAll(){
   renderMapaInicial();
   renderMovimentacoes();
   renderMapaAtual();
-  renderConciliacao();
   renderRelatorio();
   renderMortalidade();
   renderSetores();
