@@ -1135,7 +1135,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V17 · REID PAGE</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V18 · REID SAVE TESTED</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -3779,24 +3779,85 @@ function localizarReidPage(){
 }
 async function salvarReidPage(){
   if(!exigirAdmin('salvar reidentificação'))return;
-  const busca=document.getElementById('reidPageBusca'),novoEl=document.getElementById('reidPageNovo'),data=document.getElementById('reidPageData')?.value||todayISO();
-  const anterior=String(busca?.value||'').trim(), anteriorDig=String(anterior).replace(/\D/g,''), novo=String(novoEl?.value||'').replace(/\D/g,'');
-  const animal=REID_PAGE_ANIMAL||animalPorIdentificacaoAtualOuHistorico(anterior,data);
-  if(!animal){toast('Identificação anterior não encontrada.','err');return;}
-  if(novo.length!==15){toast('O novo SISBOV deve conter 15 dígitos.','err');novoEl?.focus();return;}
-  if(anteriorDig.length===15&&anteriorDig===novo){toast('O novo SISBOV deve ser diferente do anterior.','err');return;}
-  const conflito=(DB.animais||[]).some(a=>a.id!==animal.id&&String(a.sisbov||'').replace(/\D/g,'')===novo)
-    ||(DB.movimentacoes||[]).some(x=>x.tipo==='Reidentificação'&&String(x.sisbovNovo||'').replace(/\D/g,'')===novo&&x.animalId!==animal.id);
-  if(conflito){toast('Novo SISBOV já pertence a outro animal.','err');return;}
-  const base=dadosAnimalParaMov(animal,data), sisbovAnterior=anteriorDig.length===15?anteriorDig:String(base.sisbov||animal.sisbov||'').replace(/\D/g,'');
-  const brincoAnterior=base.brinco||animal.brinco||anterior, brincoNovo=novo.slice(8,14);
-  if(brincoJaPertenceOutroAnimal(brincoNovo,animal.id)){toast('O brinco do novo SISBOV já pertence a outro animal.','err');return;}
-  const mov={id:uid('mv'),animalId:animal.id,data,tipo:'Reidentificação',sisbov:novo,sisbovAnterior,sisbovNovo:novo,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,
-    chip:base.chip||'',sexo:base.sexo||'',raca:base.raca||'',nascimento:base.nascimento||'',setorOrigem:base.setorOrigem||'',setorDestino:'',local:base.local||'',observacao:''};
-  DB.movimentacoes.push(mov);animal.sisbov=novo;animal.brinco=brincoNovo;animal.updatedAt=new Date().toISOString();
-  await saveDB();renderAll();
-  toast('Reidentificação salva. Pronto para o próximo animal.','ok');
-  busca.value='';limparReidPage(true);
+
+  const busca=document.getElementById('reidPageBusca');
+  const novoEl=document.getElementById('reidPageNovo');
+  const btn=document.getElementById('btnReidPageSalvar');
+  const data=document.getElementById('reidPageData')?.value||todayISO();
+  const anterior=String(busca?.value||'').trim();
+  const anteriorDig=String(anterior).replace(/\D/g,'');
+  const novo=String(novoEl?.value||'').replace(/\D/g,'');
+
+  if(btn){btn.disabled=true;btn.textContent='SALVANDO...';}
+
+  try{
+    const animal=REID_PAGE_ANIMAL||animalPorIdentificacaoAtualOuHistorico(anterior,data);
+    if(!animal) throw new Error('Identificação anterior não encontrada.');
+    if(novo.length!==15) throw new Error('O novo SISBOV deve conter exatamente 15 dígitos.');
+    if(anteriorDig.length===15 && anteriorDig===novo) throw new Error('O novo SISBOV deve ser diferente do anterior.');
+
+    // Só OUTRO animal pode bloquear o novo SISBOV.
+    const outroAnimal=(DB.animais||[]).find(a=>a.id!==animal.id && String(a.sisbov||'').replace(/\D/g,'')===novo);
+    const outroHistorico=(DB.movimentacoes||[]).find(x=>x.tipo==='Reidentificação' && x.animalId!==animal.id && String(x.sisbovNovo||'').replace(/\D/g,'')===novo);
+    if(outroAnimal||outroHistorico) throw new Error('Novo SISBOV já pertence a outro animal.');
+
+    const base=dadosAnimalParaMov(animal,data);
+    const sisbovAnterior=anteriorDig.length===15?anteriorDig:String(base.sisbov||animal.sisbov||'').replace(/\D/g,'');
+    const brincoAnterior=String(base.brinco||animal.brinco||anterior||'').trim();
+    const brincoNovo=novo.slice(8,14);
+
+    // Snapshot para rollback se IndexedDB falhar.
+    const oldAnimal={sisbov:animal.sisbov,brinco:animal.brinco,updatedAt:animal.updatedAt};
+    const mov={
+      id:uid('mv'),animalId:animal.id,data,tipo:'Reidentificação',
+      sisbov:novo,sisbovAnterior,sisbovNovo:novo,
+      brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,
+      chip:base.chip||'',sexo:base.sexo||'',raca:base.raca||'',
+      nascimento:base.nascimento||'',setorOrigem:base.setorOrigem||'',
+      setorDestino:'',local:base.local||'',observacao:''
+    };
+
+    DB.movimentacoes.push(mov);
+    animal.sisbov=novo;
+    animal.brinco=brincoNovo;
+    animal.updatedAt=new Date().toISOString();
+
+    try{
+      // Persiste explicitamente as DUAS bases alteradas e só então confirma.
+      await Promise.all([
+        idbSet(LS_KEYS.animais,DB.animais),
+        idbSet(LS_KEYS.mov,DB.movimentacoes)
+      ]);
+      agendarSyncCentral();
+    }catch(persistErr){
+      // Rollback em memória para não deixar estado falso.
+      const ix=DB.movimentacoes.findIndex(x=>x.id===mov.id);
+      if(ix>=0)DB.movimentacoes.splice(ix,1);
+      animal.sisbov=oldAnimal.sisbov;
+      animal.brinco=oldAnimal.brinco;
+      animal.updatedAt=oldAnimal.updatedAt;
+      throw new Error('Falha ao gravar a reidentificação no banco local. '+(persistErr?.message||''));
+    }
+
+    // Verificação pós-gravação em memória antes de limpar a tela.
+    const gravada=DB.movimentacoes.find(x=>x.id===mov.id && x.sisbovAnterior===sisbovAnterior && x.sisbovNovo===novo);
+    if(!gravada || String(animal.sisbov)!==novo) throw new Error('A reidentificação não foi confirmada após a gravação.');
+
+    renderAll();
+    toast('Reidentificação salva: '+sisbovAnterior+' → '+novo+'.','ok');
+    busca.value='';
+    limparReidPage(true);
+  }catch(err){
+    console.error('Erro na reidentificação',err);
+    toast(err?.message||'Não foi possível salvar a reidentificação.','err');
+    if(novoEl)novoEl.focus();
+  }finally{
+    if(btn){
+      btn.textContent='SALVAR E PRÓXIMO';
+      const valido=String(novoEl?.value||'').replace(/\D/g,'').length===15 && !!REID_PAGE_ANIMAL;
+      btn.disabled=!valido;
+    }
+  }
 }
 function iniciarReidPage(){
   const data=document.getElementById('reidPageData'),busca=document.getElementById('reidPageBusca'),novo=document.getElementById('reidPageNovo'),btn=document.getElementById('btnReidPageSalvar');
@@ -3804,7 +3865,7 @@ function iniciarReidPage(){
   let timer;
   busca.addEventListener('input',()=>{clearTimeout(timer);REID_PAGE_ANIMAL=null;const q=busca.value.trim();if(!q){limparReidPage(false);return;}timer=setTimeout(localizarReidPage,160);});
   busca.addEventListener('change',localizarReidPage);busca.addEventListener('blur',()=>{if(busca.value.trim()&&!REID_PAGE_ANIMAL){const m=document.getElementById('reidPageMsg');m.style.display='block';m.className='alert alert-red';m.innerHTML='<b>Identificação anterior não encontrada.</b>'; }});
-  novo.addEventListener('input',()=>{novo.value=novo.value.replace(/\D/g,'').slice(0,15);document.getElementById('reidPageNovoStatus').textContent=novo.value.length===15?'Pronto para salvar.':novo.value.length+'/15 dígitos';btn.disabled=novo.value.length!==15;});
+  novo.addEventListener('input',()=>{novo.value=novo.value.replace(/\D/g,'').slice(0,15);document.getElementById('reidPageNovoStatus').textContent=novo.value.length===15?'Pronto para salvar.':novo.value.length+'/15 dígitos';btn.disabled=novo.value.length!==15||!REID_PAGE_ANIMAL;});
   novo.addEventListener('keydown',e=>{if(e.key==='Enter'&&!btn.disabled){e.preventDefault();salvarReidPage();}});
   btn.addEventListener('click',salvarReidPage);data.addEventListener('change',()=>{if(busca.value.trim())localizarReidPage();});
 }
