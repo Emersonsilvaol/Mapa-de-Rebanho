@@ -1135,7 +1135,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V21 · PERMISSÕES + REID FIX</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V22 · AUDITORIA JS + REID FIX</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -2733,7 +2733,7 @@ function renderDashboard(){
   document.getElementById('dashIndicators').innerHTML=`<div class="exec-metric-grid"><div class="exec-metric"><b>${nascRate.toFixed(1).replace('.',',')}%</b><span>Nascimentos / mapa inicial</span></div><div class="exec-metric"><b>${mortRate.toFixed(1).replace('.',',')}%</b><span>Mortes / mapa inicial</span></div><div class="exec-metric"><b>${pf.toFixed(1).replace('.',',')}%</b><span>Fêmeas no rebanho atual</span></div><div class="exec-metric"><b>${(100-pf).toFixed(1).replace('.',',')}%</b><span>Machos no rebanho atual</span></div></div>`;
 
   const recent=[...DB.movimentacoes].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).slice(0,6);
-  document.getElementById('dashRecent').innerHTML=`<table class="recent-table"><thead><tr><th>Data</th><th>Tipo</th><th>Qtde</th><th>Setor / Destino</th></tr></thead><tbody>${recent.map(m=>`<tr><td>${formatDateBR(m.data)||'-'}</td><td>${tipoOperacionalMov(m)||m.tipo||'-'}</td><td>${qtd(m)}</td><td>${m.setorDestino||m.setor||m.setorOrigem||'-'}</td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('dashRecent').innerHTML=`<table class="recent-table"><thead><tr><th>Data</th><th>Tipo</th><th>Qtde</th><th>Setor / Destino</th></tr></thead><tbody>${recent.map(m=>`<tr><td>${formatBR(m.data)||'-'}</td><td>${tipoOperacionalMov(m)||m.tipo||'-'}</td><td>${qtd(m)}</td><td>${m.setorDestino||m.setor||m.setorOrigem||'-'}</td></tr>`).join('')}</tbody></table>`;
 
   const upd=DB.config?._centralUpdatedAt; let updTxt='Sincronizada'; try{if(upd)updTxt=new Date(upd).toLocaleString('pt-BR')}catch(e){}
   document.getElementById('dashSync').innerHTML=`<b>● Base sincronizada</b><br><span>Última atualização: ${updTxt}</span>`;
