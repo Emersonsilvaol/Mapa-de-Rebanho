@@ -1135,7 +1135,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V22 · AUDITORIA JS + REID FIX</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24 · TRAVAS DE BAIXA + IDENTIDADE</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -1831,30 +1831,111 @@ function vincularMovimentacaoAoAnimal(m){
 }
 
 
+
+function resolverAnimalHistorico(ref){
+  if(!ref) return null;
+  if(ref.animalId){
+    const a=DB.animais.find(x=>x.id===ref.animalId);
+    if(a) return a;
+  }
+  const ids=[ref.sisbov,ref.sisbovAnterior,ref.sisbovNovo].map(normalizarSisbov).filter(Boolean);
+  const brincos=[ref.brinco,ref.brincoAnterior,ref.brincoNovo].map(x=>String(x||'').trim()).filter(Boolean);
+  const chips=[ref.chip].map(x=>String(x||'').trim()).filter(Boolean);
+
+  let a=DB.animais.find(x=>ids.includes(normalizarSisbov(x.sisbov)) ||
+    brincos.includes(String(x.brinco||'').trim()) || chips.includes(String(x.chip||'').trim()));
+  if(a) return a;
+
+  // Procura qualquer identificação antiga/nova registrada nas reidentificações.
+  const reid=(DB.movimentacoes||[]).find(m=>m.tipo==='Reidentificação' && (
+    ids.some(v=>[m.sisbov,m.sisbovAnterior,m.sisbovNovo].map(normalizarSisbov).includes(v)) ||
+    brincos.some(v=>[m.brinco,m.brincoAnterior,m.brincoNovo].map(x=>String(x||'').trim()).includes(v)) ||
+    (m.animalId && ref.animalId && m.animalId===ref.animalId)
+  ));
+  if(reid?.animalId) return DB.animais.find(x=>x.id===reid.animalId)||null;
+  return null;
+}
+function identidadeAnimalId(ref){
+  return resolverAnimalHistorico(ref)?.id || ref?.animalId || '';
+}
 function mesmaIdentidadeMov(a,b){
   if(!a||!b) return false;
-  if(a.animalId && b.animalId && a.animalId===b.animalId) return true;
-  const sa=normalizarSisbov(a.sisbov), sb=normalizarSisbov(b.sisbov);
-  if(sa && sb && sa===sb) return true;
-  const ba=String(a.brinco||'').trim(), bb=String(b.brinco||'').trim();
-  if(ba && bb && ba===bb) return true;
+  const ia=identidadeAnimalId(a), ib=identidadeAnimalId(b);
+  if(ia && ib) return ia===ib;
+  const sa=[a.sisbov,a.sisbovAnterior,a.sisbovNovo].map(normalizarSisbov).filter(Boolean);
+  const sb=new Set([b.sisbov,b.sisbovAnterior,b.sisbovNovo].map(normalizarSisbov).filter(Boolean));
+  if(sa.some(x=>sb.has(x))) return true;
+  const ba=[a.brinco,a.brincoAnterior,a.brincoNovo].map(x=>String(x||'').trim()).filter(Boolean);
+  const bb=new Set([b.brinco,b.brincoAnterior,b.brincoNovo].map(x=>String(x||'').trim()).filter(Boolean));
+  if(ba.some(x=>bb.has(x))) return true;
   const ca=String(a.chip||'').trim(), cb=String(b.chip||'').trim();
   return !!(ca && cb && ca===cb);
 }
-function conflitoMorteFrigorifico(nova, ignorarId=''){
-  if(!nova || !['Morte','Venda Frigorífico'].includes(nova.tipo)) return null;
-  const oposto=nova.tipo==='Morte'?'Venda Frigorífico':'Morte';
-  return DB.movimentacoes.find(x=>x.id!==ignorarId && x.tipo===oposto && mesmaIdentidadeMov(nova,x))||null;
+const TIPOS_BAIXA_DEFINITIVA=['Morte','Venda Frigorífico','Venda Terceiro'];
+
+function baixaDefinitivaExistente(ref, ignorarId='', extras=[]){
+  const id=identidadeAnimalId(ref);
+  const todos=[...(DB.movimentacoes||[]),...(extras||[])];
+  return todos.find(x=>{
+    if(!x || x.id===ignorarId || !TIPOS_BAIXA_DEFINITIVA.includes(tipoOperacionalMov(x))) return false;
+    if(id){
+      const xid=identidadeAnimalId(x);
+      if(xid) return xid===id;
+    }
+    return mesmaIdentidadeMov(ref,x);
+  })||null;
 }
-function corrigirConflitosMorteFrigorificoExistentes(){
-  const mortes=(DB.movimentacoes||[]).filter(m=>m.tipo==='Morte');
-  if(!mortes.length) return 0;
-  const antes=DB.movimentacoes.length;
-  DB.movimentacoes=DB.movimentacoes.filter(m=>{
-    if(m.tipo!=='Venda Frigorífico') return true;
-    return !mortes.some(mt=>mesmaIdentidadeMov(m,mt));
+function motivoBloqueioMovimentacao(nova, ignorarId='', extras=[]){
+  if(!nova) return '';
+  const tipo=tipoOperacionalMov(nova);
+  const animal=resolverAnimalHistorico(nova);
+  if(animal) nova.animalId=animal.id;
+
+  // Saídas definitivas são mutuamente exclusivas e só podem ocorrer uma vez.
+  if(TIPOS_BAIXA_DEFINITIVA.includes(tipo)){
+    const baixa=baixaDefinitivaExistente(nova,ignorarId,extras);
+    if(baixa){
+      const num=normalizarSisbov(nova.sisbov)||normalizarSisbov(animal?.sisbov)||'sem SISBOV';
+      return `SISBOV ${num} bloqueado: este animal já possui ${tipoOperacionalMov(baixa)} em ${formatBR(baixa.data)||baixa.data||'data não informada'}. Um animal morto ou vendido não pode receber outra baixa.`;
+    }
+  }
+
+  // Depois de uma baixa definitiva, não permite movimentação operacional posterior.
+  if(['Transferência entre Seções','Reidentificação'].includes(tipo)){
+    const baixa=baixaDefinitivaExistente(nova,ignorarId,extras);
+    if(baixa && (!nova.data || !baixa.data || nova.data>=baixa.data)){
+      const num=normalizarSisbov(nova.sisbov)||normalizarSisbov(animal?.sisbov)||'sem SISBOV';
+      return `SISBOV ${num} bloqueado: animal já baixado por ${tipoOperacionalMov(baixa)} em ${formatBR(baixa.data)||baixa.data}.`;
+    }
+  }
+  return '';
+}
+
+// Não apaga histórico automaticamente. Inconsistências antigas devem ser mostradas,
+// nunca "corrigidas" silenciosamente removendo movimentações.
+function corrigirConflitosMorteFrigorificoExistentes(){ return 0; }
+
+function auditarBaixasHistoricas(){
+  const grupos=new Map();
+  (DB.movimentacoes||[]).forEach(m=>{
+    if(!TIPOS_BAIXA_DEFINITIVA.includes(tipoOperacionalMov(m))) return;
+    const id=identidadeAnimalId(m) || `SEM_ID:${normalizarSisbov(m.sisbov)||m.brinco||m.chip||m.id}`;
+    if(!grupos.has(id)) grupos.set(id,[]);
+    grupos.get(id).push(m);
   });
-  return antes-DB.movimentacoes.length;
+  const problemas=[];
+  grupos.forEach(lista=>{
+    if(lista.length<=1) return;
+    lista.sort((a,b)=>String(a.data||'').localeCompare(String(b.data||'')));
+    const primeira=lista[0];
+    lista.slice(1).forEach(x=>problemas.push({
+      sisbov:x.sisbov||primeira.sisbov||'—',
+      primeira:`${tipoOperacionalMov(primeira)} ${formatBR(primeira.data)||primeira.data||''}`.trim(),
+      duplicada:`${tipoOperacionalMov(x)} ${formatBR(x.data)||x.data||''}`.trim(),
+      motivo:`Mesmo animal possui mais de uma baixa definitiva.`
+    }));
+  });
+  return problemas;
 }
 
 function processarImportMov(rows){
@@ -1899,15 +1980,26 @@ function processarImportMov(rows){
       eventoAuditoria: tipo==='Compra'
     });
     const atual=validos[validos.length-1];
-    vincularMovimentacaoAoAnimal(atual);
-    if(['Morte','Venda Frigorífico'].includes(atual.tipo)){
-      const oposto=atual.tipo==='Morte'?'Venda Frigorífico':'Morte';
-      const conflitoExistente=DB.movimentacoes.find(x=>x.tipo===oposto && mesmaIdentidadeMov(atual,x));
-      const conflitoLote=validos.slice(0,-1).find(x=>x.tipo===oposto && mesmaIdentidadeMov(atual,x));
-      if(conflitoExistente || conflitoLote){
-        validos.pop();
-        erros.push({linha:linhaNum,motivo:`Conflito bloqueado: o mesmo animal já possui ${oposto}. Morte e Venda Frigorífico não podem coexistir.`});
-      }
+    const animalHist=resolverAnimalHistorico(atual);
+    if(animalHist){
+      atual.animalId=animalHist.id;
+      const dados=dadosAnimalParaMov(animalHist,atual.data);
+      ['brinco','chip','sexo','raca','nascimento'].forEach(k=>{ if(dados[k]) atual[k]=dados[k]; });
+      if(!atual.setorOrigem && dados.setorOrigem) atual.setorOrigem=dados.setorOrigem;
+    }else{
+      vincularMovimentacaoAoAnimal(atual);
+    }
+
+    if(TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo) && !atual.animalId){
+      validos.pop();
+      erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado: animal não localizado no cadastro nem no histórico de reidentificações.`});
+      return;
+    }
+    const motivo=motivoBloqueioMovimentacao(atual,'',validos.slice(0,-1));
+    if(motivo){
+      validos.pop();
+      erros.push({linha:linhaNum,motivo});
+      return;
     }
   });
   return {validos, erros};
@@ -1976,9 +2068,9 @@ function confirmarImportInicial(res){
   const body = `
     <p style="font-size:13px;"><b>${total.toLocaleString('pt-BR')}</b> animais encontrados no arquivo.</p>
     <div class="detail-row"><span>Linhas válidas</span><b style="color:var(--verde-ok);">${res.validos.length}</b></div>
-    <div class="detail-row"><span>Linhas com erro</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
+    <div class="detail-row"><span>Linhas bloqueadas</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
     <div class="detail-row"><span>Duplicidades de SISBOV (ignoradas)</span><b style="color:var(--vermelho);">${res.duplicados.length}</b></div>
-    ${res.erros.length? `<p style="font-size:11.5px;color:var(--cinza-600);margin-top:8px;">Ex.: ${res.erros.slice(0,5).map(e=>`linha ${e.linha} (${e.motivo})`).join('; ')}</p>`:''}
+    ${res.erros.length? `<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Linha</th><th>Motivo do bloqueio</th></tr></thead><tbody>${res.erros.map(e=>`<tr><td><span class="badge badge-red">BLOQUEADO</span></td><td>${e.linha}</td><td>${e.motivo}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">Os animais válidos serão adicionados ao Mapa Inicial existente (sem apagar os dados atuais).</p>
   `;
   openModal('Confirmar Importação — Mapa Inicial', body, [
@@ -2170,6 +2262,11 @@ function buildMapaNaData(refISO){
   function aplicarSaidaIndividual(m, novoStatus){
     const alvo = acharAnimalMovimentacao(m);
     if(alvo){
+      if(alvo.status==='MORTO' || alvo.status==='VENDIDO'){
+        inconsistencias.push({data:m.data,tipo:m.tipo,sisbov:m.sisbov||alvo.sisbov||'—',setor:alvo.setorAtual||'—',sexo:alvo.sexo,categoria:'—',faltante:0,
+          msg:`Baixa duplicada ignorada no cálculo: animal já estava ${alvo.status}. A movimentação permanece no histórico para auditoria.`});
+        return {deduzido:false,exato:true,bloqueado:true};
+      }
       alvo.status=novoStatus;
       alvo.historico.push({data:m.data, tipo:m.tipo, setor:alvo.setorAtual});
       return {deduzido:true, exato:true};
@@ -3095,14 +3192,19 @@ async function salvarFormularioMov(m){
   if(['Venda Frigorífico','Venda Terceiro'].includes(d.tipo) && !d.destinoExterno){toast('Informe o destino externo da venda.','err');return;}
   if(['Nascimento','Compra'].includes(d.tipo)) d.setorOrigem='';
   if(['Morte','Venda Frigorífico','Venda Terceiro'].includes(d.tipo)) d.setorDestino='';
-  if(['Morte','Venda Frigorífico'].includes(d.tipo)){
-    const conflito=conflitoMorteFrigorifico(d,m?.id||'');
-    if(conflito){
-      const msg=d.tipo==='Morte'
-        ? 'Este animal já possui Venda Frigorífico registrada. Exclua/corrija a venda antes de registrar a morte.'
-        : 'Este animal já possui Morte registrada. Não é permitido embarcar para frigorífico um animal registrado como morto.';
-      toast(msg,'err'); return;
+  if(d.tipo!=='Reidentificação'){
+    const hist=resolverAnimalHistorico(d);
+    if(hist){
+      d.animalId=hist.id;
+      const baseHist=dadosAnimalParaMov(hist,d.data);
+      ['sisbov','brinco','chip','sexo','raca','nascimento'].forEach(k=>{ if(baseHist[k]) d[k]=baseHist[k]; });
+      if(!d.setorOrigem && baseHist.setorOrigem) d.setorOrigem=baseHist.setorOrigem;
     }
+    if(TIPOS_BAIXA_DEFINITIVA.includes(d.tipo) && !d.animalId){
+      toast(`Movimentação bloqueada: SISBOV ${d.sisbov||'não informado'} não foi localizado no cadastro/histórico.`, 'err'); return;
+    }
+    const motivo=motivoBloqueioMovimentacao(d,m?.id||'');
+    if(motivo){ toast(motivo,'err'); return; }
   }
   if(d.tipo==='Reidentificação'){
     if(!AUTH_ADMIN){toast('Acesso somente para administrador.','err');return;}
@@ -3113,6 +3215,11 @@ async function salvarFormularioMov(m){
     if(sisbovNovo.length!==15){toast('O novo SISBOV deve conter 15 dígitos.','err');return;}
     if(!animal){toast('Identificação anterior não encontrada. A reidentificação não cria um novo animal.','err');return;}
     const baseAtual=dadosAnimalParaMov(animal,d.data);
+    const baixaAnterior=baixaDefinitivaExistente({animalId:animal.id,sisbov:animal.sisbov,data:d.data},m?.id||'');
+    if(baixaAnterior && (!d.data || !baixaAnterior.data || d.data>=baixaAnterior.data)){
+      toast(`Reidentificação bloqueada: animal já baixado por ${tipoOperacionalMov(baixaAnterior)} em ${formatBR(baixaAnterior.data)||baixaAnterior.data}.`,'err');
+      return;
+    }
     // A validação deve comparar exatamente o SISBOV anterior informado pelo operador
     // com o novo SISBOV digitado. Não usar o SISBOV reconstruído pelo histórico,
     // pois ele pode já resolver para a identificação nova.
@@ -3166,9 +3273,9 @@ async function salvarFormularioMov(m){
     setTimeout(()=>busca?.focus(),60);
     return;
   }
-  const encontrado=localizarPorIdentificador(d.sisbov||d.brinco||d.chip);
+  const encontrado=resolverAnimalHistorico(d) || localizarPorIdentificador(d.sisbov||d.brinco||d.chip);
   if(encontrado){
-    const base=dadosAnimalParaMov(encontrado);
+    const base=dadosAnimalParaMov(encontrado,d.data);
     d.animalId=encontrado.id;
     ['sisbov','brinco','chip','sexo','raca','nascimento'].forEach(k=>{ if(base[k]) d[k]=base[k]; });
     if(!d.setorOrigem && base.setorOrigem) d.setorOrigem=base.setorOrigem;
@@ -3239,13 +3346,13 @@ function renderMovimentacoes(){
   paginaMov = Math.min(paginaMov, totalPag);
   const slice = lista.slice((paginaMov-1)*PAGE_SIZE, paginaMov*PAGE_SIZE);
 
-  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Destino externo</th><th>Causa da morte</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
+  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${AUTH_ADMIN?'<th>Ação</th>':''}</tr>`;
   const tbody = slice.map(m=>`<tr>
     <td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'<span class="no-sisbov">agregado</span>')}</td>
-    <td>${m.tipo==='Reidentificação'?`${m.brincoAnterior||m.brinco||'—'} → ${m.brincoNovo||'—'}`:(m.brinco||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td><td>${m.destinoExterno||'—'}</td><td>${m.causaMorte||'—'}</td>
+    <td>${m.tipo==='Reidentificação'?`${m.brincoAnterior||m.brinco||'—'} → ${m.brincoNovo||'—'}`:(m.brinco||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td><td>${m.local||'—'}</td>
     <td>${valorExibicao(m.sexo)}</td><td>${valorExibicao(m.raca)}</td><td>${m.nascimento?formatBR(m.nascimento):'<span class="pending">PENDENTE</span>'}</td><td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td><td>${m.observacao||''}</td>${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditMov" data-id="${m.id}">EDITAR</button> <button class="btn btn-danger btn-sm btnDeleteMov" data-id="${m.id}">EXCLUIR</button></td>`:''}</tr>`).join('');
   document.getElementById('movTable').querySelector('thead').innerHTML = thead;
-  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${AUTH_ADMIN?16:15}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
+  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${AUTH_ADMIN?14:13}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
   document.getElementById('movPager').innerHTML = `Página ${paginaMov} de ${totalPag}
     <button class="btn btn-outline btn-sm" ${paginaMov<=1?'disabled':''} id="movPrev">‹</button>
     <button class="btn btn-outline btn-sm" ${paginaMov>=totalPag?'disabled':''} id="movNext">›</button>`;
@@ -3447,10 +3554,10 @@ function renderRelatorio(){
   html += `<h3 class="bloco-title">BLOCO 2 — Movimentações do Período</h3>
     <div class="panel"><div class="panel-head"><h3>Lançamentos</h3><span style="font-size:11.5px;color:var(--cinza-600);">${movsPeriodo.length} lançamento(s)</span></div>
     <div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr>
-    <th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Destino externo</th><th>Causa da morte</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th></tr></thead><tbody>
+    <th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th></tr></thead><tbody>
     ${movsPeriodo.map(m=>`<tr><td>${formatBR(m.data)}</td><td>${rotuloTipoMov(m.tipo)}</td><td>${m.sisbov||'—'}</td><td>${m.brinco||'—'}</td>
-      <td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td><td>${m.destinoExterno||'—'}</td><td>${m.causaMorte||'—'}</td><td>${m.sexo}</td><td>${m.raca}</td><td>${formatBR(m.nascimento)}</td>
-      <td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td></tr>`).join('') || `<tr><td colspan="14" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação no período.</td></tr>`}
+      <td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td><td>${m.sexo}</td><td>${m.raca}</td><td>${formatBR(m.nascimento)}</td>
+      <td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td></tr>`).join('') || `<tr><td colspan="12" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação no período.</td></tr>`}
     </tbody></table></div></div></div>`;
 
   html += `<h3 class="bloco-title">BLOCO 3 — Mapa Final do Período (${formatBR(fim)})</h3>
