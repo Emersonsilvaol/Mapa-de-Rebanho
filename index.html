@@ -1131,7 +1131,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1 · MAPA FINAL LIMPO</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1.1 · NASCIMENTO FIX</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -1954,12 +1954,12 @@ function processarImportMov(rows){
       else if(tipoRaw.includes('frigo')) tipo='Venda Frigorífico';
       else if(tipoRaw.includes('terceir')) tipo='Venda Terceiro';
     }
-    const temSinalSaida = !!String(r.destinoExterno||'').trim() || !!String(r.causaMorte||'').trim() || !!String(r.setorDestino||'').trim() || tipoRaw.includes('mort') || tipoRaw.includes('frigo') || tipoRaw.includes('terceir') || tipoRaw.includes('transf');
-    const linhaComPerfilNascimento = lotePredominanteNascimento && !temSinalSaida;
-    // Em um lote predominantemente de nascimentos, linhas sem sinal explícito de saída
-    // são nascimento mesmo que a célula TIPO ou DATA DE NASCIMENTO esteja vazia/irregular.
-    // Isso é necessário porque o SISBOV novo, por definição, ainda não existe no cadastro.
-    if(linhaComPerfilNascimento && tipo!=='Nascimento') tipo='Nascimento';
+    // CORREÇÃO V24.1.1 — lote de nascimento:
+    // Se >=90% do arquivo é Nascimento, linhas com TIPO vazio/não reconhecido também são
+    // Nascimento. Só preservamos outro tipo quando ele estiver EXPLICITAMENTE reconhecido.
+    // Não usamos SETOR ORIGEM/DESTINO para decidir isso, pois planilhas de nascimento antigas
+    // podem preencher o setor em colunas diferentes.
+    if(lotePredominanteNascimento && (!tipo || !tipoRaw)) tipo='Nascimento';
     if(!dataISO){ erros.push({linha:linhaNum, motivo:'Data inválida'}); return; }
     if(!tipo){ erros.push({linha:linhaNum, motivo:'Tipo de movimentação não reconhecido'}); return; }
     const qtd = parseInt(r.quantidade)||1;
@@ -2138,7 +2138,7 @@ function confirmarImportMov(res){
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
-  openModal('Confirmar Importação — Movimentações · V24.4', body, [
+  openModal('Confirmar Importação — Movimentações · V24.1.1', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
     {label:'Confirmar Importação', cls:'btn-primary', onClick:()=>{
       const separadas=separarMovimentacoesNovas(res.validos);
