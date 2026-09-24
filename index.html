@@ -1976,6 +1976,29 @@ function processarImportMov(rows){
       eventoAuditoria: tipo==='Compra'
     });
     const atual=validos[validos.length-1];
+
+    // ENTRADAS criam um novo animal. Não devem exigir que o SISBOV já exista.
+    // Para Nascimento, o comportamento correto é exatamente o oposto de uma saída:
+    // se o SISBOV ainda não existe, a linha é válida e o animal será criado na confirmação.
+    if(atual.tipo==='Nascimento'){
+      const sis=normalizarSisbov(atual.sisbov);
+      if(!sis){
+        validos.pop();
+        erros.push({linha:linhaNum,motivo:'Nascimento bloqueado: SISBOV não informado.'});
+        return;
+      }
+      const existente=resolverAnimalHistorico({sisbov:sis});
+      const nascimentoNoLote=validos.slice(0,-1).find(x=>x.tipo==='Nascimento' && normalizarSisbov(x.sisbov)===sis);
+      if(existente || nascimentoNoLote){
+        validos.pop();
+        erros.push({linha:linhaNum,motivo:`Nascimento bloqueado: SISBOV ${sis} já está cadastrado ou repetido neste arquivo.`});
+        return;
+      }
+      atual.sisbov=sis;
+      atual.animalNovo=true;
+      return;
+    }
+
     const animalHist=resolverAnimalHistorico(atual);
     if(animalHist){
       atual.animalId=animalHist.id;
@@ -1986,6 +2009,7 @@ function processarImportMov(rows){
       vincularMovimentacaoAoAnimal(atual);
     }
 
+    // Somente movimentações que pressupõem um animal existente exigem localização.
     if(TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo) && !atual.animalId){
       validos.pop();
       erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado: animal não localizado no cadastro nem no histórico de reidentificações.`});
@@ -2097,10 +2121,10 @@ function reprocessarDadosMovimentacoes(){
 
 function confirmarImportMov(res){
   const body = `
-    <p style="font-size:13px;"><b>${res.validos.length.toLocaleString('pt-BR')}</b> movimentações encontradas no arquivo.</p>
+    <p style="font-size:13px;"><b>${(res.validos.length+res.erros.length).toLocaleString('pt-BR')}</b> movimentações encontradas no arquivo.</p>
     <div class="detail-row"><span>Linhas válidas</span><b style="color:var(--verde-ok);">${res.validos.length}</b></div>
-    <div class="detail-row"><span>Linhas com erro</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
-    ${res.erros.length? `<p style="font-size:11.5px;color:var(--cinza-600);margin-top:8px;">Ex.: ${res.erros.slice(0,5).map(e=>`linha ${e.linha} (${e.motivo})`).join('; ')}</p>`:''}
+    <div class="detail-row"><span>Linhas bloqueadas</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
+    ${res.erros.length? `<div class="table-wrap" style="margin-top:10px;max-height:220px"><table class="exec"><thead><tr><th>Status</th><th>Linha</th><th>Motivo</th></tr></thead><tbody>${res.erros.map(e=>`<tr><td><span class="badge badge-red">BLOQUEADO</span></td><td>${e.linha}</td><td>${e.motivo}</td></tr>`).join('')}</tbody></table></div>`:''}
     <div class="alert ${res.erros.length?'alert-gold':'alert-green'}" style="margin-top:10px"><span><b>Pré-validação:</b> ${res.erros.length?'existem linhas bloqueadas; somente as válidas serão gravadas.':'arquivo pronto para importação.'}</span></div>
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
