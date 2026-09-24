@@ -1936,6 +1936,9 @@ function auditarBaixasHistoricas(){
 
 function processarImportMov(rows){
   const validos = [], erros = [];
+  const tiposLote = rows.map(raw=>{ const rr=normalizarLinha(raw, HEADER_MAP_MOV); return stripAccents(String(rr.tipo||'')).toLowerCase().trim(); });
+  const qtdNascimentoLote = tiposLote.filter(t=>t.includes('nasc')).length;
+  const lotePredominanteNascimento = rows.length>0 && (qtdNascimentoLote/rows.length)>=0.90;
   rows.forEach((raw, idx)=>{
     const r = normalizarLinha(raw, HEADER_MAP_MOV);
     const linhaNum = idx+2;
@@ -1951,6 +1954,8 @@ function processarImportMov(rows){
       else if(tipoRaw.includes('frigo')) tipo='Venda Frigorífico';
       else if(tipoRaw.includes('terceir')) tipo='Venda Terceiro';
     }
+    const linhaComPerfilNascimento = lotePredominanteNascimento && !!toISODate(r.nascimento) && !String(r.destinoExterno||'').trim() && !String(r.causaMorte||'').trim() && !String(r.setorDestino||'').trim();
+    if(linhaComPerfilNascimento && tipo!=='Nascimento') tipo='Nascimento';
     if(!dataISO){ erros.push({linha:linhaNum, motivo:'Data inválida'}); return; }
     if(!tipo){ erros.push({linha:linhaNum, motivo:'Tipo de movimentação não reconhecido'}); return; }
     const qtd = parseInt(r.quantidade)||1;
@@ -2012,7 +2017,7 @@ function processarImportMov(rows){
     // Somente movimentações que pressupõem um animal existente exigem localização.
     if(TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo) && !atual.animalId){
       validos.pop();
-      erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado: animal não localizado no cadastro nem no histórico de reidentificações.`});
+      erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado (${atual.tipo}): animal não localizado no cadastro nem no histórico de reidentificações.`});
       return;
     }
     const motivo=motivoBloqueioMovimentacao(atual,'',validos.slice(0,-1));
