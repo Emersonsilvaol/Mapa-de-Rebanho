@@ -676,6 +676,24 @@ body.modal-aberto .app-header{
 }
 </style>
 
+
+<style id="reid-page-v17">
+.reid-page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
+.reid-workspace{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:16px;align-items:start}
+.reid-main-panel{min-width:0}.reid-help-panel{position:sticky;top:92px}
+.reid-animal-banner{display:flex;justify-content:space-between;align-items:center;padding:13px 15px;border-radius:10px;background:#f0f8f4;border:1px solid #cce5d7}
+.reid-animal-banner span{display:block;font-size:10px;font-weight:800;letter-spacing:1px;color:#638176}
+.reid-animal-banner strong{display:block;margin-top:3px;font-size:18px;color:#063d31}
+.reid-status-ok{font-size:11px;font-weight:800;color:#176b4c;background:#dff2e8;padding:7px 10px;border-radius:999px}
+.reid-new-box{margin-top:16px;padding:16px;border-radius:12px;background:#eaf5ef;border:1px solid #bfe0cd}
+.reid-new-box input{font-size:18px!important;font-weight:800!important;letter-spacing:.8px!important}
+.reid-count{font-size:11px;color:var(--cinza-600);margin:6px 0 12px}
+.reid-save-next{width:100%;min-height:44px}
+.reid-step{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #edf1ef;font-size:12px;line-height:1.45}
+.reid-step b{display:grid;place-items:center;flex:0 0 24px;height:24px;border-radius:50%;background:#0b5b45;color:white;font-size:11px}
+@media(max-width:1050px){.reid-workspace{grid-template-columns:1fr}.reid-help-panel{position:static}}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -723,6 +741,7 @@ body.modal-aberto .app-header{
   <button data-view="fichaAnimal"><svg class="tab-ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20c1-5 13-5 14 0"/></svg><span>Ficha do Animal</span></button>
   <div class="nav-section">OPERAÇÕES</div>
   <button data-view="movimentacoes"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
+  <button data-view="reidentificacao" class="admin-only"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M5 7h11M13 4l3 3-3 3"/><path d="M19 17H8M11 14l-3 3 3 3"/></svg><span>Reidentificação</span></button>
   <button data-view="inventario"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Inventário / Auditoria</span></button>
   <div class="nav-section">GESTÃO</div>
   <button data-view="relatorio"><svg class="tab-ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/><path d="M8 13h3M8 16h6"/></svg><span>Relatório do Período</span></button>
@@ -792,6 +811,55 @@ body.modal-aberto .app-header{
     <div id="mapaInicialDetalhe"></div>
   </section>
 
+
+  <!-- ================= REIDENTIFICAÇÃO ================= -->
+  <section id="view-reidentificacao" class="view">
+    <div class="reid-page-head">
+      <div><h2 class="view-title">Reidentificação</h2><p class="view-sub">Troca de SISBOV do mesmo animal. O saldo do rebanho não é alterado.</p></div>
+      <button class="btn btn-outline" type="button" data-goto="movimentacoes">Voltar para Movimentações</button>
+    </div>
+    <div class="reid-workspace">
+      <div class="panel reid-main-panel">
+        <div class="panel-head"><div><h3>Lançamento sequencial</h3><span class="sub">Localize o animal anterior, informe o novo SISBOV e salve. A tela permanece pronta para o próximo.</span></div></div>
+        <div class="panel-body">
+          <div class="grid2">
+            <div class="field"><label>Data</label><input type="date" id="reidPageData"></div>
+            <div class="field"><label>SISBOV, brinco ou chip anterior</label><input id="reidPageBusca" autocomplete="off" placeholder="Digite ou leia a identificação anterior"></div>
+          </div>
+          <div id="reidPageMsg" class="alert alert-gold" style="display:none;margin-top:12px"></div>
+          <div id="reidPageAnimal" style="display:none;margin-top:14px">
+            <div class="reid-animal-banner"><div><span>ANIMAL LOCALIZADO</span><strong id="reidPageNome">—</strong></div><div class="reid-status-ok">Mesmo animal</div></div>
+            <div class="detail-grid" style="margin-top:12px">
+              <div class="detail-row"><span>SISBOV anterior</span><b id="rpSisbov">—</b></div>
+              <div class="detail-row"><span>Brinco</span><b id="rpBrinco">—</b></div>
+              <div class="detail-row"><span>Chip</span><b id="rpChip">—</b></div>
+              <div class="detail-row"><span>Sexo</span><b id="rpSexo">—</b></div>
+              <div class="detail-row"><span>Raça</span><b id="rpRaca">—</b></div>
+              <div class="detail-row"><span>Nascimento</span><b id="rpNasc">—</b></div>
+              <div class="detail-row"><span>Categoria</span><b id="rpCategoria">—</b></div>
+              <div class="detail-row"><span>Setor atual</span><b id="rpSetor">—</b></div>
+            </div>
+            <div class="reid-new-box">
+              <div class="field"><label>Novo SISBOV</label><input id="reidPageNovo" inputmode="numeric" maxlength="15" autocomplete="off" placeholder="Digite os 15 dígitos do novo SISBOV" disabled></div>
+              <div id="reidPageNovoStatus" class="reid-count">0/15 dígitos</div>
+              <button class="btn btn-primary reid-save-next" id="btnReidPageSalvar" type="button" disabled>SALVAR E PRÓXIMO</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel reid-help-panel">
+        <div class="panel-head"><h3>Fluxo</h3></div>
+        <div class="panel-body">
+          <div class="reid-step"><b>1</b><span>Digite ou leia a identificação anterior.</span></div>
+          <div class="reid-step"><b>2</b><span>Os dados do animal são carregados automaticamente.</span></div>
+          <div class="reid-step"><b>3</b><span>Informe somente o novo SISBOV.</span></div>
+          <div class="reid-step"><b>4</b><span>Salvar e Próximo grava e prepara o próximo animal.</span></div>
+          <div class="alert alert-green" style="margin-top:16px">Sexo, raça, nascimento, chip, setor, local e histórico permanecem vinculados ao mesmo animal.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= MOVIMENTAÇÕES ================= -->
   <section id="view-movimentacoes" class="view">
     <h2 class="view-title">Movimentações</h2>
@@ -807,6 +875,7 @@ body.modal-aberto .app-header{
       <button class="btn btn-outline" id="btnExportMovPdf">Exportar PDF</button>
       <button class="btn btn-outline" id="btnReprocessarMov">REPROCESSAR DADOS DOS ANIMAIS</button>
       <button class="btn btn-danger admin-only" id="btnExcluirTudoMov" hidden>EXCLUIR TUDO</button>
+      <button class="btn btn-outline admin-only" type="button" data-goto="reidentificacao">REIDENTIFICAÇÃO</button>
       <button class="btn btn-primary" id="btnNovaMov">NOVA MOVIMENTAÇÃO</button>
     </div>
     <div class="toolbar">
@@ -1066,7 +1135,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V15 · REID FIX</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V17 · REID PAGE</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -1143,7 +1212,7 @@ function moduloViewAcesso(v){
  if(x.includes('moviment'))return'movimentacoes'; if(x.includes('ficha'))return'fichaAnimal';
  if(x.includes('invent'))return'inventario'; if(x.includes('mortal'))return'mortalidade';
  if(x.includes('relat'))return'relatorios'; if(x.includes('config')||x.includes('backup'))return'configuracoes';
- if(x.includes('dashboard')||x==='home')return'dashboard'; return x;
+ if(x==='reidentificacao')return'movimentacoes'; if(x.includes('dashboard')||x==='home')return'dashboard'; return x;
 }
 function podeAcesso(mod,acao='ver'){return AUTH_ADMIN || (Array.isArray(AUTH_PERMISSIONS?.[mod])&&AUTH_PERMISSIONS[mod].includes(acao));}
 function exigirAdmin(acao='alterar dados'){if(AUTH_ADMIN)return true;toast(`Você não tem permissão para ${acao}.`,'err');return false;}
@@ -2981,6 +3050,20 @@ function abrirFormularioMov(m){
       }
     },180);
   });
+  const novoReid=document.getElementById('formMovBrincoNovo');
+  if(novoReid){
+    novoReid.addEventListener('input',()=>{
+      const v=String(novoReid.value||'').replace(/\D/g,'').slice(0,15);
+      novoReid.value=v;
+      const st=document.getElementById('reidNovoStatus');
+      if(st) st.textContent=v.length===15?'Novo SISBOV pronto para salvar.':v.length+'/15 dígitos';
+    });
+    novoReid.addEventListener('keydown',e=>{
+      if(e.key==='Enter' && String(novoReid.value||'').replace(/\D/g,'').length===15){
+        e.preventDefault(); salvarFormularioMov(m);
+      }
+    });
+  }
   ['change','blur'].forEach(ev=>buscaReid.addEventListener(ev,preencherReid));
   buscaReid.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();preencherReid();if(document.getElementById('formMovBrincoNovo')&&!document.getElementById('formMovBrincoNovo').disabled)document.getElementById('formMovBrincoNovo').focus();}});
   ['input','change','blur'].forEach(ev=>buscaNormal.addEventListener(ev,preencherNormal));
@@ -2995,7 +3078,7 @@ function abrirFormularioMov(m){
   document.getElementById('formMovNasc').addEventListener('change',()=>{const el=document.getElementById('formMovCategoria');if(el)el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO());});
   ajustarFluxo();
 }
-function salvarFormularioMov(m){
+async function salvarFormularioMov(m){
   if(!exigirAdmin('salvar movimentações')) return;
   const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,local:(document.getElementById('formMovLocal')?.value||'').trim(),destinoExterno:(document.getElementById('formMovDestinoExterno')?.value||'').trim(),causaMorte:(document.getElementById('formMovCausaMorte')?.value||'').trim(),quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
@@ -3040,15 +3123,19 @@ function salvarFormularioMov(m){
     // completo, ele é a fonte correta do número anterior.
     let sisbovAnterior=somenteDigitos(baseAtual.sisbov||animal.sisbov||'');
     if(anteriorDigitado.length===15) sisbovAnterior=anteriorDigitado;
-    const conflitoSisbov=Array.from(DB.animais||[]).some(a=>a.id!==animal.id && String(a.sisbov||'').trim()===sisbovNovo) || DB.movimentacoes.some(x=>x.id!==m?.id && x.tipo==='Reidentificação' && String(x.sisbovNovo||'').trim()===sisbovNovo && x.animalId!==animal.id);
+    const conflitoSisbov=(DB.animais||[]).some(a=>a.id!==animal.id && String(a.sisbov||'').replace(/\D/g,'')===novoDigitado)
+      || (DB.movimentacoes||[]).some(x=>x.id!==m?.id && x.tipo==='Reidentificação' && String(x.sisbovNovo||'').replace(/\D/g,'')===novoDigitado && x.animalId!==animal.id);
     if(conflitoSisbov){toast('Novo SISBOV já pertence a outro animal. Reidentificação bloqueada para evitar duplicidade.','err');return;}
     const brincoAnterior=baseAtual.brinco||animal.brinco||anterior;
     const brincoNovo=sisbovNovo.slice(8,14);
     if(brincoJaPertenceOutroAnimal(brincoNovo,animal.id,m?.id)){toast('O brinco correspondente ao novo SISBOV já pertence a outro animal. Reidentificação bloqueada.','err');return;}
-    const atual={...d,animalId:animal.id,sisbov:sisbovNovo,sisbovAnterior,sisbovNovo,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,
+    const atual={...d,animalId:animal.id,sisbov:novoDigitado,sisbovAnterior,sisbovNovo:novoDigitado,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,
       chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:'',local:baseAtual.local||''};
     if(m) Object.assign(m,atual); else {atual.id=uid('mv');DB.movimentacoes.push(atual);}
-    saveDB('mov');
+    animal.sisbov=novoDigitado;
+    animal.brinco=brincoNovo;
+    animal.updatedAt=new Date().toISOString();
+    await saveDB();
     renderAll();
     if(m){
       closeModal();
@@ -3661,6 +3748,67 @@ function importarBackup(file){
   reader.readAsText(file);
 }
 
+
+/* ===== V17: REIDENTIFICAÇÃO COMO PÁGINA ===== */
+let REID_PAGE_ANIMAL=null;
+function limparReidPage(foco=true){
+  REID_PAGE_ANIMAL=null;
+  const ids=['rpSisbov','rpBrinco','rpChip','rpSexo','rpRaca','rpNasc','rpCategoria','rpSetor'];
+  ids.forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='—';});
+  const a=document.getElementById('reidPageAnimal'),m=document.getElementById('reidPageMsg'),n=document.getElementById('reidPageNovo'),b=document.getElementById('btnReidPageSalvar'),st=document.getElementById('reidPageNovoStatus');
+  if(a)a.style.display='none';if(m){m.style.display='none';m.innerHTML='';}
+  if(n){n.value='';n.disabled=true;}if(b)b.disabled=true;if(st)st.textContent='0/15 dígitos';
+  if(foco)setTimeout(()=>document.getElementById('reidPageBusca')?.focus(),30);
+}
+function localizarReidPage(){
+  const busca=document.getElementById('reidPageBusca'); if(!busca)return;
+  const q=String(busca.value||'').trim(), data=document.getElementById('reidPageData')?.value||todayISO();
+  if(!q){limparReidPage(false);return;}
+  const animal=animalPorIdentificacaoAtualOuHistorico(q,data);
+  if(!animal)return; // durante digitação parcial, não mostra erro
+  REID_PAGE_ANIMAL=animal;
+  const d=dadosAnimalParaMov(animal,data);
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=(v===undefined||v===null||v==='')?'—':v;};
+  set('rpSisbov',q);set('rpBrinco',d.brinco||animal.brinco);set('rpChip',d.chip||animal.chip);set('rpSexo',d.sexo||animal.sexo);set('rpRaca',d.raca||animal.raca);
+  set('rpNasc',d.nascimento?formatBR(d.nascimento):(animal.nascimento?formatBR(animal.nascimento):'—'));
+  set('rpCategoria',d.categoria||calcCategoria(d.nascimento||animal.nascimento||'',data));set('rpSetor',d.setorOrigem||animal.setorAtual||animal.setorInicial);
+  set('reidPageNome',q);
+  document.getElementById('reidPageAnimal').style.display='block';
+  const msg=document.getElementById('reidPageMsg');msg.style.display='block';msg.className='alert alert-green';msg.innerHTML='<b>Animal localizado.</b> Informe somente o novo SISBOV.';
+  const novo=document.getElementById('reidPageNovo');novo.disabled=false;novo.focus();
+}
+async function salvarReidPage(){
+  if(!exigirAdmin('salvar reidentificação'))return;
+  const busca=document.getElementById('reidPageBusca'),novoEl=document.getElementById('reidPageNovo'),data=document.getElementById('reidPageData')?.value||todayISO();
+  const anterior=String(busca?.value||'').trim(), anteriorDig=String(anterior).replace(/\D/g,''), novo=String(novoEl?.value||'').replace(/\D/g,'');
+  const animal=REID_PAGE_ANIMAL||animalPorIdentificacaoAtualOuHistorico(anterior,data);
+  if(!animal){toast('Identificação anterior não encontrada.','err');return;}
+  if(novo.length!==15){toast('O novo SISBOV deve conter 15 dígitos.','err');novoEl?.focus();return;}
+  if(anteriorDig.length===15&&anteriorDig===novo){toast('O novo SISBOV deve ser diferente do anterior.','err');return;}
+  const conflito=(DB.animais||[]).some(a=>a.id!==animal.id&&String(a.sisbov||'').replace(/\D/g,'')===novo)
+    ||(DB.movimentacoes||[]).some(x=>x.tipo==='Reidentificação'&&String(x.sisbovNovo||'').replace(/\D/g,'')===novo&&x.animalId!==animal.id);
+  if(conflito){toast('Novo SISBOV já pertence a outro animal.','err');return;}
+  const base=dadosAnimalParaMov(animal,data), sisbovAnterior=anteriorDig.length===15?anteriorDig:String(base.sisbov||animal.sisbov||'').replace(/\D/g,'');
+  const brincoAnterior=base.brinco||animal.brinco||anterior, brincoNovo=novo.slice(8,14);
+  if(brincoJaPertenceOutroAnimal(brincoNovo,animal.id)){toast('O brinco do novo SISBOV já pertence a outro animal.','err');return;}
+  const mov={id:uid('mv'),animalId:animal.id,data,tipo:'Reidentificação',sisbov:novo,sisbovAnterior,sisbovNovo:novo,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,
+    chip:base.chip||'',sexo:base.sexo||'',raca:base.raca||'',nascimento:base.nascimento||'',setorOrigem:base.setorOrigem||'',setorDestino:'',local:base.local||'',observacao:''};
+  DB.movimentacoes.push(mov);animal.sisbov=novo;animal.brinco=brincoNovo;animal.updatedAt=new Date().toISOString();
+  await saveDB();renderAll();
+  toast('Reidentificação salva. Pronto para o próximo animal.','ok');
+  busca.value='';limparReidPage(true);
+}
+function iniciarReidPage(){
+  const data=document.getElementById('reidPageData'),busca=document.getElementById('reidPageBusca'),novo=document.getElementById('reidPageNovo'),btn=document.getElementById('btnReidPageSalvar');
+  if(!data||data.dataset.ready)return;data.dataset.ready='1';data.value=todayISO();
+  let timer;
+  busca.addEventListener('input',()=>{clearTimeout(timer);REID_PAGE_ANIMAL=null;const q=busca.value.trim();if(!q){limparReidPage(false);return;}timer=setTimeout(localizarReidPage,160);});
+  busca.addEventListener('change',localizarReidPage);busca.addEventListener('blur',()=>{if(busca.value.trim()&&!REID_PAGE_ANIMAL){const m=document.getElementById('reidPageMsg');m.style.display='block';m.className='alert alert-red';m.innerHTML='<b>Identificação anterior não encontrada.</b>'; }});
+  novo.addEventListener('input',()=>{novo.value=novo.value.replace(/\D/g,'').slice(0,15);document.getElementById('reidPageNovoStatus').textContent=novo.value.length===15?'Pronto para salvar.':novo.value.length+'/15 dígitos';btn.disabled=novo.value.length!==15;});
+  novo.addEventListener('keydown',e=>{if(e.key==='Enter'&&!btn.disabled){e.preventDefault();salvarReidPage();}});
+  btn.addEventListener('click',salvarReidPage);data.addEventListener('change',()=>{if(busca.value.trim())localizarReidPage();});
+}
+
 /* ============================== NAVEGAÇÃO / EVENTOS ========================= */
 function irParaView(view){
   document.querySelectorAll('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.view===view));
@@ -3668,6 +3816,7 @@ function irParaView(view){
   if(view==='dashboard') renderDashboard();
   if(view==='mapaInicial') renderMapaInicial();
   if(view==='movimentacoes') renderMovimentacoes();
+  if(view==='reidentificacao'){ iniciarReidPage(); setTimeout(()=>document.getElementById('reidPageBusca')?.focus(),40); }
   if(view==='mapaAtual') renderMapaAtual();
   if(view==='relatorio') renderRelatorio();
   if(view==='fichaAnimal') renderFichaAnimal();
