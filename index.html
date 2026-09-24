@@ -789,6 +789,42 @@ h1,h2,h3,h4{color:#14241d!important}
 ::-webkit-scrollbar-track{background:#eef2f0}
 </style>
 
+
+<style id="dashboard-premium-compact-fix">
+#view-dashboard.exec-dashboard{padding:10px!important;--dash-gap:10px!important}
+#view-dashboard .exec-sync-top{margin-bottom:10px!important;padding:7px 11px!important;min-height:0!important}
+#view-dashboard .exec-kpis{grid-template-columns:repeat(5,minmax(150px,1fr))!important;gap:10px!important;margin-bottom:10px!important}
+#view-dashboard .kpi-card{min-height:86px!important;padding:13px!important}
+#view-dashboard .kpi-val{font-size:25px!important}
+#view-dashboard .exec-row{gap:10px!important;margin-bottom:10px!important;align-items:start!important}
+#view-dashboard .exec-row-main{grid-template-columns:1.25fr 1.15fr .8fr!important}
+#view-dashboard .exec-row-3{grid-template-columns:1fr 1.1fr 1fr!important}
+#view-dashboard .exec-row-bottom{grid-template-columns:.85fr .85fr 1.35fr .95fr!important}
+#view-dashboard .panel{height:auto!important;min-height:0!important}
+#view-dashboard .panel-head{padding:10px 13px!important;min-height:0!important}
+#view-dashboard .panel-body{padding:11px 13px!important;min-height:0!important;height:auto!important}
+#view-dashboard .exec-row-main .panel-body{min-height:165px!important}
+#view-dashboard .exec-row-3 .panel-body{min-height:150px!important}
+#view-dashboard .exec-row-bottom .panel-body{min-height:125px!important}
+#view-dashboard .mini-bars{height:112px!important}
+#view-dashboard .mini-pair{height:90px!important}
+#view-dashboard .evolution-wrap{height:125px!important}
+#view-dashboard .evolution-line{height:92px!important}
+#view-dashboard .dash-donut{width:125px!important;height:125px!important;margin:3px auto!important}
+#view-dashboard .dash-donut:after{width:76px!important;height:76px!important}
+#view-dashboard .bar-row{margin:6px 0!important}
+#view-dashboard .dashboard-mortality{margin-top:10px!important}
+#view-dashboard .dashboard-mortality .panel-body{padding:11px 13px!important}
+@media(max-width:1250px){
+ #view-dashboard .exec-kpis{grid-template-columns:repeat(3,1fr)!important}
+ #view-dashboard .exec-row-main,#view-dashboard .exec-row-3,#view-dashboard .exec-row-bottom{grid-template-columns:1fr 1fr!important}
+}
+@media(max-width:850px){
+ #view-dashboard .exec-kpis{grid-template-columns:1fr 1fr!important}
+ #view-dashboard .exec-row-main,#view-dashboard .exec-row-3,#view-dashboard .exec-row-bottom{grid-template-columns:1fr!important}
+}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -2068,7 +2104,96 @@ async function tratarArquivoMovimentacao(input){
 function processarImportMov(rows){
   const validos=[], erros=[];
 
-  // Detecta se o arquivo é predominantemente de nascimento.
+  /*
+    IMPORTAÇÃO EM LOTE — OTIMIZADA
+    Antes, cada linha chamava dadosAnimalParaMov(), que reconstruía o Mapa Atual inteiro.
+    Em 600 transferências isso podia reconstruir o rebanho centenas de vezes e travar o Chrome.
+    Agora:
+      1. cria índices de animais uma única vez;
+      2. cria índice de reidentificações uma única vez;
+      3. cria índice de baixas definitivas uma única vez;
+      4. reconstrói o mapa no máximo UMA VEZ POR DATA do arquivo.
+  */
+  const animaisPorId=new Map();
+  const animaisPorSisbov=new Map();
+  const animaisPorBrinco=new Map();
+  const animaisPorChip=new Map();
+
+  (DB.animais||[]).forEach(a=>{
+    animaisPorId.set(a.id,a);
+    const sis=normalizarSisbov(a.sisbov);
+    const br=String(a.brinco||'').trim();
+    const ch=String(a.chip||'').trim();
+    if(sis && !animaisPorSisbov.has(sis)) animaisPorSisbov.set(sis,a);
+    if(br && !animaisPorBrinco.has(br)) animaisPorBrinco.set(br,a);
+    if(ch && !animaisPorChip.has(ch)) animaisPorChip.set(ch,a);
+  });
+
+  const historicoIdPorIdentificador=new Map();
+  const baixaPorAnimalId=new Map();
+  const baixaPorSisbov=new Map();
+
+  (DB.movimentacoes||[]).forEach(m=>{
+    if(m.tipo==='Reidentificação' && m.animalId){
+      [m.sisbov,m.sisbovAnterior,m.sisbovNovo].map(normalizarSisbov).filter(Boolean)
+        .forEach(v=>historicoIdPorIdentificador.set('s:'+v,m.animalId));
+      [m.brinco,m.brincoAnterior,m.brincoNovo].map(v=>String(v||'').trim()).filter(Boolean)
+        .forEach(v=>historicoIdPorIdentificador.set('b:'+v,m.animalId));
+      const ch=String(m.chip||'').trim();
+      if(ch) historicoIdPorIdentificador.set('c:'+ch,m.animalId);
+    }
+    const t=tipoOperacionalMov(m);
+    if(TIPOS_BAIXA_DEFINITIVA.includes(t)){
+      if(m.animalId && !baixaPorAnimalId.has(m.animalId)) baixaPorAnimalId.set(m.animalId,m);
+      const sis=normalizarSisbov(m.sisbov);
+      if(sis && !baixaPorSisbov.has(sis)) baixaPorSisbov.set(sis,m);
+    }
+  });
+
+  function resolverRapido(ref){
+    if(!ref) return null;
+    if(ref.animalId && animaisPorId.has(ref.animalId)) return animaisPorId.get(ref.animalId);
+    const ids=[ref.sisbov,ref.sisbovAnterior,ref.sisbovNovo].map(normalizarSisbov).filter(Boolean);
+    for(const id of ids){
+      if(animaisPorSisbov.has(id)) return animaisPorSisbov.get(id);
+      const aid=historicoIdPorIdentificador.get('s:'+id);
+      if(aid && animaisPorId.has(aid)) return animaisPorId.get(aid);
+    }
+    const brs=[ref.brinco,ref.brincoAnterior,ref.brincoNovo].map(v=>String(v||'').trim()).filter(Boolean);
+    for(const br of brs){
+      if(animaisPorBrinco.has(br)) return animaisPorBrinco.get(br);
+      const aid=historicoIdPorIdentificador.get('b:'+br);
+      if(aid && animaisPorId.has(aid)) return animaisPorId.get(aid);
+    }
+    const ch=String(ref.chip||'').trim();
+    if(ch){
+      if(animaisPorChip.has(ch)) return animaisPorChip.get(ch);
+      const aid=historicoIdPorIdentificador.get('c:'+ch);
+      if(aid && animaisPorId.has(aid)) return animaisPorId.get(aid);
+    }
+    return null;
+  }
+
+  const mapaPorData=new Map();
+  function dadosRapidosAnimal(a,dataISO){
+    if(!a) return {};
+    let mapa=mapaPorData.get(dataISO);
+    if(!mapa){
+      mapa=buildMapaNaData(dataISO);
+      mapaPorData.set(dataISO,mapa);
+    }
+    const atual=(mapa?.animais||[]).find(x=>x.id===a.id);
+    return {
+      sisbov:atual?.sisbov||a.sisbov||'',
+      brinco:atual?.brinco||a.brinco||'',
+      chip:atual?.chip||a.chip||'',
+      sexo:atual?.sexo||a.sexo||'',
+      raca:atual?.raca||a.raca||'',
+      nascimento:atual?.nascimento||a.nascimento||'',
+      setorOrigem:atual?.setorAtual||a.setorInicial||''
+    };
+  }
+
   const tiposLote=rows.map(raw=>{
     const r=normalizarLinha(raw,HEADER_MAP_MOV);
     return stripAccents(String(r.tipo||'')).toLowerCase().trim();
@@ -2096,26 +2221,19 @@ function processarImportMov(rows){
       else if(tipoRaw.includes('terceir')) tipo='Venda Terceiro';
     }
 
-    // Caso real encontrado no arquivo:
-    // em lote de nascimento, linha marcada como Morte SEM causa e com SISBOV novo
-    // é tratada como Nascimento ANTES da validação de existência.
-    if(loteNascimento && tipo==='Morte' && sis && !causa && !destExt){
-      const jaExiste=resolverAnimalHistorico({sisbov:sis});
-      // Se o mesmo SISBOV já apareceu antes no próprio arquivo como Nascimento,
-      // esta linha é uma Morte posterior do animal recém-nascido e deve continuar Morte.
-      const nasceuNoMesmoArquivo=validos.some(x=>
-        x.tipo==='Nascimento' && normalizarSisbov(x.sisbov)===sis &&
-        (!x.data || !dataISO || x.data<=dataISO)
-      );
-      if(!jaExiste && !nasceuNoMesmoArquivo) tipo='Nascimento';
-    }
-    if(loteNascimento && !tipo && sis && !causa && !destExt){
-      tipo='Nascimento';
-    }
-
     if(!dataISO){erros.push({linha:linhaNum,motivo:'Data inválida'});return;}
     if(!tipo){erros.push({linha:linhaNum,motivo:'Tipo de movimentação não reconhecido'});return;}
     if(dataISO>todayISO()){erros.push({linha:linhaNum,motivo:'Data de movimentação futura'});return;}
+
+    if(loteNascimento && tipo==='Morte' && sis && !causa && !destExt){
+      const jaExiste=resolverRapido({sisbov:sis});
+      const nasceuNoMesmoArquivo=validos.some(x=>
+        x.tipo==='Nascimento' && normalizarSisbov(x.sisbov)===sis &&
+        (!x.data || x.data<=dataISO)
+      );
+      if(!jaExiste && !nasceuNoMesmoArquivo) tipo='Nascimento';
+    }
+    if(loteNascimento && !tipo && sis && !causa && !destExt) tipo='Nascimento';
 
     const atual={
       id:uid('mv'),data:dataISO,tipo,sisbov:sis,
@@ -2127,12 +2245,11 @@ function processarImportMov(rows){
       observacao:String(r.observacao||'').trim(),eventoAuditoria:tipo==='Compra'
     };
 
-    // Nascimento NÃO exige animal previamente cadastrado.
     if(atual.tipo==='Nascimento'){
       if(!atual.sisbov){
         erros.push({linha:linhaNum,motivo:'Nascimento bloqueado: SISBOV não informado.'});return;
       }
-      const existente=resolverAnimalHistorico({sisbov:atual.sisbov});
+      const existente=resolverRapido({sisbov:atual.sisbov});
       const repetido=validos.some(x=>x.tipo==='Nascimento' && normalizarSisbov(x.sisbov)===atual.sisbov);
       if(existente||repetido){
         erros.push({linha:linhaNum,motivo:`Nascimento bloqueado: SISBOV ${atual.sisbov} já cadastrado ou repetido no arquivo.`});return;
@@ -2142,19 +2259,17 @@ function processarImportMov(rows){
       return;
     }
 
-    const animalHist=resolverAnimalHistorico(atual);
+    const animalHist=resolverRapido(atual);
     if(animalHist){
       atual.animalId=animalHist.id;
-      const dados=dadosAnimalParaMov(animalHist,atual.data);
+      const dados=dadosRapidosAnimal(animalHist,atual.data);
       ['brinco','chip','sexo','raca','nascimento'].forEach(k=>{if(dados[k]) atual[k]=dados[k];});
       if(!atual.setorOrigem&&dados.setorOrigem) atual.setorOrigem=dados.setorOrigem;
     }else{
-      // Permite sequência válida dentro do MESMO arquivo:
-      // Nascimento em uma data e Morte/Venda/Transferência posterior do mesmo SISBOV.
       const nascimentoPendente=[...validos].reverse().find(x=>
         x.tipo==='Nascimento' &&
         normalizarSisbov(x.sisbov)===atual.sisbov &&
-        (!x.data || !atual.data || x.data<=atual.data)
+        (!x.data || x.data<=atual.data)
       );
       if(nascimentoPendente){
         atual.animalId=nascimentoPendente.animalId || nascimentoPendente._animalIdPendente || ('pend_'+atual.sisbov);
@@ -2164,8 +2279,6 @@ function processarImportMov(rows){
         });
         if(!atual.setorOrigem) atual.setorOrigem=nascimentoPendente.setorDestino||nascimentoPendente.setorOrigem||'';
         atual.animalLocalizadoNoLote=true;
-      }else{
-        vincularMovimentacaoAoAnimal(atual);
       }
     }
 
@@ -2174,14 +2287,32 @@ function processarImportMov(rows){
       return;
     }
 
-    const motivo=motivoBloqueioMovimentacao(atual,'',validos);
-    if(motivo){erros.push({linha:linhaNum,motivo});return;}
+    // Trava rápida: animal já morto/vendido não pode ser transferido, reidentificado ou baixado novamente.
+    if(atual.animalId && (TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)||atual.tipo==='Transferência entre Seções'||atual.tipo==='Reidentificação')){
+      const baixa=baixaPorAnimalId.get(atual.animalId) || baixaPorSisbov.get(normalizarSisbov(atual.sisbov));
+      if(baixa && (!atual.data || !baixa.data || atual.data>=baixa.data)){
+        erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'—'} bloqueado: animal já baixado por ${tipoOperacionalMov(baixa)} em ${formatBR(baixa.data)||baixa.data||'data não informada'}.`});
+        return;
+      }
+    }
+
+    // Detecta uma segunda baixa dentro do próprio arquivo sem varrer todo o banco novamente.
+    if(TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)){
+      const baixaNoLote=validos.find(x=>TIPOS_BAIXA_DEFINITIVA.includes(tipoOperacionalMov(x)) && (
+        (atual.animalId && x.animalId===atual.animalId) ||
+        (atual.sisbov && normalizarSisbov(x.sisbov)===normalizarSisbov(atual.sisbov))
+      ));
+      if(baixaNoLote){
+        erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'—'} bloqueado: já possui ${tipoOperacionalMov(baixaNoLote)} neste arquivo.`});
+        return;
+      }
+    }
+
     validos.push(atual);
   });
 
   return {validos,erros,total:rows.length};
 }
-
 function chaveMovimentacaoImportacao(m){
   return [
     String(m.data||''),
@@ -2933,9 +3064,20 @@ function renderHeaderCounters(){
   }catch(e){ console.warn('Contador do rebanho:',e); }
 }
 
+
+let __MAPA_UI_CACHE = { key:'', value:null };
+function buildMapaUICached(ref){
+  const key = String(ref||'')+'|'+(DB.animais?.length||0)+'|'+(DB.movimentacoes?.length||0);
+  if(__MAPA_UI_CACHE.key===key && __MAPA_UI_CACHE.value) return __MAPA_UI_CACHE.value;
+  const value=buildMapaNaData(ref);
+  __MAPA_UI_CACHE={key,value};
+  return value;
+}
+function invalidarMapaUICache(){ __MAPA_UI_CACHE={key:'',value:null}; }
+
 function renderDashboard(){
   const ref=todayISO();
-  const {animais}=buildMapaNaData(ref);
+  const {animais}=buildMapaUICached(ref);
   const ativos=animais.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
   setHeaderHerdCount(ativos.length);
   const inicial=DB.animais.filter(a=>a.origem==='inicial').length;
@@ -3795,18 +3937,25 @@ function renderConciliacao(){
 }
 
 function renderAll(){
-  renderHistoricoAuditorias(); renderLogSistema();
-  setTimeout(aplicarPermissoesUI,0);
-  renderInventario();
-  popularFiltrosLocal();
+  // Atualiza somente a tela que está visível. Evita recalcular milhares de
+  // animais, tabelas e relatórios escondidos a cada clique.
+  invalidarMapaUICache();
   renderHeaderCounters();
-  renderDashboard();
-  renderMapaInicial();
-  renderMovimentacoes();
-  renderMapaAtual();
-  renderRelatorio();
-  renderMortalidade();
-  renderSetores();
+
+  const ativa=document.querySelector('section.view.active');
+  const id=ativa?.id||'view-dashboard';
+
+  if(id==='view-dashboard') renderDashboard();
+  else if(id==='view-mapaInicial') renderMapaInicial();
+  else if(id==='view-movimentacoes') renderMovimentacoes();
+  else if(id==='view-mapaAtual') renderMapaAtual();
+  else if(id==='view-inventario') renderInventario();
+  else if(id==='view-relatorio') renderRelatorio();
+  else if(id==='view-mortalidade') renderMortalidade();
+  else if(id==='view-config') { renderHistoricoAuditorias(); renderLogSistema(); renderSetores(); }
+  else if(id==='view-fichaAnimal') { /* ficha é renderizada sob demanda pela própria busca */ }
+
+  setTimeout(aplicarPermissoesUI,0);
 }
 
 /* ============================== EXPORTAÇÕES ================================ */
