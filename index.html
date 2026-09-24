@@ -1131,7 +1131,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1.8 · NASCIMENTO + MORTE NO MESMO ARQUIVO</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V24.1.9 · IMPORTAÇÃO SALVANDO</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;" onchange="tratarArquivoMovimentacao(this)">
@@ -1720,9 +1720,11 @@ async function saveDB(part){
     if(!part || part==='config') gravacoes.push(idbSet(LS_KEYS.config, DB.config));
     await Promise.all(gravacoes);
     agendarSyncCentral();
+    return true;
   }catch(e){
     console.error('Erro ao salvar dados', e);
     toast('Erro ao salvar os dados neste navegador. Faça um backup (Configurações) imediatamente.', 'err');
+    return false;
   }
 }
 
@@ -2084,6 +2086,35 @@ function processarImportMov(rows){
 
   return {validos,erros,total:rows.length};
 }
+
+function chaveMovimentacaoImportacao(m){
+  return [
+    String(m.data||''),
+    stripAccents(String(m.tipo||'')).toLowerCase().trim(),
+    normalizarSisbov(m.sisbov),
+    String(m.setorOrigem||'').trim().toLowerCase(),
+    String(m.setorDestino||'').trim().toLowerCase(),
+    String(m.destinoExterno||'').trim().toLowerCase(),
+    String(m.causaMorte||'').trim().toLowerCase()
+  ].join('|');
+}
+
+function separarMovimentacoesNovas(lista){
+  const existentes=new Set((DB.movimentacoes||[]).map(chaveMovimentacaoImportacao));
+  const vistosNoArquivo=new Set();
+  const novas=[], duplicadas=[];
+  (lista||[]).forEach(m=>{
+    const chave=chaveMovimentacaoImportacao(m);
+    if(existentes.has(chave)||vistosNoArquivo.has(chave)){
+      duplicadas.push(m);
+    }else{
+      vistosNoArquivo.add(chave);
+      novas.push(m);
+    }
+  });
+  return {novas,duplicadas};
+}
+
 function confirmarImportMov(res){
   const body = `
     <p style="font-size:13px;"><b>${(res.validos.length+res.erros.length).toLocaleString('pt-BR')}</b> movimentações encontradas no arquivo.</p>
@@ -2094,9 +2125,9 @@ function confirmarImportMov(res){
     ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
-  openModal('Confirmar Importação — Movimentações · V24.1.8', body, [
+  openModal('Confirmar Importação — Movimentações · V24.1.9', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
-    {label:'Confirmar Importação', cls:'btn-primary', onClick:()=>{
+    {label:'Confirmar Importação', cls:'btn-primary', onClick:async ()=>{
       const separadas=separarMovimentacoesNovas(res.validos);
       const movimentacoesNovas=separadas.novas;
       if(!movimentacoesNovas.length){
@@ -2125,7 +2156,12 @@ function confirmarImportMov(res){
         delete m.animalLocalizadoNoLote;
       });
       DB.movimentacoes = DB.movimentacoes.concat(movimentacoesNovas);
-      saveDB('animais'); saveDB('mov');
+      const okAnimais=await saveDB('animais');
+      const okMov=await saveDB('mov');
+      if(okAnimais===false || okMov===false){
+        toast('A importação foi processada, mas houve falha ao persistir os dados. Não feche a página; faça backup e tente novamente.','err');
+        return;
+      }
       closeModal();
       toast(`${movimentacoesNovas.length} movimentação(ões) nova(s) importada(s); ${separadas.duplicadas.length} duplicada(s) ignorada(s).`, 'ok');
       renderAll();
