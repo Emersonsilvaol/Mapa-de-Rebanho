@@ -1066,7 +1066,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V12 · MODAL FIX</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V15 · REID FIX</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -1939,7 +1939,7 @@ function confirmarImportMov(res){
     <div class="detail-row"><span>Linhas com erro</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
     ${res.erros.length? `<p style="font-size:11.5px;color:var(--cinza-600);margin-top:8px;">Ex.: ${res.erros.slice(0,5).map(e=>`linha ${e.linha} (${e.motivo})`).join('; ')}</p>`:''}
     <div class="alert ${res.erros.length?'alert-gold':'alert-green'}" style="margin-top:10px"><span><b>Pré-validação:</b> ${res.erros.length?'existem linhas bloqueadas; somente as válidas serão gravadas.':'arquivo pronto para importação.'}</span></div>
-    ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
+    ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
   openModal('Confirmar Importação — Movimentações', body, [
@@ -2828,8 +2828,8 @@ function formularioMov(m){
 
     <div id="reidFlow" style="display:none;margin-top:14px">
       <div style="background:#f7faf8;border:1px solid #dce7e1;border-radius:10px;padding:14px">
-        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">1. Localizar o animal pela identificação anterior</div>
-        <div class="field"><label>SISBOV, brinco ou chip anterior</label><div style="display:flex;gap:8px"><input id="movBuscaAnimal" style="flex:1" value="${d.sisbovAnterior||d.brincoAnterior||d.sisbov||d.brinco||''}" placeholder="Digite a identificação anterior" autocomplete="off"><button type="button" class="btn btn-outline" id="btnLocalizarReid">Localizar</button></div></div>
+        <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">1. Identificação anterior — localização automática</div>
+        <div class="field"><label>SISBOV, brinco ou chip anterior</label><input id="movBuscaAnimal" style="width:100%" value="${d.sisbovAnterior||d.brincoAnterior||d.sisbov||d.brinco||''}" placeholder="Digite ou leia a identificação anterior — localização automática" autocomplete="off"></div>
         <div class="alert alert-gold" id="animalLookupMsg" style="display:none;margin:10px 0 0"></div>
       </div>
 
@@ -2849,7 +2849,7 @@ function formularioMov(m){
 
       <div id="reidNovoWrap" style="display:block;margin-top:12px;background:#eaf5ef;border:1px solid #bfe0cd;border-radius:10px;padding:14px">
         <div style="font-weight:800;color:var(--verde-mais-escuro);font-size:13px;margin-bottom:10px">3. Informar a nova identificação SISBOV</div>
-        <div class="field"><label>Novo SISBOV</label><input id="formMovBrincoNovo" value="${d.sisbovNovo||''}" placeholder="Localize o animal anterior e digite os 15 dígitos do novo SISBOV" inputmode="numeric" maxlength="15" autocomplete="off" disabled></div><div id="reidNovoStatus" style="font-size:11px;color:var(--cinza-600);margin-top:6px">Primeiro localize o animal pela identificação anterior.</div>
+        <div class="field"><label>Novo SISBOV</label><input id="formMovBrincoNovo" value="${d.sisbovNovo||''}" placeholder="Após localizar automaticamente, digite os 15 dígitos do novo SISBOV" inputmode="numeric" maxlength="15" autocomplete="off" disabled></div><div id="reidNovoStatus" style="font-size:11px;color:var(--cinza-600);margin-top:6px">Digite ou leia a identificação anterior.</div>
         <div style="font-size:11px;color:var(--cinza-600);margin-top:8px">O SISBOV será substituído pela nova identificação. Chip, sexo, raça, nascimento, categoria, setor, local e histórico permanecem no mesmo animal. O saldo do rebanho não será alterado.</div>
       </div>
     </div>
@@ -2895,7 +2895,7 @@ function abrirFormularioMov(m){
   const limparReid=()=>{
     document.getElementById('formMovBrincoAnterior').value='';
     document.getElementById('reidAnimalCard').style.display='none';
-    const novo=document.getElementById('formMovBrincoNovo'); if(novo){novo.disabled=true;novo.value='';} const st=document.getElementById('reidNovoStatus'); if(st)st.textContent='Primeiro localize o animal pela identificação anterior.';
+    const novo=document.getElementById('formMovBrincoNovo'); if(novo){novo.disabled=true;novo.value='';} const st=document.getElementById('reidNovoStatus'); if(st)st.textContent='Digite ou leia a identificação anterior.';
   };
   const preencherReid=()=>{
     const q=String(buscaReid.value||'').trim();
@@ -2964,7 +2964,25 @@ function abrirFormularioMov(m){
     else preencherNormal();
   };
   tipoEl.addEventListener('change',ajustarFluxo);
-  ['change','blur'].forEach(ev=>buscaReid.addEventListener(ev,preencherReid)); const btnLocalizarReid=document.getElementById('btnLocalizarReid'); if(btnLocalizarReid)btnLocalizarReid.addEventListener('click',preencherReid); buscaReid.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();preencherReid();}});
+  // Reidentificação: localização automática, sem botão.
+  // Enquanto a pessoa digita, só abre o animal quando encontra uma correspondência exata;
+  // assim não exibe erro a cada dígito parcial.
+  let timerBuscaReid=null;
+  buscaReid.addEventListener('input',()=>{
+    clearTimeout(timerBuscaReid);
+    const q=String(buscaReid.value||'').trim();
+    if(!q){preencherReid();return;}
+    timerBuscaReid=setTimeout(()=>{
+      const dataRef=document.getElementById('formMovData').value||todayISO();
+      const achou=animalPorIdentificacaoAtualOuHistorico(q,dataRef);
+      if(achou){
+        preencherReid();
+        setTimeout(()=>document.getElementById('formMovBrincoNovo')?.focus(),40);
+      }
+    },180);
+  });
+  ['change','blur'].forEach(ev=>buscaReid.addEventListener(ev,preencherReid));
+  buscaReid.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();preencherReid();if(document.getElementById('formMovBrincoNovo')&&!document.getElementById('formMovBrincoNovo').disabled)document.getElementById('formMovBrincoNovo').focus();}});
   ['input','change','blur'].forEach(ev=>buscaNormal.addEventListener(ev,preencherNormal));
   document.getElementById('formMovData').addEventListener('change',()=>{
     if(tipoEl.value==='Reidentificação') preencherReid();
@@ -3006,8 +3024,22 @@ function salvarFormularioMov(m){
     if(sisbovNovo.length!==15){toast('O novo SISBOV deve conter 15 dígitos.','err');return;}
     if(!animal){toast('Identificação anterior não encontrada. A reidentificação não cria um novo animal.','err');return;}
     const baseAtual=dadosAnimalParaMov(animal,d.data);
-    const sisbovAnterior=baseAtual.sisbov||animal.sisbov||'';
-    if(String(sisbovAnterior)===sisbovNovo){toast('O novo SISBOV deve ser diferente do SISBOV anterior.','err');return;}
+    // A validação deve comparar exatamente o SISBOV anterior informado pelo operador
+    // com o novo SISBOV digitado. Não usar o SISBOV reconstruído pelo histórico,
+    // pois ele pode já resolver para a identificação nova.
+    const somenteDigitos=v=>String(v||'').replace(/\D/g,'');
+    const anteriorDigitado=somenteDigitos(anterior);
+    const novoDigitado=somenteDigitos(sisbovNovo);
+
+    if(anteriorDigitado.length===15 && anteriorDigitado===novoDigitado){
+      toast('O novo SISBOV deve ser diferente do SISBOV anterior.','err');
+      return;
+    }
+
+    // Para o histórico da reidentificação, se a busca foi feita por um SISBOV
+    // completo, ele é a fonte correta do número anterior.
+    let sisbovAnterior=somenteDigitos(baseAtual.sisbov||animal.sisbov||'');
+    if(anteriorDigitado.length===15) sisbovAnterior=anteriorDigitado;
     const conflitoSisbov=Array.from(DB.animais||[]).some(a=>a.id!==animal.id && String(a.sisbov||'').trim()===sisbovNovo) || DB.movimentacoes.some(x=>x.id!==m?.id && x.tipo==='Reidentificação' && String(x.sisbovNovo||'').trim()===sisbovNovo && x.animalId!==animal.id);
     if(conflitoSisbov){toast('Novo SISBOV já pertence a outro animal. Reidentificação bloqueada para evitar duplicidade.','err');return;}
     const brincoAnterior=baseAtual.brinco||animal.brinco||anterior;
@@ -3016,7 +3048,30 @@ function salvarFormularioMov(m){
     const atual={...d,animalId:animal.id,sisbov:sisbovNovo,sisbovAnterior,sisbovNovo,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,
       chip:baseAtual.chip||'',sexo:baseAtual.sexo||'',raca:baseAtual.raca||'',nascimento:baseAtual.nascimento||'',setorOrigem:baseAtual.setorOrigem||'',setorDestino:'',local:baseAtual.local||''};
     if(m) Object.assign(m,atual); else {atual.id=uid('mv');DB.movimentacoes.push(atual);}
-    saveDB('mov'); closeModal(); renderAll(); toast('Reidentificação registrada. O mesmo animal recebeu o novo SISBOV sem alterar o saldo.','ok'); return;
+    saveDB('mov');
+    renderAll();
+    if(m){
+      closeModal();
+      toast('Reidentificação atualizada.','ok');
+      return;
+    }
+    // Modo sequencial: mantém a janela aberta para lançar dezenas de animais sem voltar à tela inicial.
+    const busca=document.getElementById('movBuscaAnimal');
+    const anteriorHidden=document.getElementById('formMovBrincoAnterior');
+    const novoEl=document.getElementById('formMovBrincoNovo');
+    const card=document.getElementById('reidAnimalCard');
+    const msg=document.getElementById('animalLookupMsg');
+    const status=document.getElementById('reidNovoStatus');
+    if(busca)busca.value='';
+    if(anteriorHidden)anteriorHidden.value='';
+    if(novoEl){novoEl.value='';novoEl.disabled=true;}
+    if(card)card.style.display='none';
+    if(msg){msg.style.display='none';msg.innerHTML='';}
+    if(status)status.textContent='Digite ou leia a identificação anterior do próximo animal.';
+    ['reidViewSisbov','reidViewBrinco','reidViewChip','reidViewSexo','reidViewRaca','reidViewNasc','reidViewCategoria','reidViewSetor'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='—';});
+    toast('Reidentificação salva. Pronto para o próximo animal.','ok');
+    setTimeout(()=>busca?.focus(),60);
+    return;
   }
   const encontrado=localizarPorIdentificador(d.sisbov||d.brinco||d.chip);
   if(encontrado){
