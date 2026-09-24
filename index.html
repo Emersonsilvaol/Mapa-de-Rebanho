@@ -1135,7 +1135,7 @@ body.modal-aberto .app-header{
 </div>
 
 <div id="toastWrap"></div>
-<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V18 · REID SAVE TESTED</div>
+<div id="buildVersionV12" style="position:fixed;right:10px;bottom:8px;z-index:50;font-size:9px;color:#7b8f86;opacity:.65;pointer-events:none">V20 · REID + PERMISSÕES FIX</div>
 
 <input type="file" id="fileInicial" accept=".xlsx,.xls,.csv" style="display:none;">
 <input type="file" id="fileMov" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -3523,7 +3523,6 @@ function renderConciliacao(){
 
 function renderAll(){
   renderHistoricoAuditorias(); renderLogSistema();
-  renderPermissoes();
   setTimeout(aplicarPermissoesUI,0);
   renderInventario();
   popularFiltrosLocal();
