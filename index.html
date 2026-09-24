@@ -694,6 +694,101 @@ body.modal-aberto .app-header{
 @media(max-width:1050px){.reid-workspace{grid-template-columns:1fr}.reid-help-panel{position:static}}
 </style>
 
+
+<style id="premium-agro-ui">
+:root{
+  --green-950:#0d3027;
+  --green-900:#123d31;
+  --green-800:#18503f;
+  --green-700:#23634e;
+  --green-600:#34765e;
+  --green-100:#eaf2ee;
+  --green-50:#f3f7f5;
+  --gold:#b68a42;
+  --gold-soft:#f2eadb;
+  --bg:#f4f6f5;
+  --surface:#ffffff;
+  --text:#17211d;
+  --muted:#6c7772;
+  --line:#e1e6e3;
+  --danger:#c93d3d;
+  --shadow:0 8px 28px rgba(20,45,36,.07);
+}
+body{background:var(--bg)!important;color:var(--text)!important}
+.sidebar{
+  background:linear-gradient(180deg,var(--green-950) 0%,#0a2b23 100%)!important;
+  box-shadow:10px 0 30px rgba(13,48,39,.08)!important;
+}
+.sidebar .nav-item,.sidebar a{border-radius:11px!important}
+.sidebar .nav-item.active,.sidebar a.active{
+  background:rgba(255,255,255,.11)!important;
+  box-shadow:inset 3px 0 0 #b7cdbf!important;
+}
+.topbar,.header{
+  background:rgba(255,255,255,.96)!important;
+  border-bottom:1px solid var(--line)!important;
+  box-shadow:0 3px 16px rgba(22,45,37,.04)!important;
+}
+.card,.panel,.box,.section-card,.modal-content{
+  background:var(--surface)!important;
+  border:1px solid var(--line)!important;
+  box-shadow:var(--shadow)!important;
+  border-radius:14px!important;
+}
+.btn{border-radius:10px!important;font-weight:700!important;box-shadow:none!important}
+.btn-primary{
+  background:var(--green-800)!important;
+  border-color:var(--green-800)!important;
+  color:#fff!important;
+}
+.btn-primary:hover{background:var(--green-700)!important;border-color:var(--green-700)!important}
+.btn-outline,.btn-secondary{
+  background:#fff!important;
+  color:var(--green-900)!important;
+  border:1px solid #d4ddd8!important;
+}
+.btn-outline:hover,.btn-secondary:hover{background:var(--green-50)!important}
+input,select,textarea{
+  background:#fff!important;
+  border:1px solid #d7dfdb!important;
+  border-radius:9px!important;
+  color:var(--text)!important;
+}
+input:focus,select:focus,textarea:focus{
+  border-color:var(--green-600)!important;
+  box-shadow:0 0 0 3px rgba(52,118,94,.10)!important;
+}
+table{background:#fff!important}
+thead th{
+  background:#f1f4f2!important;
+  color:#2b3933!important;
+  border-bottom:1px solid #dfe5e2!important;
+}
+tbody td{border-bottom:1px solid #edf0ee!important}
+tbody tr:hover{background:#f7faf8!important}
+.badge,.pill,.tag{border-radius:999px!important}
+h1,h2,h3,h4{color:#14241d!important}
+.text-muted,.muted{color:var(--muted)!important}
+.kpi-card,.stat-card,.metric-card{
+  background:#fff!important;
+  border:1px solid var(--line)!important;
+  box-shadow:0 5px 20px rgba(22,45,37,.05)!important;
+  border-radius:14px!important;
+}
+.kpi-card:first-child,.stat-card:first-child{
+  background:linear-gradient(135deg,var(--green-800),var(--green-950))!important;
+  color:#fff!important;
+}
+.modal-header{
+  background:var(--green-900)!important;
+  color:#fff!important;
+  border-radius:14px 14px 0 0!important;
+}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#b9c6c0;border-radius:10px}
+::-webkit-scrollbar-track{background:#eef2f0}
+</style>
+
 </head>
 <body>
 <div id="authGate">
