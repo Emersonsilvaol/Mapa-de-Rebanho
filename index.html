@@ -1122,6 +1122,31 @@ thead th{
 }
 </style>
 
+
+<style id="mapa-drilldown-ui">
+.mapa-grid-drill .mapa-drill-cell{padding:0!important;position:relative}
+.mapa-drill-btn{
+ width:100%;min-width:44px;min-height:38px;padding:7px 8px;border:0;background:transparent;
+ color:inherit;font:inherit;font-weight:750;cursor:pointer;border-radius:6px;
+ transition:background .12s ease,box-shadow .12s ease,color .12s ease;
+}
+.mapa-drill-btn:hover{
+ background:#edf2ef!important;color:#315c4b!important;
+ box-shadow:inset 0 0 0 1px #cad8d1;
+}
+.total-geral .mapa-drill-btn:hover{background:rgba(255,255,255,.16)!important;color:inherit!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+.drill-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin-bottom:12px}
+.drill-summary>div{border:1px solid #e4e8e6;background:#f8f9f8;border-radius:9px;padding:9px 11px}
+.drill-summary b{display:block;font-size:15px;color:#202522}
+.drill-summary span{display:block;font-size:9.5px;color:#727b77;margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+.drill-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.drill-toolbar input{flex:1;min-width:220px}
+.drill-table-wrap{max-height:52vh;overflow:auto;border:1px solid #e4e8e6;border-radius:9px}
+.drill-table-wrap thead{position:sticky;top:0;z-index:2}
+.drill-count{font-size:10.5px;color:#707976;margin:7px 0 0}
+@media(max-width:700px){.drill-toolbar{flex-direction:column;align-items:stretch}.drill-toolbar input{min-width:0}}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -2938,7 +2963,103 @@ function buildGridData(ativos){
   return {setores, grid};
 }
 
-function renderGridTableHTML(ativos){
+let __MAPA_DRILL_LISTAS = new Map();
+let __MAPA_DRILL_SEQ = 0;
+
+function registrarDrillMapa(lista, meta){
+  if(!lista || !lista.length) return '';
+  const key='drill_'+(++__MAPA_DRILL_SEQ);
+  __MAPA_DRILL_LISTAS.set(key,{lista,meta});
+  return key;
+}
+function celulaDrillMapa(lista, meta, classe=''){
+  const n=lista.length;
+  if(!n) return `<td class="${classe}">0</td>`;
+  const key=registrarDrillMapa(lista,meta);
+  return `<td class="${classe} mapa-drill-cell" data-drill="${key}" title="${n.toLocaleString('pt-BR')} animais — clique para visualizar"><button type="button" class="mapa-drill-btn" data-drill="${key}" aria-label="Ver ${n} animais">${fmtNum(n)}</button></td>`;
+}
+function normalizarSexoDrill(v){
+  const x=stripAccents(String(v||'')).toLowerCase();
+  return x.startsWith('fem')?'Fêmea':x.startsWith('mac')?'Macho':String(v||'');
+}
+function listaCategoriaMapa(ativos,setor,sexo,categoria){
+  return ativos.filter(a=>
+    (!setor || chaveSetor(a.setorAtual||a.setorInicial)===chaveSetor(setor)) &&
+    (!sexo || normalizarSexoDrill(a.sexo)===sexo) &&
+    (!categoria || a.categoria===categoria)
+  );
+}
+function abrirDetalheNumeroMapa(key){
+  const pacote=__MAPA_DRILL_LISTAS.get(key);
+  if(!pacote) return;
+  const {lista,meta}=pacote;
+  const tituloPartes=[
+    meta.origem==='final'?'Mapa Final':'Mapa Inicial',
+    meta.setor||'Todos os setores',
+    meta.sexo||'',
+    meta.categoria||meta.tipo||''
+  ].filter(Boolean);
+  const linhas=lista.map((a,i)=>`<tr>
+    <td class="num">${i+1}</td>
+    <td>${esc(a.setorAtual||a.setorInicial||'—')}</td>
+    <td><b>${esc(a.sisbov||'—')}</b></td>
+    <td>${esc(a.brinco||'—')}</td>
+    <td>${esc(a.chip||'—')}</td>
+    <td>${esc(a.sexo||'—')}</td>
+    <td>${esc(a.raca||'—')}</td>
+    <td>${a.nascimento?formatBR(a.nascimento):'—'}</td>
+    <td>${esc(a.categoria||'—')}</td>
+  </tr>`).join('');
+  const body=`<div class="drill-summary">
+      <div><b>${lista.length.toLocaleString('pt-BR')}</b><span>animais nesta seleção</span></div>
+      ${meta.setor?`<div><b>${esc(meta.setor)}</b><span>seção</span></div>`:''}
+      ${meta.sexo?`<div><b>${esc(meta.sexo)}</b><span>sexo</span></div>`:''}
+      ${meta.categoria?`<div><b>${esc(meta.categoria)}</b><span>categoria</span></div>`:''}
+    </div>
+    <div class="drill-toolbar">
+      <input id="drillBusca" placeholder="Buscar SISBOV, brinco ou chip..." autocomplete="off">
+      <button class="btn btn-outline btn-sm" id="drillExportXlsx">EXPORTAR XLSX</button>
+    </div>
+    <div class="table-wrap drill-table-wrap"><table class="exec" id="drillTable">
+      <thead><tr><th>#</th><th>Seção</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table></div>
+    <p class="drill-count" id="drillCount">${lista.length.toLocaleString('pt-BR')} animal(is)</p>`;
+  openModal(tituloPartes.join(' · '),body,[{label:'FECHAR',cls:'btn-outline',onClick:closeModal}],true);
+
+  const busca=document.getElementById('drillBusca');
+  if(busca) busca.oninput=()=>{
+    const q=stripAccents(busca.value).toLowerCase().trim();
+    let vis=0;
+    document.querySelectorAll('#drillTable tbody tr').forEach((tr,idx)=>{
+      const a=lista[idx];
+      const hay=stripAccents([a.sisbov,a.brinco,a.chip,a.setorAtual||a.setorInicial,a.sexo,a.raca,a.categoria].join(' ')).toLowerCase();
+      const ok=!q||hay.includes(q);
+      tr.style.display=ok?'':'none'; if(ok) vis++;
+    });
+    const c=document.getElementById('drillCount'); if(c)c.textContent=`${vis.toLocaleString('pt-BR')} animal(is) visível(is)`;
+  };
+  const exp=document.getElementById('drillExportXlsx');
+  if(exp) exp.onclick=()=>exportarDrillMapaXlsx(lista,meta);
+}
+function exportarDrillMapaXlsx(lista,meta){
+  if(!garantirBibliotecaExportacao('xlsx')) return;
+  const dados=lista.map(a=>({
+    'SEÇÃO':a.setorAtual||a.setorInicial||'',
+    'SISBOV':a.sisbov||'','BRINCO':a.brinco||'','CHIP':a.chip||'',
+    'SEXO':a.sexo||'','RAÇA':a.raca||'',
+    'DATA DE NASCIMENTO':a.nascimento?formatBR(a.nascimento):'',
+    'CATEGORIA':a.categoria||''
+  }));
+  const ws=XLSX.utils.json_to_sheet(dados);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Animais');
+  const nome=['mapa',meta.origem||'',meta.setor||'todos',meta.sexo||'',meta.categoria||'']
+    .join('_').replace(/[^\wÀ-ÿ-]+/g,'_');
+  XLSX.writeFile(wb,nome+'.xlsx');
+}
+
+function renderGridTableHTML(ativos, origem=''){
   const {setores, grid} = buildGridData(ativos);
   let html = `<thead><tr><th class="rowlabel" rowspan="2">Bioma</th><th class="rowlabel" rowspan="2">Seção</th>`+
     `<th colspan="5">Fêmeas</th><th colspan="5">Machos</th><th rowspan="2">Total Seção</th></tr>`+
@@ -2958,35 +3079,55 @@ function renderGridTableHTML(ativos){
     let subF=0, subM=0, cells='';
     ['Fêmea','Macho'].forEach(sx=>{
       CATEGORIAS.forEach(c=>{
-        const v = grid[setor][sx][c]||0;
+        const lista=listaCategoriaMapa(ativos,setor,sx,c);
+        const v=lista.length;
         if(sx==='Fêmea') subF+=v; else subM+=v;
         gt[sx][c]+=v;
-        cells += `<td>${fmtNum(v)}</td>`;
-        if(c==='36+') cells += `<td class="subtotal">${fmtNum(sx==='Fêmea'?subF:subM)}</td>`;
+        cells += celulaDrillMapa(lista,{origem,setor,sexo:sx,categoria:c});
+        if(c==='36+'){
+          const subtotal=listaCategoriaMapa(ativos,setor,sx,'');
+          cells += celulaDrillMapa(subtotal,{origem,setor,sexo:sx,tipo:'Subtotal'},'subtotal');
+        }
       });
     });
     const bioma=biomaDoSetor(setor);
     const celulaBioma=exibidosBiomas[bioma] ? '' : `<td class="bioma-label" rowspan="${contagemBiomas[bioma]}" style="font-weight:var(--bioma-peso);font-size:var(--bioma-fonte);letter-spacing:.2px;line-height:1.2;text-align:center;vertical-align:middle;background:var(--bioma-fundo);color:var(--bioma-texto);">${bioma.toUpperCase()}</td>`;
     exibidosBiomas[bioma]=true;
-    html += `<tr>${celulaBioma}<td class="rowlabel">${setor}</td>${cells}<td class="subtotal">${fmtNum(subF+subM)}</td></tr>`;
+    const totalSetor=listaCategoriaMapa(ativos,setor,'','');
+    html += `<tr>${celulaBioma}<td class="rowlabel">${setor}</td>${cells}${celulaDrillMapa(totalSetor,{origem,setor,tipo:'Total da seção'},'subtotal')}</tr>`;
   });
 
   let tf=0, tm=0;
   html += `<tr class="total-geral"><td class="rowlabel" colspan="2">TOTAL GERAL</td>`;
-  CATEGORIAS.forEach(c=>{ html += `<td>${fmtNum(gt.Fêmea[c])}</td>`; tf+=gt.Fêmea[c]; });
-  html += `<td>${fmtNum(tf)}</td>`;
-  CATEGORIAS.forEach(c=>{ html += `<td>${fmtNum(gt.Macho[c])}</td>`; tm+=gt.Macho[c]; });
-  html += `<td>${fmtNum(tm)}</td><td>${fmtNum(tf+tm)}</td></tr></tbody>`;
+  CATEGORIAS.forEach(c=>{
+    const lista=listaCategoriaMapa(ativos,'','Fêmea',c); tf+=lista.length;
+    html += celulaDrillMapa(lista,{origem,sexo:'Fêmea',categoria:c});
+  });
+  html += celulaDrillMapa(listaCategoriaMapa(ativos,'','Fêmea',''),{origem,sexo:'Fêmea',tipo:'Subtotal geral'});
+  CATEGORIAS.forEach(c=>{
+    const lista=listaCategoriaMapa(ativos,'','Macho',c); tm+=lista.length;
+    html += celulaDrillMapa(lista,{origem,sexo:'Macho',categoria:c});
+  });
+  html += celulaDrillMapa(listaCategoriaMapa(ativos,'','Macho',''),{origem,sexo:'Macho',tipo:'Subtotal geral'});
+  html += celulaDrillMapa(ativos,{origem,tipo:'Total geral'});
+  html += `</tr></tbody>`;
   return html;
 }
 
-function renderMapaGridPanel(ativos, containerId, titulo, subTitulo){
+function renderMapaGridPanel(ativos, containerId, titulo, subTitulo, origem=''){
   const el = document.getElementById(containerId);
   if(!el) return;
+  __MAPA_DRILL_LISTAS.clear();
   el.innerHTML = `<div class="panel">
     <div class="panel-head"><h3>${titulo}</h3>${subTitulo?`<span class="sub">${subTitulo}</span>`:''}</div>
-    <div class="panel-body"><div class="table-wrap"><table class="grid">${renderGridTableHTML(ativos)}</table></div></div>
+    <div class="panel-body"><div class="table-wrap"><table class="grid mapa-grid-drill">${renderGridTableHTML(ativos,origem)}</table></div></div>
   </div>`;
+  el.querySelectorAll('[data-drill]').forEach(node=>{
+    node.addEventListener('click',ev=>{
+      ev.preventDefault(); ev.stopPropagation();
+      abrirDetalheNumeroMapa(node.dataset.drill);
+    });
+  });
 }
 
 /* Detalhamento individual — uma linha por animal, categoria sempre calculada, SISBOV/Brinco/Chip preservados. */
@@ -3463,7 +3604,7 @@ function renderMapaInicial(){
   const base = DB.animais.filter(a=>a.origem==='inicial' && (!busca || normalizarSisbov(a.sisbov).includes(busca))).map(a=>({
     ...a, setorAtual:a.setorInicial, status:'ATIVO', categoria: calcCategoria(a.nascimento, ref)
   }));
-  renderMapaGridPanel(base, 'mapaInicialResumo', `MAPA INICIAL — ${base.length.toLocaleString('pt-BR')} animais`, ref?`Data de referência: ${formatBR(ref)}`:'');
+  renderMapaGridPanel(base, 'mapaInicialResumo', `MAPA INICIAL — ${base.length.toLocaleString('pt-BR')} animais`, ref?`Data de referência: ${formatBR(ref)}`:'', 'inicial');
   const resultado=document.getElementById('mapaInicialBuscaResultado');
   if(resultado) resultado.textContent=busca?`${base.length.toLocaleString('pt-BR')} animal(is) encontrado(s)`:'Digite um SISBOV para filtrar';
   document.getElementById('mapaInicialDetalhe').innerHTML = `<div class="panel"><div class="panel-head"><h3>Detalhamento dos Animais — Mapa Inicial</h3></div>
@@ -3973,7 +4114,7 @@ function renderMapaAtual(){
   popularFiltrosLocal();
   const localFiltro=document.getElementById('mapaFiltroLocal')?.value||'';
   const ativos = animais.filter(a=>a.status==='ATIVO').filter(a=>!localFiltro || String(a.localAtual||'')===localFiltro);
-  renderMapaGridPanel(ativos, 'mapaAtualResumo', `MAPA FINAL — ${ativos.length.toLocaleString('pt-BR')} animais`, `Referência: ${formatBR(ref)}`);
+  renderMapaGridPanel(ativos, 'mapaAtualResumo', `MAPA FINAL — ${ativos.length.toLocaleString('pt-BR')} animais`, `Referência: ${formatBR(ref)}`, 'final');
 
   const alertBox = document.getElementById('mapaAtualAlertas');
   alertBox.innerHTML = inconsistencias.length ?
