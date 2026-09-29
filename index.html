@@ -1891,6 +1891,7 @@ function stripAccents(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036
 function normHeader(s){
   return stripAccents(String(s||'')).toLowerCase().replace(/[^a-z0-9]/g,'');
 }
+function normalizarCabecalho(s){ return normHeader(s); }
 // mapa de cabeçalhos aceitos -> campo interno
 const HEADER_MAP_INICIAL = {
   'setor':'setor',
@@ -1937,6 +1938,7 @@ function toISODate(v){
   }
   return '';
 }
+function parseDateAny(v){ return toISODate(v); }
 function formatBR(iso){
   if(!iso) return '—';
   const [y,m,d] = iso.split('-');
@@ -5039,7 +5041,7 @@ function prepararImportacaoReid(rows){
   const validos=[],bloqueados=[],novosNoArquivo=new Map();
   rows.forEach((row,idx)=>{
     const linha=idx+2;
-    const data=parseDateAny(valorColunaReid(row,'DATA DA MOVIMENTAÇÃO','DATA','DATA MOVIMENTAÇÃO'))||'';
+    const data=toISODate(valorColunaReid(row,'DATA DA MOVIMENTAÇÃO','DATA','DATA MOVIMENTAÇÃO'))||'';
     const anterior=normalizarSisbov(valorColunaReid(row,'SISBOV ANTERIOR','SISBOV ANTIGO','ANTERIOR'));
     const novo=normalizarSisbov(valorColunaReid(row,'NOVO SISBOV','SISBOV NOVO','NOVO'));
     const observacao=String(valorColunaReid(row,'OBSERVAÇÃO','OBSERVACAO','OBS')||'').trim();
