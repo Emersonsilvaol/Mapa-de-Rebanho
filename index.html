@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="mapa-build" content="2026-09-29-reid-import-definitivo">
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Mapa Pecuário</title>
@@ -1692,6 +1697,64 @@ thead th{
 <input type="file" id="fileBackup" accept=".json" style="display:none;">
 <input type="file" id="fileLogo" accept="image/png,image/jpeg,image/svg+xml,image/gif" style="display:none;">
 
+
+<script id="reid-definitive-compat">
+(function(){
+  window.__MAPA_BUILD__='2026-09-29-reid-import-definitivo';
+
+  window.parseDateAny = function(v){
+    if(v===undefined || v===null || v==='') return '';
+    if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+
+    if(typeof v==='number'){
+      try{
+        if(window.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code){
+          const d=XLSX.SSF.parse_date_code(v);
+          if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+        }
+      }catch(_e){}
+      // Fallback Excel serial date
+      if(v>20000 && v<80000){
+        const epoch=new Date(Date.UTC(1899,11,30));
+        const dt=new Date(epoch.getTime()+Math.round(v)*86400000);
+        return dt.toISOString().slice(0,10);
+      }
+    }
+
+    const str=String(v).trim();
+    let m=str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+
+    m=str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if(m){
+      let dd=String(m[1]).padStart(2,'0');
+      let mm=String(m[2]).padStart(2,'0');
+      let yy=String(m[3]);
+      if(yy.length===2) yy=(parseInt(yy,10)>50?'19':'20')+yy;
+      return `${yy}-${mm}-${dd}`;
+    }
+    return '';
+  };
+
+  // Remove caches/service workers left by older versions without touching IndexedDB data.
+  window.addEventListener('load', function(){
+    try{
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.getRegistrations()
+          .then(rs=>rs.forEach(r=>r.unregister().catch(()=>{})))
+          .catch(()=>{});
+      }
+      if('caches' in window){
+        caches.keys()
+          .then(keys=>Promise.all(keys.map(k=>caches.delete(k))))
+          .catch(()=>{});
+      }
+    }catch(_e){}
+    console.info('[MAPA]',window.__MAPA_BUILD__);
+  });
+})();
+</script>
+
 <script>
 /* ==========================================================================
    MAPA PECUÁRIO — Sistema de Controle de Rebanho
@@ -1938,7 +2001,6 @@ function toISODate(v){
   }
   return '';
 }
-function parseDateAny(v){ return toISODate(v); }
 function formatBR(iso){
   if(!iso) return '—';
   const [y,m,d] = iso.split('-');
@@ -5041,7 +5103,8 @@ function prepararImportacaoReid(rows){
   const validos=[],bloqueados=[],novosNoArquivo=new Map();
   rows.forEach((row,idx)=>{
     const linha=idx+2;
-    const data=toISODate(valorColunaReid(row,'DATA DA MOVIMENTAÇÃO','DATA','DATA MOVIMENTAÇÃO'))||'';
+    const valorDataReid=valorColunaReid(row,'DATA DA MOVIMENTAÇÃO','DATA','DATA MOVIMENTAÇÃO');
+    const data=window.parseDateAny(valorDataReid)||'';
     const anterior=normalizarSisbov(valorColunaReid(row,'SISBOV ANTERIOR','SISBOV ANTIGO','ANTERIOR'));
     const novo=normalizarSisbov(valorColunaReid(row,'NOVO SISBOV','SISBOV NOVO','NOVO'));
     const observacao=String(valorColunaReid(row,'OBSERVAÇÃO','OBSERVACAO','OBS')||'').trim();
@@ -5096,6 +5159,7 @@ async function tratarArquivoReidentificacaoLote(input){
   const file=input?.files?.[0];
   if(!file)return;
   try{
+    if(typeof window.parseDateAny!=='function') throw new Error('Falha interna de data: parser de datas não carregado.');
     if(typeof XLSX==='undefined'||!XLSX.utils) throw new Error('Biblioteca XLSX não carregada. Recarregue a página com internet ativa.');
     const nome=String(file.name||'').toLowerCase();
     if(!/\.(xlsx|xls|csv)$/.test(nome)) throw new Error('Formato não suportado. Use XLSX, XLS ou CSV.');
