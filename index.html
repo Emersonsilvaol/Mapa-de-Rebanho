@@ -4,7 +4,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="mapa-build" content="2026-09-29-reid-import-definitivo">
+<meta name="mapa-build" content="2026-09-29-reid-import-esc-fix">
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
@@ -1700,7 +1700,17 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-09-29-reid-import-definitivo';
+  window.__MAPA_BUILD__='2026-09-29-reid-import-esc-fix';
+
+  window.esc = function(v){
+    return String(v===undefined || v===null ? '' : v)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  };
+
 
   window.parseDateAny = function(v){
     if(v===undefined || v===null || v==='') return '';
@@ -1753,6 +1763,8 @@ thead th{
     console.info('[MAPA]',window.__MAPA_BUILD__);
   });
 })();
+
+function esc(v){ return window.esc(v); }
 </script>
 
 <script>
