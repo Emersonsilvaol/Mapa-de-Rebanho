@@ -1366,11 +1366,11 @@ thead th{
     <div class="reid-page-head">
       <div><h2 class="view-title">Reidentificação</h2><p class="view-sub">Troca de SISBOV do mesmo animal. O saldo do rebanho não é alterado.</p></div>
       <div class="module-actions">
-        <button class="btn btn-primary admin-only" id="btnImportReidLote" type="button">IMPORTAR XLSX</button>
+        <button class="btn btn-primary admin-only" id="btnImportReidLote" type="button" onclick="abrirArquivoReidentificacaoLote()">IMPORTAR XLSX</button>
         <button class="btn btn-outline" id="btnModeloReidLote" type="button">BAIXAR MODELO XLSX</button>
         <button class="btn btn-outline" type="button" data-goto="movimentacoes">Voltar para Movimentações</button>
       </div>
-      <input type="file" id="reidLoteFile" accept=".xlsx,.xls" style="display:none">
+      <input type="file" id="reidLoteFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="tratarArquivoReidentificacaoLote(this)">
     </div>
     <div class="reid-workspace">
       <div class="panel reid-main-panel">
@@ -5083,14 +5083,38 @@ function abrirPreviewReid(resultado){
   if(v.length)botoes.push({label:`IMPORTAR ${v.length} VÁLIDA(S)`,cls:'btn-primary',onClick:confirmarImportacaoReid});
   openModal('Importar Reidentificações',body,botoes,true);
 }
+function abrirArquivoReidentificacaoLote(){
+  if(!podeAcesso('movimentacoes','editar')){toast('Você não tem permissão para importar reidentificações.','err');return;}
+  const input=document.getElementById('reidLoteFile');
+  if(!input){toast('Seletor de arquivo de reidentificação não encontrado.','err');return;}
+  input.value='';
+  input.click();
+}
+async function tratarArquivoReidentificacaoLote(input){
+  const file=input?.files?.[0];
+  if(!file)return;
+  try{
+    if(typeof XLSX==='undefined'||!XLSX.utils) throw new Error('Biblioteca XLSX não carregada. Recarregue a página com internet ativa.');
+    const nome=String(file.name||'').toLowerCase();
+    if(!/\.(xlsx|xls|csv)$/.test(nome)) throw new Error('Formato não suportado. Use XLSX, XLS ou CSV.');
+    const rows=await lerArquivo(file);
+    if(!Array.isArray(rows)||!rows.length) throw new Error('A planilha não possui linhas para importar.');
+    const resultado=prepararImportacaoReid(rows);
+    abrirPreviewReid(resultado);
+  }catch(err){
+    console.error('Erro ao abrir reidentificações em lote',err);
+    toast(err?.message||mensagemErroImportacao(err),'err');
+  }finally{
+    if(input) input.value='';
+  }
+}
 function lerArquivoReidLote(file){
-  if(!file)return;if(!garantirBibliotecaExportacao('xlsx'))return;
-  const r=new FileReader();r.onload=e=>{try{
-    const wb=XLSX.read(e.target.result,{type:'array',cellDates:false}),ws=wb.Sheets[wb.SheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
-    if(!rows.length){toast('A planilha não possui linhas para importar.','err');return}
-    abrirPreviewReid(prepararImportacaoReid(rows));
-  }catch(err){console.error(err);toast('Não foi possível ler a planilha de reidentificações.','err')}};r.readAsArrayBuffer(file);
+  // Mantido por compatibilidade com versões anteriores; usa o mesmo leitor robusto do sistema.
+  const input=document.getElementById('reidLoteFile');
+  if(input && file){
+    try{Object.defineProperty(input,'files',{value:[file],configurable:true});}catch(_e){}
+  }
+  return lerArquivo(file).then(rows=>abrirPreviewReid(prepararImportacaoReid(rows))).catch(err=>{console.error(err);toast(err?.message||mensagemErroImportacao(err),'err')});
 }
 async function confirmarImportacaoReid(){
   if(!podeAcesso('movimentacoes','editar')){toast('Você não tem permissão para importar reidentificações.','err');return}
@@ -5119,7 +5143,7 @@ function iniciarReidPage(){
   const data=document.getElementById('reidPageData'),busca=document.getElementById('reidPageBusca'),novo=document.getElementById('reidPageNovo'),btn=document.getElementById('btnReidPageSalvar');
   if(!data||data.dataset.ready)return;data.dataset.ready='1';data.value=todayISO();
   const imp=document.getElementById('btnImportReidLote'),mod=document.getElementById('btnModeloReidLote'),file=document.getElementById('reidLoteFile');
-  if(imp&&file){imp.onclick=()=>file.click();file.onchange=()=>{lerArquivoReidLote(file.files?.[0]);file.value='';};}
+  // Importação possui handlers inline para funcionar mesmo após navegação/re-renderização do módulo.
   if(mod)mod.onclick=baixarModeloReidentificacaoLote;
   let timer;
   busca.addEventListener('input',()=>{clearTimeout(timer);REID_PAGE_ANIMAL=null;const q=busca.value.trim();if(!q){limparReidPage(false);return;}timer=setTimeout(localizarReidPage,160);});
