@@ -4,7 +4,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="mapa-build" content="2026-09-29-reid-import-esc-fix">
+<meta name="mapa-build" content="2026-09-29-reid-lote-performance-fix">
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
@@ -1700,7 +1700,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-09-29-reid-import-esc-fix';
+  window.__MAPA_BUILD__='2026-09-29-reid-lote-performance-fix';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -5195,25 +5195,170 @@ function lerArquivoReidLote(file){
   return lerArquivo(file).then(rows=>abrirPreviewReid(prepararImportacaoReid(rows))).catch(err=>{console.error(err);toast(err?.message||mensagemErroImportacao(err),'err')});
 }
 async function confirmarImportacaoReid(){
-  if(!podeAcesso('movimentacoes','editar')){toast('Você não tem permissão para importar reidentificações.','err');return}
-  const lista=REID_LOTE_VALIDACAO?.validos||[];if(!lista.length)return;
-  criarPontoRecuperacao('Importação de reidentificações em lote');
-  const snapshotAnimais=structuredClone(DB.animais||[]),snapshotMov=structuredClone(DB.movimentacoes||[]);
+  if(!podeAcesso('movimentacoes','editar')){
+    toast('Você não tem permissão para importar reidentificações.','err');
+    return;
+  }
+  const lista=REID_LOTE_VALIDACAO?.validos||[];
+  if(!lista.length) return;
+
+  const footer=document.getElementById('modalFooter');
+  const botoes=footer ? [...footer.querySelectorAll('button')] : [];
+  const btnImport=botoes[botoes.length-1]||null;
+  const btnCancelar=botoes[0]||null;
+
+  if(btnImport){
+    btnImport.disabled=true;
+    btnImport.textContent=`PREPARANDO ${lista.length} REIDENTIFICAÇÕES...`;
+  }
+  if(btnCancelar) btnCancelar.disabled=true;
+
+  // Entrega um frame ao navegador antes do processamento pesado.
+  await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+
+  // Snapshot em memória para rollback. Não usa localStorage síncrono aqui,
+  // porque uma cópia integral do banco durante importação em lote congela a página.
+  const snapshotAnimais=structuredClone(DB.animais||[]);
+  const snapshotMov=structuredClone(DB.movimentacoes||[]);
+
   try{
-    // Processa em ordem de data e, em empate, pela linha original.
-    const ordenada=[...lista].sort((a,b)=>String(a.data).localeCompare(String(b.data))||a.linha-b.linha);
-    for(const x of ordenada){
-      const animal=(DB.animais||[]).find(a=>a.id===x.animalId);if(!animal)throw new Error(`Linha ${x.linha}: animal não encontrado durante a gravação.`);
-      const base=dadosAnimalParaMov(animal,x.data),brincoAnterior=String(base.brinco||animal.brinco||'').trim(),brincoNovo=x.novo.slice(8,14);
-      DB.movimentacoes.push({id:uid('mv'),animalId:animal.id,data:x.data,tipo:'Reidentificação',sisbov:x.novo,sisbovAnterior:x.anterior,sisbovNovo:x.novo,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,chip:base.chip||'',sexo:base.sexo||'',raca:base.raca||'',nascimento:base.nascimento||'',setorOrigem:base.setorOrigem||'',setorDestino:'',local:base.local||'',observacao:x.observacao||''});
-      animal.sisbov=x.novo;animal.brinco=brincoNovo;animal.updatedAt=new Date().toISOString();
+    const ordenada=[...lista].sort((a,b)=>
+      String(a.data).localeCompare(String(b.data)) || a.linha-b.linha
+    );
+
+    /*
+      OTIMIZAÇÃO:
+      A versão anterior chamava dadosAnimalParaMov() para cada uma das 118 linhas.
+      Essa função reconstrói o mapa inteiro. Em lote, isso recalculava milhares de
+      animais centenas de vezes e fazia o Chrome exibir "Página sem resposta".
+
+      Agora o estado do rebanho é calculado somente UMA VEZ por data existente
+      na planilha e indexado por animalId.
+    */
+    const datas=[...new Set(ordenada.map(x=>x.data).filter(Boolean))];
+    const estadoPorData=new Map();
+
+    for(let i=0;i<datas.length;i++){
+      const data=datas[i];
+      if(btnImport) btnImport.textContent=`CARREGANDO BASE ${i+1}/${datas.length}...`;
+
+      const mapa=buildMapaNaData(data);
+      estadoPorData.set(
+        data,
+        new Map((mapa?.animais||[]).map(a=>[a.id,a]))
+      );
+
+      // Mantém a interface responsiva caso o arquivo tenha várias datas.
+      await new Promise(resolve=>setTimeout(resolve,0));
     }
-    await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes)]);agendarSyncCentral();
-    invalidarMapaUICache();renderAll();REID_LOTE_VALIDACAO=null;closeModal();toast(`${lista.length} reidentificação(ões) importada(s) com sucesso. O saldo não foi alterado.`,'ok');
+
+    const animaisPorId=new Map((DB.animais||[]).map(a=>[a.id,a]));
+    const novosMovimentos=[];
+    const estadoLote=new Map();
+
+    for(let i=0;i<ordenada.length;i++){
+      const x=ordenada[i];
+      const animal=animaisPorId.get(x.animalId);
+      if(!animal){
+        throw new Error(`Linha ${x.linha}: animal não encontrado durante a gravação.`);
+      }
+
+      const estadoMapa=estadoPorData.get(x.data)?.get(animal.id)||null;
+      const anteriorNoLote=estadoLote.get(animal.id)||null;
+
+      const brincoAnterior=String(
+        anteriorNoLote?.brinco ??
+        estadoMapa?.brinco ??
+        animal.brinco ??
+        ''
+      ).trim();
+
+      const brincoNovo=x.novo.slice(8,14);
+
+      const mov={
+        id:uid('mv'),
+        animalId:animal.id,
+        data:x.data,
+        tipo:'Reidentificação',
+        sisbov:x.novo,
+        sisbovAnterior:x.anterior,
+        sisbovNovo:x.novo,
+        brinco:brincoNovo,
+        brincoAnterior,
+        brincoNovo,
+        quantidade:1,
+        chip:estadoMapa?.chip||animal.chip||'',
+        sexo:estadoMapa?.sexo||animal.sexo||'',
+        raca:estadoMapa?.raca||animal.raca||'',
+        nascimento:estadoMapa?.nascimento||animal.nascimento||'',
+        setorOrigem:estadoMapa?.setorAtual||animal.setorInicial||'',
+        setorDestino:'',
+        local:estadoMapa?.localAtual||animal.localInicial||animal.local||'',
+        observacao:x.observacao||''
+      };
+
+      novosMovimentos.push(mov);
+
+      // Atualiza o cadastro somente em memória; a persistência é feita uma única vez no fim.
+      animal.sisbov=x.novo;
+      animal.brinco=brincoNovo;
+      animal.updatedAt=new Date().toISOString();
+      estadoLote.set(animal.id,{sisbov:x.novo,brinco:brincoNovo});
+
+      if(btnImport && ((i+1)%20===0 || i===ordenada.length-1)){
+        btnImport.textContent=`GRAVANDO ${i+1}/${ordenada.length}...`;
+        await new Promise(resolve=>setTimeout(resolve,0));
+      }
+    }
+
+    // Uma única inclusão no array, em vez de alterar/renderizar o banco linha a linha.
+    DB.movimentacoes=(DB.movimentacoes||[]).concat(novosMovimentos);
+
+    if(btnImport) btnImport.textContent='SALVANDO NO BANCO...';
+    await new Promise(resolve=>setTimeout(resolve,0));
+
+    // Persiste animais e movimentações uma única vez.
+    await Promise.all([
+      idbSet(LS_KEYS.animais,DB.animais),
+      idbSet(LS_KEYS.mov,DB.movimentacoes)
+    ]);
+
+    agendarSyncCentral();
+    invalidarMapaUICache();
+    REID_LOTE_VALIDACAO=null;
+    closeModal();
+
+    toast(`${lista.length} reidentificação(ões) importada(s) com sucesso. O saldo não foi alterado.`,'ok');
+
+    // Renderiza depois que o modal fecha para não travar a confirmação.
+    setTimeout(()=>{
+      try{
+        renderHeaderCounters();
+        iniciarReidPage();
+      }catch(e){
+        console.warn('Atualização visual pós-importação:',e);
+      }
+    },0);
+
   }catch(err){
-    DB.animais=snapshotAnimais;DB.movimentacoes=snapshotMov;
-    try{await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes)])}catch(_e){}
-    console.error(err);toast('Importação cancelada e revertida: '+(err?.message||'erro de gravação.'),'err');
+    DB.animais=snapshotAnimais;
+    DB.movimentacoes=snapshotMov;
+
+    try{
+      await Promise.all([
+        idbSet(LS_KEYS.animais,DB.animais),
+        idbSet(LS_KEYS.mov,DB.movimentacoes)
+      ]);
+    }catch(_e){}
+
+    console.error(err);
+    toast('Importação cancelada e revertida: '+(err?.message||'erro de gravação.'),'err');
+
+    if(btnImport){
+      btnImport.disabled=false;
+      btnImport.textContent=`IMPORTAR ${lista.length} VÁLIDA(S)`;
+    }
+    if(btnCancelar) btnCancelar.disabled=false;
   }
 }
 
