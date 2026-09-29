@@ -1147,6 +1147,49 @@ thead th{
 @media(max-width:700px){.drill-toolbar{flex-direction:column;align-items:stretch}.drill-toolbar input{min-width:0}}
 </style>
 
+
+<style id="mapa-drilldown-click-fix">
+.mapa-grid-drill .mapa-drill-btn{
+  position:relative!important;
+  z-index:3!important;
+  pointer-events:auto!important;
+  cursor:pointer!important;
+  text-decoration:underline!important;
+  text-decoration-style:dotted!important;
+  text-underline-offset:3px!important;
+}
+.mapa-grid-drill .mapa-drill-btn:focus{
+  outline:2px solid #476b5c!important;
+  outline-offset:-3px!important;
+}
+</style>
+
+
+<style id="birth-death-modules-ui">
+.module-page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+.module-actions{display:flex;gap:8px;flex-wrap:wrap}
+.module-filters{margin-bottom:10px}
+.module-filters .panel-body{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr)) auto;gap:8px;align-items:end;padding:10px!important}
+.module-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}
+.module-kpi{background:#fff;border:1px solid #e4e8e6;border-radius:10px;padding:11px 13px;min-height:78px}
+.module-kpi .label{font-size:9px;text-transform:uppercase;letter-spacing:.45px;color:#747d79;font-weight:800}
+.module-kpi .value{font-size:25px;font-weight:850;margin-top:4px;color:#202522}
+.module-kpi .sub{font-size:10px;color:#7a827f;margin-top:2px}
+.module-kpi.birth{border-top:3px solid #4d8068}.module-kpi.death{border-top:3px solid #c65353}
+.module-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;margin-bottom:8px}
+.module-grid .panel-body{min-height:155px!important;padding:10px!important}
+.module-list .panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.module-search{max-width:320px}
+.mini-bar-list{display:grid;gap:7px}
+.mini-bar-item{display:grid;grid-template-columns:minmax(75px,120px) 1fr 46px;gap:8px;align-items:center;font-size:10.5px}
+.mini-bar-track{height:8px;background:#eef1ef;border-radius:99px;overflow:hidden}
+.mini-bar-fill{height:100%;background:#789b8a;border-radius:99px}
+.mini-bar-fill.death{background:#c98282}
+.row-action{border:0;background:#f1f4f2;border-radius:7px;padding:5px 8px;cursor:pointer;font-weight:700;color:#35413c}
+.row-action:hover{background:#e6ece9}
+@media(max-width:1100px){.module-kpis{grid-template-columns:1fr 1fr}.module-grid{grid-template-columns:1fr}.module-filters .panel-body{grid-template-columns:1fr 1fr}}
+</style>
+
 </head>
 <body>
 <div id="authGate">
@@ -1194,6 +1237,8 @@ thead th{
   <button data-view="fichaAnimal"><svg class="tab-ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20c1-5 13-5 14 0"/></svg><span>Ficha do Animal</span></button>
   <div class="nav-section">OPERAÇÕES</div>
   <button data-view="movimentacoes"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
+  <button data-view="nascimentos"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M4 15c2-5 5-7 9-7 3 0 5 2 7 5"/><path d="M7 14v6M17 14v6M11 8V5M9 5h4"/></svg><span>Nascimentos</span></button>
+  <button data-view="mortalidade"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg><span>Mortalidade</span></button>
   <button data-view="reidentificacao"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M5 7h11M13 4l3 3-3 3"/><path d="M19 17H8M11 14l-3 3 3 3"/></svg><span>Reidentificação</span></button>
   <button data-view="inventario"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Inventário / Auditoria</span></button>
   <div class="nav-section">GESTÃO</div>
@@ -1265,11 +1310,67 @@ thead th{
   </section>
 
 
+
+  <!-- ================= NASCIMENTOS ================= -->
+  <section id="view-nascimentos" class="view">
+    <div class="module-page-head">
+      <div><h2 class="view-title">Nascimentos</h2><p class="view-sub">Lançamento operacional e acompanhamento dos animais nascidos no período.</p></div>
+      <div class="module-actions">
+        <button class="btn btn-primary admin-only" id="btnNovoNascimento">+ NOVO NASCIMENTO</button>
+        <button class="btn btn-outline" id="btnNascXlsx">EXPORTAR XLSX</button>
+      </div>
+    </div>
+    <div class="module-filters panel"><div class="panel-body">
+      <div class="field"><label>Data inicial</label><input type="date" id="nascIni"></div>
+      <div class="field"><label>Data final</label><input type="date" id="nascFim"></div>
+      <div class="field"><label>Seção</label><select id="nascSetor"><option value="">Todas</option></select></div>
+      <div class="field"><label>Sexo</label><select id="nascSexo"><option value="">Todos</option><option>Fêmea</option><option>Macho</option></select></div>
+      <button class="btn btn-primary" id="btnNascFiltrar">ATUALIZAR</button>
+    </div></div>
+    <div class="module-kpis" id="nascKpis"></div>
+    <div class="module-grid">
+      <div class="panel"><div class="panel-head"><h3>Nascimentos por mês</h3></div><div class="panel-body" id="nascMes"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Nascimentos por seção</h3></div><div class="panel-body" id="nascSetores"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Distribuição por sexo</h3></div><div class="panel-body" id="nascSexos"></div></div>
+    </div>
+    <div class="panel module-list"><div class="panel-head"><div><h3>Relação de nascimentos</h3><span class="sub" id="nascCount"></span></div><input class="module-search" id="nascBusca" placeholder="Buscar SISBOV ou brinco..."></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Data</th><th>SISBOV</th><th>Brinco</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Seção</th><th>Ação</th></tr></thead><tbody id="nascTbody"></tbody></table></div></div></div>
+  </section>
+
+  <!-- ================= MORTALIDADE ================= -->
+  <section id="view-mortalidade" class="view">
+    <div class="module-page-head">
+      <div><h2 class="view-title">Mortalidade</h2><p class="view-sub">Registro de mortes, causas e acompanhamento da mortalidade do rebanho.</p></div>
+      <div class="module-actions">
+        <button class="btn btn-danger admin-only" id="btnNovaMorte">+ REGISTRAR MORTE</button>
+        <button class="btn btn-outline" id="btnMorteXlsx">EXPORTAR XLSX</button>
+      </div>
+    </div>
+    <div class="module-filters panel"><div class="panel-body">
+      <div class="field"><label>Data inicial</label><input type="date" id="morteIni"></div>
+      <div class="field"><label>Data final</label><input type="date" id="morteFim"></div>
+      <div class="field"><label>Seção</label><select id="morteSetor"><option value="">Todas</option></select></div>
+      <div class="field"><label>Causa</label><input id="morteCausa" placeholder="Todas as causas"></div>
+      <button class="btn btn-primary" id="btnMorteFiltrar">ATUALIZAR</button>
+    </div></div>
+    <div class="module-kpis" id="morteKpis"></div>
+    <div class="module-grid">
+      <div class="panel"><div class="panel-head"><h3>Mortes por mês</h3></div><div class="panel-body" id="morteMes"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Mortes por causa</h3></div><div class="panel-body" id="morteCausas"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Mortes por seção</h3></div><div class="panel-body" id="morteSetores"></div></div>
+    </div>
+    <div class="panel module-list"><div class="panel-head"><div><h3>Relação de mortes</h3><span class="sub" id="morteCount"></span></div><input class="module-search" id="morteBusca" placeholder="Buscar SISBOV ou brinco..."></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Data</th><th>SISBOV</th><th>Brinco</th><th>Sexo</th><th>Raça</th><th>Seção</th><th>Causa</th><th>Ação</th></tr></thead><tbody id="morteTbody"></tbody></table></div></div></div>
+  </section>
+
   <!-- ================= REIDENTIFICAÇÃO ================= -->
   <section id="view-reidentificacao" class="view">
     <div class="reid-page-head">
       <div><h2 class="view-title">Reidentificação</h2><p class="view-sub">Troca de SISBOV do mesmo animal. O saldo do rebanho não é alterado.</p></div>
-      <button class="btn btn-outline" type="button" data-goto="movimentacoes">Voltar para Movimentações</button>
+      <div class="module-actions">
+        <button class="btn btn-primary admin-only" id="btnImportReidLote" type="button">IMPORTAR XLSX</button>
+        <button class="btn btn-outline" id="btnModeloReidLote" type="button">BAIXAR MODELO XLSX</button>
+        <button class="btn btn-outline" type="button" data-goto="movimentacoes">Voltar para Movimentações</button>
+      </div>
+      <input type="file" id="reidLoteFile" accept=".xlsx,.xls" style="display:none">
     </div>
     <div class="reid-workspace">
       <div class="panel reid-main-panel">
@@ -1316,7 +1417,7 @@ thead th{
   <!-- ================= MOVIMENTAÇÕES ================= -->
   <section id="view-movimentacoes" class="view">
     <h2 class="view-title">Movimentações</h2>
-    <p class="view-sub">Nascimento · Morte · Transferência entre Seções · Animais sem auditar · Compra · Venda Frigorífico · Venda Terceiro</p>
+    <p class="view-sub">Nascimento · Morte · Transferência entre Seções · Movimentação entre Locais · Animais sem auditar · Compra · Venda Frigorífico · Venda Terceiro</p>
     <div class="toolbar">
       <button class="btn btn-primary" id="btnImportMov" type="button" onclick="abrirImportacaoMovimentacao()">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
@@ -1778,7 +1879,7 @@ async function alternarUsuarioAcesso(i){
 }
 
 /* ============================== UTIL ==================================== */
-const TIPOS_MOV = ['Nascimento','Morte','Transferência entre Seções','Animais sem auditar','Compra','Venda Frigorífico','Venda Terceiro','Reidentificação'];
+const TIPOS_MOV = ['Nascimento','Morte','Transferência entre Seções','Movimentação entre Locais','Animais sem auditar','Compra','Venda Frigorífico','Venda Terceiro','Reidentificação'];
 function rotuloTipoMov(tipo){ return tipo; }
 function tipoOperacionalMov(m){ return m && m.tipo==='Compra' && m.eventoAuditoria===true ? 'Animais sem auditar' : (m?.tipo||''); }
 const CATEGORIAS = ['00–12','13–24','25–36','36+'];
@@ -2536,6 +2637,7 @@ function processarImportMov(rows){
     if(!tipo){
       if(tipoRaw.includes('nasc')) tipo='Nascimento';
       else if(tipoRaw.includes('mort')) tipo='Morte';
+      else if(tipoRaw.includes('local') || tipoRaw.includes('pasto') || tipoRaw.includes('piquete')) tipo='Movimentação entre Locais';
       else if(tipoRaw.includes('transf')) tipo='Transferência entre Seções';
       else if(tipoRaw.includes('audit')||tipoRaw.includes('animal')) tipo='Animais sem auditar';
       else if(tipoRaw.includes('compr')) tipo='Compra';
@@ -2604,18 +2706,34 @@ function processarImportMov(rows){
       }
     }
 
-    if((TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)||atual.tipo==='Transferência entre Seções'||atual.tipo==='Reidentificação')&&!atual.animalId){
+    if((TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)||atual.tipo==='Transferência entre Seções'||atual.tipo==='Movimentação entre Locais'||atual.tipo==='Reidentificação')&&!atual.animalId){
       erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'não informado'} bloqueado (${atual.tipo}): animal não localizado no cadastro nem no histórico de reidentificações.`});
       return;
     }
 
     // Trava rápida: animal já morto/vendido não pode ser transferido, reidentificado ou baixado novamente.
-    if(atual.animalId && (TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)||atual.tipo==='Transferência entre Seções'||atual.tipo==='Reidentificação')){
+    if(atual.animalId && (TIPOS_BAIXA_DEFINITIVA.includes(atual.tipo)||atual.tipo==='Transferência entre Seções'||atual.tipo==='Movimentação entre Locais'||atual.tipo==='Reidentificação')){
       const baixa=baixaPorAnimalId.get(atual.animalId) || baixaPorSisbov.get(normalizarSisbov(atual.sisbov));
       if(baixa && (!atual.data || !baixa.data || atual.data>=baixa.data)){
         erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov||'—'} bloqueado: animal já baixado por ${tipoOperacionalMov(baixa)} em ${formatBR(baixa.data)||baixa.data||'data não informada'}.`});
         return;
       }
+    }
+
+    if(atual.tipo==='Movimentação entre Locais'){
+      if(!atual.sisbov){erros.push({linha:linhaNum,motivo:'Movimentação de local bloqueada: SISBOV não informado.'});return;}
+      if(!atual.local){erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov}: informe o LOCAL ATUAL / LOCAL DESTINO.`});return;}
+      const mapaData=buildMapaNaData(atual.data);
+      const aMapa=(mapaData.animais||[]).find(a=>a.id===atual.animalId || normalizarSisbov(a.sisbov)===normalizarSisbov(atual.sisbov));
+      if(aMapa && aMapa.status!=='ATIVO'){erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov} bloqueado: animal não está ativo na data da movimentação.`});return;}
+      const localAnterior=String(aMapa?.localAtual||'').trim();
+      atual.localOrigem=localAnterior;
+      if(localAnterior && normalizarCabecalho(localAnterior)===normalizarCabecalho(atual.local)){
+        erros.push({linha:linhaNum,motivo:`SISBOV ${atual.sisbov}: já está no local ${atual.local}.`});return;
+      }
+      atual.setorOrigem=atual.setorOrigem||aMapa?.setorAtual||atual.setorOrigem||'';
+      atual.setorDestino='';
+      atual.quantidade=1;
     }
 
     // Detecta uma segunda baixa dentro do próprio arquivo sem varrer todo o banco novamente.
@@ -2643,7 +2761,8 @@ function chaveMovimentacaoImportacao(m){
     String(m.setorOrigem||'').trim().toLowerCase(),
     String(m.setorDestino||'').trim().toLowerCase(),
     String(m.destinoExterno||'').trim().toLowerCase(),
-    String(m.causaMorte||'').trim().toLowerCase()
+    String(m.causaMorte||'').trim().toLowerCase(),
+    String(m.local||'').trim().toLowerCase()
   ].join('|');
 }
 
@@ -2670,7 +2789,7 @@ function confirmarImportMov(res){
     <div class="detail-row"><span>Linhas bloqueadas</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
     ${res.erros.length? `<div class="table-wrap" style="margin-top:10px;max-height:220px"><table class="exec"><thead><tr><th>Status</th><th>Linha</th><th>Motivo</th></tr></thead><tbody>${res.erros.map(e=>`<tr><td><span class="badge badge-red">BLOQUEADO</span></td><td>${e.linha}</td><td>${e.motivo}</td></tr>`).join('')}</tbody></table></div>`:''}
     <div class="alert ${res.erros.length?'alert-gold':'alert-green'}" style="margin-top:10px"><span><b>Pré-validação:</b> ${res.erros.length?'existem linhas bloqueadas; somente as válidas serão gravadas.':'arquivo pronto para importação.'}</span></div>
-    ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
+    ${res.validos.length?`<div class="table-wrap" style="margin-top:10px;max-height:260px"><table class="exec"><thead><tr><th>Status</th><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Origem</th><th>Destino</th><th>Local</th></tr></thead><tbody>${res.validos.slice(0,100).map(m=>`<tr><td><span class="badge badge-green">VÁLIDO</span></td><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.sisbov||'—'}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||'—'}</td><td>${m.local||'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
     <p style="font-size:12px;color:var(--cinza-600);margin-top:10px;">O Mapa Atual será recalculado automaticamente após a importação.</p>
   `;
   openModal('Confirmar Importação — Movimentações · ', body, [
@@ -2896,6 +3015,23 @@ function buildMapaNaData(refISO){
       alvo.historico.push({data:m.data,tipo:'Reidentificação',setor:alvo.setorAtual,sisbovAnterior,sisbovNovo,brincoAnterior,brincoNovo,sisbov:sisbovNovo});
       return;
     }
+    if(m.tipo==='Movimentação entre Locais'){
+      const alvo=acharAnimalMovimentacao(m);
+      if(!alvo){
+        inconsistencias.push({data:m.data,tipo:m.tipo,sisbov:m.sisbov||'—',setor:m.setorOrigem||'—',sexo:m.sexo,categoria:'—',faltante:0,msg:`Movimentação de local ignorada: SISBOV ${m.sisbov||'não informado'} não localizado.`});
+        return;
+      }
+      if(alvo.status!=='ATIVO'){
+        inconsistencias.push({data:m.data,tipo:m.tipo,sisbov:m.sisbov||alvo.sisbov||'—',setor:alvo.setorAtual||'—',sexo:alvo.sexo,categoria:'—',faltante:0,msg:`Movimentação de local bloqueada: animal está ${alvo.status}.`});
+        return;
+      }
+      const anterior=alvo.localAtual||'';
+      if(m.local && normalizarCabecalho(anterior)!==normalizarCabecalho(m.local)){
+        alvo.localAtual=m.local;
+        alvo.historico.push({data:m.data,tipo:m.tipo,setor:alvo.setorAtual,localOrigem:anterior,local:m.local});
+      }
+      return;
+    }
     if(m.tipo==='Transferência entre Seções'){
       if(m.setorOrigem===m.setorDestino){
         inconsistencias.push({data:m.data, tipo:m.tipo, setor:m.setorOrigem, sexo:m.sexo, categoria:'—', faltante:0, msg:`Transferência com setor de destino igual ao de origem (${m.setorOrigem}).`});
@@ -2976,7 +3112,7 @@ function celulaDrillMapa(lista, meta, classe=''){
   const n=lista.length;
   if(!n) return `<td class="${classe}">0</td>`;
   const key=registrarDrillMapa(lista,meta);
-  return `<td class="${classe} mapa-drill-cell" data-drill="${key}" title="${n.toLocaleString('pt-BR')} animais — clique para visualizar"><button type="button" class="mapa-drill-btn" data-drill="${key}" aria-label="Ver ${n} animais">${fmtNum(n)}</button></td>`;
+  return `<td class="${classe} mapa-drill-cell" title="${n.toLocaleString('pt-BR')} animais — clique para visualizar"><button type="button" class="mapa-drill-btn" onclick="abrirDetalheNumeroMapa('${key}');return false;" aria-label="Ver ${n} animais">${fmtNum(n)}</button></td>`;
 }
 function normalizarSexoDrill(v){
   const x=stripAccents(String(v||'')).toLowerCase();
@@ -2991,7 +3127,10 @@ function listaCategoriaMapa(ativos,setor,sexo,categoria){
 }
 function abrirDetalheNumeroMapa(key){
   const pacote=__MAPA_DRILL_LISTAS.get(key);
-  if(!pacote) return;
+  if(!pacote){
+    toast('Não foi possível abrir esta seleção. Atualize o mapa e tente novamente.','err');
+    return;
+  }
   const {lista,meta}=pacote;
   const tituloPartes=[
     meta.origem==='final'?'Mapa Final':'Mapa Inicial',
@@ -3117,17 +3256,10 @@ function renderGridTableHTML(ativos, origem=''){
 function renderMapaGridPanel(ativos, containerId, titulo, subTitulo, origem=''){
   const el = document.getElementById(containerId);
   if(!el) return;
-  __MAPA_DRILL_LISTAS.clear();
   el.innerHTML = `<div class="panel">
     <div class="panel-head"><h3>${titulo}</h3>${subTitulo?`<span class="sub">${subTitulo}</span>`:''}</div>
     <div class="panel-body"><div class="table-wrap"><table class="grid mapa-grid-drill">${renderGridTableHTML(ativos,origem)}</table></div></div>
   </div>`;
-  el.querySelectorAll('[data-drill]').forEach(node=>{
-    node.addEventListener('click',ev=>{
-      ev.preventDefault(); ev.stopPropagation();
-      abrirDetalheNumeroMapa(node.dataset.drill);
-    });
-  });
 }
 
 /* Detalhamento individual — uma linha por animal, categoria sempre calculada, SISBOV/Brinco/Chip preservados. */
@@ -3779,7 +3911,7 @@ function formularioMov(m){
         <div class="field"><label>Categoria no evento</label><input id="formMovCategoria" value="${d.categoria||calcCategoria(d.nascimento||'',d.data||todayISO())}" readonly></div>
         <div class="field" id="wrapMovOrigem"><label id="labelMovOrigem">Setor origem</label><select id="formMovOrigem"><option value="">PENDENTE</option>${setores}</select></div>
         <div class="field" id="wrapMovDestino"><label>Setor destino</label><select id="formMovDestino"><option value="">PENDENTE</option>${DB.setores.map(x=>`<option ${d.setorDestino===x?'selected':''}>${x}</option>`).join('')}</select></div>
-        <div class="field"><label>Local</label><input id="formMovLocal" value="${d.local||''}" placeholder="Ex.: Pasto 01, Curral, Confinamento"></div>
+        <div class="field"><label id="labelMovLocal">Local / Local destino</label><input id="formMovLocal" value="${d.local||''}" placeholder="Ex.: Pasto 01, Curral, Confinamento"></div>
         <div class="field" id="wrapDestinoExterno" style="display:none"><label>Destino externo</label><input id="formMovDestinoExterno" value="${d.destinoExterno||''}" placeholder="Ex.: JBS, propriedade compradora, cliente"></div>
         <div class="field" id="wrapCausaMorte" style="display:none"><label>Causa da morte</label><select id="formMovCausaMorte"><option value="">Selecione</option>${['Acidente','Ataque de animal','Atolamento','Cobra','Doença','Intoxicação','Problema metabólico','Problema reprodutivo/parto','Raio','Causa desconhecida','Outros'].map(x=>`<option ${d.causaMorte===x?'selected':''}>${x}</option>`).join('')}</select></div>
         <div class="field"><label>Quantidade</label><input type="number" min="1" id="formMovQtd" value="${d.quantidade||1}"></div>
@@ -3862,6 +3994,7 @@ function abrirFormularioMov(m){
     const ext=document.getElementById('wrapDestinoExterno'), causa=document.getElementById('wrapCausaMorte');
     if(origem) origem.style.display=['Nascimento','Compra','Reidentificação'].includes(t)?'none':'';
     if(destino) destino.style.display=['Nascimento','Compra','Transferência entre Seções'].includes(t)?'':'none';
+    const lblLocal=document.getElementById('labelMovLocal'); if(lblLocal) lblLocal.textContent=t==='Movimentação entre Locais'?'Novo local *':'Local / Local destino';
     if(ext) ext.style.display=['Venda Frigorífico','Venda Terceiro'].includes(t)?'':'none';
     if(causa) causa.style.display=t==='Morte'?'':'none';
     if(t==='Nascimento'||t==='Compra'){ const o=document.getElementById('formMovOrigem'); if(o)o.value=''; }
@@ -3927,6 +4060,7 @@ async function salvarFormularioMov(m){
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
   if(['Nascimento','Compra'].includes(d.tipo) && !d.setorDestino){toast('Informe o setor destino.','err');return;}
   if(d.tipo==='Transferência entre Seções' && (!d.setorOrigem||!d.setorDestino)){toast('Na transferência, informe setor de origem e setor de destino.','err');return;}
+  if(d.tipo==='Movimentação entre Locais' && !d.local){toast('Informe o novo local do animal.','err');return;}
   if(['Morte','Venda Frigorífico','Venda Terceiro'].includes(d.tipo) && !d.setorOrigem){toast('Informe o setor de origem do animal.','err');return;}
   if(d.tipo==='Morte' && !d.causaMorte){toast('Informe a causa da morte.','err');return;}
   if(['Venda Frigorífico','Venda Terceiro'].includes(d.tipo) && !d.destinoExterno){toast('Informe o destino externo da venda.','err');return;}
@@ -3939,8 +4073,19 @@ async function salvarFormularioMov(m){
       const baseHist=dadosAnimalParaMov(hist,d.data);
       ['sisbov','brinco','chip','sexo','raca','nascimento'].forEach(k=>{ if(baseHist[k]) d[k]=baseHist[k]; });
       if(!d.setorOrigem && baseHist.setorOrigem) d.setorOrigem=baseHist.setorOrigem;
+      if(d.tipo==='Movimentação entre Locais'){
+        const mapaData=buildMapaNaData(d.data);
+        const atualMapa=(mapaData.animais||[]).find(a=>a.id===hist.id);
+        if(atualMapa?.status!=='ATIVO'){toast('Movimentação bloqueada: animal não está ativo nesta data.','err');return;}
+        const anterior=String(atualMapa?.localAtual||'').trim();
+        if(anterior && normalizarCabecalho(anterior)===normalizarCabecalho(d.local)){toast(`Nada foi salvo: o animal já está em ${d.local}.`,'err');return;}
+        d.localOrigem=anterior;
+        d.setorOrigem=d.setorOrigem||atualMapa?.setorAtual||'';
+        d.setorDestino='';
+        d.quantidade=1;
+      }
     }
-    if(TIPOS_BAIXA_DEFINITIVA.includes(d.tipo) && !d.animalId){
+    if((TIPOS_BAIXA_DEFINITIVA.includes(d.tipo)||d.tipo==='Movimentação entre Locais') && !d.animalId){
       toast(`Movimentação bloqueada: SISBOV ${d.sisbov||'não informado'} não foi localizado no cadastro/histórico.`, 'err'); return;
     }
     const motivo=motivoBloqueioMovimentacao(d,m?.id||'');
@@ -4386,6 +4531,8 @@ function renderAll(){
   if(id==='view-dashboard') renderDashboard();
   else if(id==='view-mapaInicial') renderMapaInicial();
   else if(id==='view-movimentacoes') renderMovimentacoes();
+  else if(id==='view-nascimentos') renderNascimentos();
+  else if(id==='view-mortalidade') renderMortalidadeModulo();
   else if(id==='view-mapaAtual') renderMapaAtual();
   else if(id==='view-inventario') renderInventario();
   else if(id==='view-relatorio') renderRelatorio();
@@ -4614,6 +4761,135 @@ function importarBackup(file){
 
 
 /* ===== V17: REIDENTIFICAÇÃO COMO PÁGINA ===== */
+
+/* ===== MÓDULOS OPERACIONAIS: NASCIMENTOS E MORTALIDADE ===== */
+function movsDoTipo(tipo){ return (DB.movimentacoes||[]).filter(m=>tipoOperacionalMov(m)===tipo); }
+function valorAnimalMov(m,campo){
+  if(m?.[campo]) return m[campo];
+  const a=(DB.animais||[]).find(x=>x.id===m?.animalId || normalizarSisbov(x.sisbov)===normalizarSisbov(m?.sisbov));
+  return a?.[campo]||'';
+}
+function setorMov(m){ return m.setorOrigem||m.setorDestino||valorAnimalMov(m,'setorInicial')||''; }
+function preencherSetorModulo(id){
+  const el=document.getElementById(id); if(!el)return;
+  const atual=el.value;
+  const setores=[...new Set([...(DB.setores||[]).map(x=>typeof x==='string'?x:x.nome),...(DB.animais||[]).map(a=>a.setorInicial),...(DB.movimentacoes||[]).flatMap(m=>[m.setorOrigem,m.setorDestino])].filter(Boolean))].sort();
+  el.innerHTML='<option value="">Todas</option>'+setores.map(x=>`<option>${esc(x)}</option>`).join('');
+  if(setores.includes(atual))el.value=atual;
+}
+function periodoPadraoModulo(prefix){
+  const fim=document.getElementById(prefix+'Fim'),ini=document.getElementById(prefix+'Ini');
+  if(fim&&!fim.value)fim.value=todayISO();
+  if(ini&&!ini.value){const d=new Date();d.setMonth(d.getMonth()-12);ini.value=d.toISOString().slice(0,10);}
+}
+function barraResumo(obj,death=false){
+  const arr=Object.entries(obj).sort((a,b)=>b[1]-a[1]),max=Math.max(1,...arr.map(x=>x[1]));
+  if(!arr.length)return '<div class="empty">Sem registros no período.</div>';
+  return `<div class="mini-bar-list">${arr.slice(0,12).map(([k,v])=>`<div class="mini-bar-item"><span>${esc(k||'Não informado')}</span><div class="mini-bar-track"><div class="mini-bar-fill ${death?'death':''}" style="width:${(v/max*100).toFixed(1)}%"></div></div><b>${fmtNum(v)}</b></div>`).join('')}</div>`;
+}
+function agrupMes(lista){
+  const o={}; lista.forEach(m=>{const k=(m.data||'').slice(0,7);if(k)o[k]=(o[k]||0)+1}); return o;
+}
+function filtrarModulo(tipo){
+  const nasc=tipo==='Nascimento',p=nasc?'nasc':'morte';
+  const ini=document.getElementById(p+'Ini')?.value||'',fim=document.getElementById(p+'Fim')?.value||'9999-12-31';
+  const setor=document.getElementById(p+'Setor')?.value||'';
+  const sexo=nasc?(document.getElementById('nascSexo')?.value||''):'';
+  const causa=!nasc?(document.getElementById('morteCausa')?.value||'').trim().toLowerCase():'';
+  return movsDoTipo(tipo).filter(m=>{
+    const sx=normSexo(valorAnimalMov(m,'sexo')||m.sexo||'');
+    const st=setorMov(m);
+    return (!ini||m.data>=ini)&&(!fim||m.data<=fim)&&(!setor||chaveSetor(st)===chaveSetor(setor))&&(!sexo||sx===sexo)&&(!causa||String(m.causaMorte||'').toLowerCase().includes(causa));
+  }).sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
+}
+function renderNascimentos(){
+  periodoPadraoModulo('nasc'); preencherSetorModulo('nascSetor');
+  const l=filtrarModulo('Nascimento'), mach=l.filter(m=>normSexo(valorAnimalMov(m,'sexo')||m.sexo)==='Macho').length, fem=l.filter(m=>normSexo(valorAnimalMov(m,'sexo')||m.sexo)==='Fêmea').length;
+  const dias=Math.max(1,Math.round(((new Date(document.getElementById('nascFim').value)-new Date(document.getElementById('nascIni').value))/86400000)+1));
+  document.getElementById('nascKpis').innerHTML=`<div class="module-kpi birth"><div class="label">Total de nascimentos</div><div class="value">${fmtNum(l.length)}</div><div class="sub">no período selecionado</div></div><div class="module-kpi"><div class="label">Machos</div><div class="value">${fmtNum(mach)}</div><div class="sub">${l.length?(mach/l.length*100).toFixed(1):0}%</div></div><div class="module-kpi"><div class="label">Fêmeas</div><div class="value">${fmtNum(fem)}</div><div class="sub">${l.length?(fem/l.length*100).toFixed(1):0}%</div></div><div class="module-kpi"><div class="label">Média por dia</div><div class="value">${(l.length/dias).toFixed(2).replace('.',',')}</div><div class="sub">${dias} dias no período</div></div>`;
+  const porSetor={},porSexo={};l.forEach(m=>{const st=setorMov(m)||'Não informado',sx=normSexo(valorAnimalMov(m,'sexo')||m.sexo)||'Não informado';porSetor[st]=(porSetor[st]||0)+1;porSexo[sx]=(porSexo[sx]||0)+1});
+  document.getElementById('nascMes').innerHTML=barraResumo(agrupMes(l)); document.getElementById('nascSetores').innerHTML=barraResumo(porSetor); document.getElementById('nascSexos').innerHTML=barraResumo(porSexo);
+  renderTabelaNasc(l);
+}
+function renderTabelaNasc(lista){
+  const q=String(document.getElementById('nascBusca')?.value||'').toLowerCase().trim();
+  const l=lista.filter(m=>!q||[m.sisbov,m.brinco,valorAnimalMov(m,'brinco')].join(' ').toLowerCase().includes(q));
+  document.getElementById('nascCount').textContent=`${l.length.toLocaleString('pt-BR')} registro(s)`;
+  document.getElementById('nascTbody').innerHTML=l.map(m=>`<tr><td>${formatBR(m.data)}</td><td><b>${esc(m.sisbov||'—')}</b></td><td>${esc(m.brinco||valorAnimalMov(m,'brinco')||'—')}</td><td>${esc(normSexo(m.sexo||valorAnimalMov(m,'sexo'))||'—')}</td><td>${esc(m.raca||valorAnimalMov(m,'raca')||'—')}</td><td>${formatBR(m.nascimento||valorAnimalMov(m,'nascimento'))||'—'}</td><td>${esc(setorMov(m)||'—')}</td><td><button class="row-action" onclick="abrirFichaPorMov('${m.id}')">VER</button></td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center">Sem registros.</td></tr>';
+}
+function renderMortalidadeModulo(){
+  periodoPadraoModulo('morte'); preencherSetorModulo('morteSetor');
+  const l=filtrarModulo('Morte'), mach=l.filter(m=>normSexo(m.sexo||valorAnimalMov(m,'sexo'))==='Macho').length, fem=l.filter(m=>normSexo(m.sexo||valorAnimalMov(m,'sexo'))==='Fêmea').length;
+  const ini=document.getElementById('morteIni').value,fim=document.getElementById('morteFim').value,dias=Math.max(1,Math.round(((new Date(fim)-new Date(ini))/86400000)+1));
+  const mapa=buildMapaUICached(fim||todayISO()), base=Math.max(1,(mapa.animais||[]).length+l.length),taxa=l.length/base*100;
+  document.getElementById('morteKpis').innerHTML=`<div class="module-kpi death"><div class="label">Total de mortes</div><div class="value">${fmtNum(l.length)}</div><div class="sub">no período selecionado</div></div><div class="module-kpi"><div class="label">Taxa de mortalidade</div><div class="value">${taxa.toFixed(2).replace('.',',')}%</div><div class="sub">sobre base aproximada do período</div></div><div class="module-kpi"><div class="label">Machos / Fêmeas</div><div class="value">${mach} / ${fem}</div><div class="sub">distribuição por sexo</div></div><div class="module-kpi"><div class="label">Média por dia</div><div class="value">${(l.length/dias).toFixed(2).replace('.',',')}</div><div class="sub">${dias} dias no período</div></div>`;
+  const causas={},setores={};l.forEach(m=>{const c=m.causaMorte||'Não informada',st=setorMov(m)||'Não informado';causas[c]=(causas[c]||0)+1;setores[st]=(setores[st]||0)+1});
+  document.getElementById('morteMes').innerHTML=barraResumo(agrupMes(l),true);document.getElementById('morteCausas').innerHTML=barraResumo(causas,true);document.getElementById('morteSetores').innerHTML=barraResumo(setores,true);
+  renderTabelaMorte(l);
+}
+function renderTabelaMorte(lista){
+  const q=String(document.getElementById('morteBusca')?.value||'').toLowerCase().trim();
+  const l=lista.filter(m=>!q||[m.sisbov,m.brinco,valorAnimalMov(m,'brinco')].join(' ').toLowerCase().includes(q));
+  document.getElementById('morteCount').textContent=`${l.length.toLocaleString('pt-BR')} registro(s)`;
+  document.getElementById('morteTbody').innerHTML=l.map(m=>`<tr><td>${formatBR(m.data)}</td><td><b>${esc(m.sisbov||'—')}</b></td><td>${esc(m.brinco||valorAnimalMov(m,'brinco')||'—')}</td><td>${esc(normSexo(m.sexo||valorAnimalMov(m,'sexo'))||'—')}</td><td>${esc(m.raca||valorAnimalMov(m,'raca')||'—')}</td><td>${esc(setorMov(m)||'—')}</td><td>${esc(m.causaMorte||'—')}</td><td><button class="row-action" onclick="abrirFichaPorMov('${m.id}')">VER</button></td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center">Sem registros.</td></tr>';
+}
+function abrirFichaPorMov(id){
+  const m=(DB.movimentacoes||[]).find(x=>x.id===id); if(!m)return;
+  const a=(DB.animais||[]).find(x=>x.id===m.animalId||normalizarSisbov(x.sisbov)===normalizarSisbov(m.sisbov));
+  if(typeof abrirFichaAnimal==='function'&&a){abrirFichaAnimal(a.id);return}
+  toast(`SISBOV ${m.sisbov||'—'} · ${m.tipo}`,'ok');
+}
+function abrirNovoNascimento(){
+  const body=`<div class="grid2"><div class="field"><label>Data do nascimento *</label><input type="date" id="nnData" value="${todayISO()}"></div><div class="field"><label>SISBOV *</label><input id="nnSisbov" inputmode="numeric" maxlength="15"></div><div class="field"><label>Brinco</label><input id="nnBrinco"></div><div class="field"><label>Sexo *</label><select id="nnSexo"><option value="">Selecione</option><option>Fêmea</option><option>Macho</option></select></div><div class="field"><label>Raça</label><input id="nnRaca" value="NE"></div><div class="field"><label>Seção *</label><select id="nnSetor"><option value="">Selecione</option>${[...new Set((DB.setores||[]).map(x=>typeof x==='string'?x:x.nome).filter(Boolean))].map(x=>`<option>${esc(x)}</option>`).join('')}</select></div><div class="field" style="grid-column:1/-1"><label>Observação</label><input id="nnObs"></div></div>`;
+  openModal('Novo Nascimento',body,[{label:'CANCELAR',cls:'btn-outline',onClick:closeModal},{label:'SALVAR NASCIMENTO',cls:'btn-primary',onClick:salvarNovoNascimento}],true);
+}
+function salvarNovoNascimento(){
+  const data=document.getElementById('nnData').value,sis=normalizarSisbov(document.getElementById('nnSisbov').value),sexo=document.getElementById('nnSexo').value,setor=document.getElementById('nnSetor').value;
+  if(!data||!sis||sis.length!==15||!sexo||!setor){toast('Preencha data, SISBOV com 15 dígitos, sexo e seção.','err');return}
+  if((DB.animais||[]).some(a=>normalizarSisbov(a.sisbov)===sis)||(DB.movimentacoes||[]).some(m=>m.tipo==='Nascimento'&&normalizarSisbov(m.sisbov)===sis)){toast('Nascimento bloqueado: este SISBOV já está cadastrado.','err');return}
+  const aid=uid('an'),mov={id:uid('mv'),animalId:aid,data,tipo:'Nascimento',sisbov:sis,brinco:document.getElementById('nnBrinco').value.trim(),sexo,raca:document.getElementById('nnRaca').value.trim(),nascimento:data,setorOrigem:setor,setorDestino:setor,quantidade:1,observacao:document.getElementById('nnObs').value.trim()};
+  DB.animais.push({id:aid,sisbov:sis,brinco:mov.brinco,sexo,raca:mov.raca,nascimento:data,setorInicial:setor,dataEntrada:data});
+  DB.movimentacoes.push(mov);saveDB();invalidarMapaUICache();closeModal();renderNascimentos();renderHeaderCounters();toast('Nascimento salvo com sucesso.','ok');
+}
+function abrirNovaMorte(){
+  const body=`<div class="field"><label>SISBOV, brinco ou chip *</label><input id="nmBusca" placeholder="Digite a identificação"></div><div id="nmAnimal" class="alert alert-gold" style="margin:10px 0">Informe a identificação para localizar o animal.</div><div class="grid2"><div class="field"><label>Data da morte *</label><input type="date" id="nmData" value="${todayISO()}"></div><div class="field"><label>Causa da morte *</label><input id="nmCausa" placeholder="Ex.: acidente, doença..."></div><div class="field" style="grid-column:1/-1"><label>Observação</label><input id="nmObs"></div></div>`;
+  openModal('Registrar Morte',body,[{label:'CANCELAR',cls:'btn-outline',onClick:closeModal},{label:'REGISTRAR MORTE',cls:'btn-danger',onClick:salvarNovaMorte}],true);
+  const b=document.getElementById('nmBusca'); if(b){b.onchange=localizarAnimalMorte;b.onblur=()=>{if(b.value.trim())localizarAnimalMorte()};setTimeout(()=>b.focus(),50)}
+}
+let __ANIMAL_MORTE=null;
+function localizarAnimalMorte(){
+  const q=document.getElementById('nmBusca').value.trim(),ref=document.getElementById('nmData').value||todayISO(),mapa=buildMapaUICached(ref);
+  __ANIMAL_MORTE=(mapa.animais||[]).find(a=>[a.sisbov,a.brinco,a.chip].some(v=>String(v||'').trim()===q))||null;
+  const el=document.getElementById('nmAnimal');
+  if(!__ANIMAL_MORTE){el.className='alert alert-red';el.innerHTML='<b>Animal não localizado no rebanho ativo nesta data.</b>';return}
+  el.className='alert alert-green';el.innerHTML=`<b>Animal localizado:</b> ${esc(__ANIMAL_MORTE.sisbov||'—')} · ${esc(__ANIMAL_MORTE.sexo||'—')} · ${esc(__ANIMAL_MORTE.raca||'—')} · ${esc(__ANIMAL_MORTE.setorAtual||'—')}`;
+}
+function salvarNovaMorte(){
+  if(!__ANIMAL_MORTE){toast('Localize um animal ativo antes de salvar.','err');return}
+  const data=document.getElementById('nmData').value,causa=document.getElementById('nmCausa').value.trim();
+  if(!data||!causa){toast('Informe a data e a causa da morte.','err');return}
+  const baixa=(DB.movimentacoes||[]).find(m=>m.animalId===__ANIMAL_MORTE.id&&TIPOS_BAIXA_DEFINITIVA.includes(tipoOperacionalMov(m))&&m.data<=data);
+  if(baixa){toast(`Bloqueado: animal já possui ${tipoOperacionalMov(baixa)} em ${formatBR(baixa.data)}.`,'err');return}
+  DB.movimentacoes.push({id:uid('mv'),animalId:__ANIMAL_MORTE.id,data,tipo:'Morte',sisbov:__ANIMAL_MORTE.sisbov,brinco:__ANIMAL_MORTE.brinco,chip:__ANIMAL_MORTE.chip,sexo:__ANIMAL_MORTE.sexo,raca:__ANIMAL_MORTE.raca,nascimento:__ANIMAL_MORTE.nascimento,setorOrigem:__ANIMAL_MORTE.setorAtual,causaMorte:causa,quantidade:1,observacao:document.getElementById('nmObs').value.trim()});
+  saveDB();invalidarMapaUICache();__ANIMAL_MORTE=null;closeModal();renderMortalidadeModulo();renderHeaderCounters();toast('Morte registrada com sucesso.','ok');
+}
+function exportarModulo(tipo){
+  if(!garantirBibliotecaExportacao('xlsx'))return;
+  const l=filtrarModulo(tipo),dados=l.map(m=>({'DATA':formatBR(m.data),'TIPO':tipo,'SISBOV':m.sisbov||'','BRINCO':m.brinco||valorAnimalMov(m,'brinco')||'','SEXO':m.sexo||valorAnimalMov(m,'sexo')||'','RAÇA':m.raca||valorAnimalMov(m,'raca')||'','SEÇÃO':setorMov(m),'CAUSA DA MORTE':m.causaMorte||''}));
+  const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(dados);XLSX.utils.book_append_sheet(wb,ws,tipo);XLSX.writeFile(wb,(tipo==='Nascimento'?'nascimentos':'mortalidade')+'.xlsx');
+}
+function iniciarModulosNascimentoMorte(){
+  ['btnNascFiltrar','nascSexo','nascSetor'].forEach(id=>{const e=document.getElementById(id);if(e)e.onchange=renderNascimentos});
+  ['btnMorteFiltrar','morteSetor'].forEach(id=>{const e=document.getElementById(id);if(e)e.onchange=renderMortalidadeModulo});
+  const nb=document.getElementById('btnNovoNascimento');if(nb)nb.onclick=abrirNovoNascimento;
+  const mb=document.getElementById('btnNovaMorte');if(mb)mb.onclick=abrirNovaMorte;
+  const nx=document.getElementById('btnNascXlsx');if(nx)nx.onclick=()=>exportarModulo('Nascimento');
+  const mx=document.getElementById('btnMorteXlsx');if(mx)mx.onclick=()=>exportarModulo('Morte');
+  const ns=document.getElementById('nascBusca');if(ns)ns.oninput=()=>renderTabelaNasc(filtrarModulo('Nascimento'));
+  const ms=document.getElementById('morteBusca');if(ms)ms.oninput=()=>renderTabelaMorte(filtrarModulo('Morte'));
+  const mi=document.getElementById('morteCausa');if(mi)mi.oninput=renderMortalidadeModulo;
+}
+
 let REID_PAGE_ANIMAL=null;
 function limparReidPage(foco=true){
   REID_PAGE_ANIMAL=null;
@@ -4726,9 +5002,125 @@ async function salvarReidPage(){
     }
   }
 }
+
+let REID_LOTE_VALIDACAO=null;
+function baixarModeloReidentificacaoLote(){
+  if(!garantirBibliotecaExportacao('xlsx'))return;
+  const dados=[
+    {'DATA DA MOVIMENTAÇÃO':'29/09/2026','SISBOV ANTERIOR':'105500479295703','NOVO SISBOV':'105500485599999','OBSERVAÇÃO':'Troca de identificação'},
+    {'DATA DA MOVIMENTAÇÃO':'29/09/2026','SISBOV ANTERIOR':'105500482097666','NOVO SISBOV':'105500485588888','OBSERVAÇÃO':''}
+  ];
+  const ws=XLSX.utils.json_to_sheet(dados);
+  ws['!cols']=[{wch:22},{wch:22},{wch:22},{wch:36}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Reidentificacoes');
+  const inst=XLSX.utils.aoa_to_sheet([
+    ['CAMPO','REGRA'],
+    ['DATA DA MOVIMENTAÇÃO','Data da troca. Aceita dd/mm/aaaa.'],
+    ['SISBOV ANTERIOR','SISBOV que identifica o animal antes da troca.'],
+    ['NOVO SISBOV','Novo SISBOV do mesmo animal. Deve conter exatamente 15 dígitos.'],
+    ['OBSERVAÇÃO','Opcional.'],
+    ['IMPORTANTE','Cada linha representa um animal. A reidentificação não altera o saldo do rebanho.']
+  ]);inst['!cols']=[{wch:26},{wch:78}];XLSX.utils.book_append_sheet(wb,inst,'Instrucoes');
+  XLSX.writeFile(wb,'modelo_importacao_reidentificacoes.xlsx');
+}
+function valorColunaReid(row,...nomes){
+  const alvo=nomes.map(normalizarCabecalho);
+  for(const [k,v] of Object.entries(row||{})) if(alvo.includes(normalizarCabecalho(k))) return v;
+  return '';
+}
+function prepararImportacaoReid(rows){
+  const virtuais=new Map();
+  (DB.animais||[]).forEach(a=>{const s=normalizarSisbov(a.sisbov);if(s)virtuais.set(s,a.id)});
+  // Também aceita como anterior qualquer SISBOV histórico de reidentificação.
+  (DB.movimentacoes||[]).filter(m=>m.tipo==='Reidentificação').forEach(m=>{
+    const ant=normalizarSisbov(m.sisbovAnterior),nov=normalizarSisbov(m.sisbovNovo||m.sisbov);
+    if(ant&&m.animalId)virtuais.set(ant,m.animalId);if(nov&&m.animalId)virtuais.set(nov,m.animalId);
+  });
+  const validos=[],bloqueados=[],novosNoArquivo=new Map();
+  rows.forEach((row,idx)=>{
+    const linha=idx+2;
+    const data=parseDateAny(valorColunaReid(row,'DATA DA MOVIMENTAÇÃO','DATA','DATA MOVIMENTAÇÃO'))||'';
+    const anterior=normalizarSisbov(valorColunaReid(row,'SISBOV ANTERIOR','SISBOV ANTIGO','ANTERIOR'));
+    const novo=normalizarSisbov(valorColunaReid(row,'NOVO SISBOV','SISBOV NOVO','NOVO'));
+    const observacao=String(valorColunaReid(row,'OBSERVAÇÃO','OBSERVACAO','OBS')||'').trim();
+    const falha=(motivo)=>bloqueados.push({linha,anterior:anterior||'—',novo:novo||'—',motivo});
+    if(!data){falha('Data inválida ou não informada.');return}
+    if(anterior.length!==15){falha('SISBOV anterior deve conter 15 dígitos.');return}
+    if(novo.length!==15){falha('Novo SISBOV deve conter 15 dígitos.');return}
+    if(anterior===novo){falha('Novo SISBOV é igual ao anterior.');return}
+    const animalId=virtuais.get(anterior);
+    if(!animalId){falha('SISBOV anterior não localizado na base nem no histórico.');return}
+    const animal=(DB.animais||[]).find(a=>a.id===animalId);
+    if(!animal){falha('Animal vinculado não foi localizado.');return}
+    // A nova identificação não pode pertencer a outro animal, nem aparecer para outro animal no próprio arquivo.
+    const donoExistente=virtuais.get(novo);
+    if(donoExistente && donoExistente!==animalId){falha('Novo SISBOV já pertence a outro animal.');return}
+    const donoArquivo=novosNoArquivo.get(novo);
+    if(donoArquivo && donoArquivo!==animalId){falha('Novo SISBOV repetido para animais diferentes no arquivo.');return}
+    // Não permite reidentificação posterior a baixa definitiva.
+    const baixa=(DB.movimentacoes||[]).filter(m=>m.animalId===animalId&&TIPOS_BAIXA_DEFINITIVA.includes(tipoOperacionalMov(m))&&m.data<=data).sort((a,b)=>String(a.data).localeCompare(String(b.data)))[0];
+    if(baixa){falha(`Animal possui ${tipoOperacionalMov(baixa)} em ${formatBR(baixa.data)}.`);return}
+    // Evita repetir exatamente a mesma troca já existente.
+    const repetida=(DB.movimentacoes||[]).some(m=>m.tipo==='Reidentificação'&&m.animalId===animalId&&normalizarSisbov(m.sisbovAnterior)===anterior&&normalizarSisbov(m.sisbovNovo||m.sisbov)===novo&&m.data===data);
+    if(repetida){falha('Esta mesma reidentificação já está gravada.');return}
+    validos.push({linha,data,anterior,novo,observacao,animalId});
+    novosNoArquivo.set(novo,animalId);
+    // Permite cadeia no mesmo arquivo: A→B e depois B→C.
+    virtuais.set(novo,animalId);
+  });
+  return {validos,bloqueados,total:rows.length};
+}
+function abrirPreviewReid(resultado){
+  REID_LOTE_VALIDACAO=resultado;
+  const v=resultado.validos,b=resultado.bloqueados;
+  const amostraV=v.slice(0,30).map(x=>`<tr><td>${x.linha}</td><td>${formatBR(x.data)}</td><td>${esc(x.anterior)}</td><td>${esc(x.novo)}</td><td class="ok">VALIDADO</td></tr>`).join('');
+  const amostraB=b.slice(0,50).map(x=>`<tr><td>${x.linha}</td><td>${esc(x.anterior)}</td><td>${esc(x.novo)}</td><td>${esc(x.motivo)}</td></tr>`).join('');
+  const body=`<div class="grid3"><div class="module-kpi"><div class="label">Linhas lidas</div><div class="value">${resultado.total}</div></div><div class="module-kpi birth"><div class="label">Válidas</div><div class="value">${v.length}</div></div><div class="module-kpi death"><div class="label">Bloqueadas</div><div class="value">${b.length}</div></div></div>
+  <div class="alert alert-gold" style="margin:12px 0"><b>Pré-validação concluída.</b> Nenhuma alteração foi gravada ainda. O saldo do rebanho não será alterado.</div>
+  ${v.length?`<h4>Reidentificações válidas</h4><div class="table-wrap"><table class="exec"><thead><tr><th>Linha</th><th>Data</th><th>SISBOV anterior</th><th>Novo SISBOV</th><th>Status</th></tr></thead><tbody>${amostraV}</tbody></table></div>`:''}
+  ${b.length?`<h4 style="margin-top:14px">Bloqueios</h4><div class="table-wrap"><table class="exec"><thead><tr><th>Linha</th><th>Anterior</th><th>Novo</th><th>Motivo</th></tr></thead><tbody>${amostraB}</tbody></table></div>`:''}`;
+  const botoes=[{label:'CANCELAR',cls:'btn-outline',onClick:closeModal}];
+  if(v.length)botoes.push({label:`IMPORTAR ${v.length} VÁLIDA(S)`,cls:'btn-primary',onClick:confirmarImportacaoReid});
+  openModal('Importar Reidentificações',body,botoes,true);
+}
+function lerArquivoReidLote(file){
+  if(!file)return;if(!garantirBibliotecaExportacao('xlsx'))return;
+  const r=new FileReader();r.onload=e=>{try{
+    const wb=XLSX.read(e.target.result,{type:'array',cellDates:false}),ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+    if(!rows.length){toast('A planilha não possui linhas para importar.','err');return}
+    abrirPreviewReid(prepararImportacaoReid(rows));
+  }catch(err){console.error(err);toast('Não foi possível ler a planilha de reidentificações.','err')}};r.readAsArrayBuffer(file);
+}
+async function confirmarImportacaoReid(){
+  if(!podeAcesso('movimentacoes','editar')){toast('Você não tem permissão para importar reidentificações.','err');return}
+  const lista=REID_LOTE_VALIDACAO?.validos||[];if(!lista.length)return;
+  criarPontoRecuperacao('Importação de reidentificações em lote');
+  const snapshotAnimais=structuredClone(DB.animais||[]),snapshotMov=structuredClone(DB.movimentacoes||[]);
+  try{
+    // Processa em ordem de data e, em empate, pela linha original.
+    const ordenada=[...lista].sort((a,b)=>String(a.data).localeCompare(String(b.data))||a.linha-b.linha);
+    for(const x of ordenada){
+      const animal=(DB.animais||[]).find(a=>a.id===x.animalId);if(!animal)throw new Error(`Linha ${x.linha}: animal não encontrado durante a gravação.`);
+      const base=dadosAnimalParaMov(animal,x.data),brincoAnterior=String(base.brinco||animal.brinco||'').trim(),brincoNovo=x.novo.slice(8,14);
+      DB.movimentacoes.push({id:uid('mv'),animalId:animal.id,data:x.data,tipo:'Reidentificação',sisbov:x.novo,sisbovAnterior:x.anterior,sisbovNovo:x.novo,brinco:brincoNovo,brincoAnterior,brincoNovo,quantidade:1,chip:base.chip||'',sexo:base.sexo||'',raca:base.raca||'',nascimento:base.nascimento||'',setorOrigem:base.setorOrigem||'',setorDestino:'',local:base.local||'',observacao:x.observacao||''});
+      animal.sisbov=x.novo;animal.brinco=brincoNovo;animal.updatedAt=new Date().toISOString();
+    }
+    await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes)]);agendarSyncCentral();
+    invalidarMapaUICache();renderAll();REID_LOTE_VALIDACAO=null;closeModal();toast(`${lista.length} reidentificação(ões) importada(s) com sucesso. O saldo não foi alterado.`,'ok');
+  }catch(err){
+    DB.animais=snapshotAnimais;DB.movimentacoes=snapshotMov;
+    try{await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes)])}catch(_e){}
+    console.error(err);toast('Importação cancelada e revertida: '+(err?.message||'erro de gravação.'),'err');
+  }
+}
+
 function iniciarReidPage(){
   const data=document.getElementById('reidPageData'),busca=document.getElementById('reidPageBusca'),novo=document.getElementById('reidPageNovo'),btn=document.getElementById('btnReidPageSalvar');
   if(!data||data.dataset.ready)return;data.dataset.ready='1';data.value=todayISO();
+  const imp=document.getElementById('btnImportReidLote'),mod=document.getElementById('btnModeloReidLote'),file=document.getElementById('reidLoteFile');
+  if(imp&&file){imp.onclick=()=>file.click();file.onchange=()=>{lerArquivoReidLote(file.files?.[0]);file.value='';};}
+  if(mod)mod.onclick=baixarModeloReidentificacaoLote;
   let timer;
   busca.addEventListener('input',()=>{clearTimeout(timer);REID_PAGE_ANIMAL=null;const q=busca.value.trim();if(!q){limparReidPage(false);return;}timer=setTimeout(localizarReidPage,160);});
   busca.addEventListener('change',localizarReidPage);busca.addEventListener('blur',()=>{if(busca.value.trim()&&!REID_PAGE_ANIMAL){const m=document.getElementById('reidPageMsg');m.style.display='block';m.className='alert alert-red';m.innerHTML='<b>Identificação anterior não encontrada.</b>'; }});
@@ -4747,7 +5139,9 @@ function irParaView(view){
   if(view==='dashboard') renderDashboard();
   if(view==='mapaInicial') renderMapaInicial();
   if(view==='movimentacoes') renderMovimentacoes();
-  if(view==='reidentificacao'){ iniciarReidPage(); setTimeout(()=>document.getElementById('reidPageBusca')?.focus(),40); }
+  if(view==='reidentificacao'){ iniciarReidPage();iniciarModulosNascimentoMorte(); setTimeout(()=>document.getElementById('reidPageBusca')?.focus(),40); }
+  if(view==='nascimentos') renderNascimentos();
+  if(view==='mortalidade') renderMortalidadeModulo();
   if(view==='mapaAtual') renderMapaAtual();
   if(view==='relatorio') renderRelatorio();
   if(view==='fichaAnimal') renderFichaAnimal();
