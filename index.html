@@ -14,6 +14,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+/* O bloqueio por perfil prevalece sobre as regras visuais dos menus e botões. */
+html body [hidden][hidden] { display: none !important; }
+
 /* PERSONALIZAÇÃO: altere livremente estas variáveis para editar cores, textos visuais,
    tamanhos e proporções sem precisar procurar regras espalhadas pelo arquivo. */
 :root{
@@ -1723,7 +1726,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-01-permissoes-modulos-fix';
+  window.__MAPA_BUILD__='2026-10-01-permissoes-hidden-fix';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1831,12 +1834,12 @@ async function iniciarAutenticacao(){
   if(SUPABASE_PUBLISHABLE_KEY.startsWith('COLE_AQUI')){ msg.textContent='Configuração do Supabase pendente: falta a chave publishable.'; return false; }
   authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
   const {data:{session}}=await authClient.auth.getSession();
-  if(session?.user){ await liberarSessao(session.user); return true; }
+  if(session?.user) return await liberarSessao(session.user);
   gate.hidden=false; aplicarPermissoes(); return false;
 }
 async function efetuarLogin(e){
   e.preventDefault(); const msg=document.getElementById('loginMsg'), btn=document.getElementById('btnLogin'); msg.textContent=''; btn.disabled=true; btn.textContent='ENTRANDO...';
-  try{ const email=document.getElementById('loginEmail').value.trim(), password=document.getElementById('loginSenha').value; const {data,error}=await authClient.auth.signInWithPassword({email,password}); if(error) throw error; await liberarSessao(data.user); await iniciarSistema(); }
+  try{ const email=document.getElementById('loginEmail').value.trim(), password=document.getElementById('loginSenha').value; const {data,error}=await authClient.auth.signInWithPassword({email,password}); if(error) throw error; if(await liberarSessao(data.user)) await iniciarSistema(); }
   catch(err){ msg.textContent='E-mail ou senha inválidos.'; } finally{ btn.disabled=false; btn.textContent='ENTRAR'; }
 }
 async function sairSistema(){ if(authClient) await authClient.auth.signOut(); AUTH_USER=null; AUTH_ADMIN=false; aplicarPermissoes(); location.reload(); }
@@ -1853,7 +1856,7 @@ const PERFIS_ACESSO={
  gestor:{dashboard:['ver'],mapaInicial:['ver','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','exportar'],nascimentos:['ver','exportar'],mortalidade:['ver','exportar'],reidentificacao:['ver','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],relatorios:['ver','exportar']},
  controladoria:{dashboard:['ver'],mapaInicial:['ver','editar','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','editar','exportar'],nascimentos:['ver','editar','exportar'],mortalidade:['ver','editar','exportar'],reidentificacao:['ver','editar','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],relatorios:['ver','exportar']}
 };
-let AUTH_PERMISSIONS={};
+let AUTH_PERMISSIONS={}, AUTH_PROFILE={};
 function moduloViewAcesso(v){
  const x=String(v||'').toLowerCase();
  if(x.includes('mapa-inicial')||x==='mapainicial')return'mapaInicial';
@@ -1915,7 +1918,7 @@ function aplicarPermissoes(){
       let acao=null;
       if(t.includes('excluir')||t.includes('apagar'))acao='excluir';
       else if(t.includes('export')||t.includes('pdf')||t.includes('xlsx'))acao='exportar';
-      else if(t.includes('salvar')||t.includes('import')||t.includes('editar')||t.includes('novo')||t.includes('lançar')||t.includes('reprocess')||t.includes('movimentar'))acao='editar';
+      else if(t.includes('salvar')||t.includes('import')||t.includes('editar')||t.includes('novo')||t.includes('nova')||t.includes('lançar')||t.includes('reprocess')||t.includes('movimentar'))acao='editar';
       if(acao){ const ok=podeAcesso(mod,acao); el.hidden=!ok; el.disabled=!ok; }
     });
   });
@@ -6025,7 +6028,7 @@ async function iniciarSistema(){
   document.getElementById('relFim').value = todayISO();
   initEvents(); aplicarPermissoes(); renderAll();
   requestAnimationFrame(()=>{
-    renderDashboard();
+    if(podeAcesso('dashboard','ver'))renderDashboard();
     renderHeaderCounters();
     window.dispatchEvent(new Event('resize'));
   });
