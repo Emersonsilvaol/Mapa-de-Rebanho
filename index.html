@@ -4,7 +4,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="mapa-build" content="2026-10-01-usuarios-acessos-fix">
+<meta name="mapa-build" content="2026-10-01-locais-lotes-conciliacao">
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
@@ -1575,6 +1575,29 @@ thead th{
           <div class="section-list" id="setoresList"></div>
         </div>
       </div>
+    </div>
+    <div class="panel admin-only" id="locaisSetoresPanel" style="margin-top:16px">
+      <div class="panel-head"><div><h3>Locais por Seção · Integração Gestão Pecuária</h3><span class="sub">Define a qual seção cada pasto, piquete, curral ou subdivisão pertence. Divergências nunca movimentam animais automaticamente.</span></div></div>
+      <div class="panel-body">
+        <div style="display:grid;grid-template-columns:minmax(150px,1fr) minmax(190px,1.5fr) minmax(120px,.8fr) auto;gap:8px;align-items:end;">
+          <div class="field"><label>Seção</label><select id="localSecao"></select></div>
+          <div class="field"><label>Local</label><input id="localNome" placeholder="Ex.: Piquete 01"></div>
+          <div class="field"><label>Código</label><input id="localCodigo" placeholder="Ex.: GUA-P01"></div>
+          <button class="btn btn-primary" id="btnSalvarLocalSetor">SALVAR LOCAL</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+          <button class="btn btn-outline" id="btnImportLocaisXlsx">IMPORTAR XLSX</button>
+          <button class="btn btn-outline" id="btnModeloLocaisXlsx">BAIXAR MODELO XLSX</button>
+          <button class="btn btn-gold" id="btnConciliarGestao">CONCILIAR COM GESTÃO PECUÁRIA</button>
+          <input type="file" id="fileLocaisXlsx" accept=".xlsx,.xls,.csv" hidden>
+        </div>
+        <div id="locaisSetoresStatus" style="margin-top:10px;font-size:12px;color:var(--cinza-600)"></div>
+        <div id="locaisSetoresTabela" style="margin-top:12px"></div>
+      </div>
+    </div>
+    <div class="panel admin-only" id="conciliacaoGestaoPanel" style="margin-top:16px">
+      <div class="panel-head"><div><h3>Conciliação Local × Seção × Lote</h3><span class="sub">Compara a posição operacional do Gestão Pecuária com a seção oficial do Mapa de Rebanho.</span></div></div>
+      <div class="panel-body" id="conciliacaoGestaoConteudo"><div class="alert alert-gold"><span>Clique em “Conciliar com Gestão Pecuária” para verificar divergências.</span></div></div>
     </div>
     <div class="panel" id="visualEditorPanel">
       <div class="panel-head"><h3>Editor Visual do Sistema</h3><span class="sub">Personalize sem editar o código HTML</span></div>
@@ -4544,6 +4567,114 @@ function renderRelatorio(){
   window._relCache = {ini, fim, inicioAtivos, fimAtivos, movsPeriodo, resumoIni, resumoFim};
 }
 
+let LOCAIS_SETORES_CACHE=[];
+let CONCILIACAO_GESTAO=[];
+function canonTexto(v){return stripAccents(String(v||'')).replace(/\s+/g,' ').trim().toLowerCase();}
+function secaoCanonica(v){const k=chaveSetor(v);return DB.setores.find(x=>chaveSetor(x)===k)||String(v||'').trim();}
+function ativoPlanilha(v){const x=canonTexto(v);return !['nao','não','n','0','false','inativo'].includes(x);}
+
+async function carregarLocaisSetores(){
+ if(!AUTH_ADMIN||!authClient)return [];
+ const {data,error}=await authClient.from('mapa_locais_setores').select('id,secao,local,codigo,ativo,updated_at').order('secao').order('local');
+ if(error){console.error(error);toast('Não foi possível carregar o cadastro de locais.','err');return [];}
+ LOCAIS_SETORES_CACHE=data||[];
+ renderLocaisSetores();
+ return LOCAIS_SETORES_CACHE;
+}
+function renderLocaisSetores(){
+ const sel=document.getElementById('localSecao');
+ if(sel){const old=sel.value;sel.innerHTML='<option value="">Selecione...</option>'+DB.setores.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if(DB.setores.includes(old))sel.value=old;}
+ const box=document.getElementById('locaisSetoresTabela'),status=document.getElementById('locaisSetoresStatus');
+ if(!box)return;
+ if(status)status.textContent=`${LOCAIS_SETORES_CACHE.filter(x=>x.ativo).length} local(is) ativo(s) · ${LOCAIS_SETORES_CACHE.length} cadastrado(s)`;
+ box.innerHTML=`<div class="table-wrap"><table class="exec"><thead><tr><th>Seção</th><th>Local</th><th>Código</th><th>Status</th><th>Ações</th></tr></thead><tbody>${LOCAIS_SETORES_CACHE.map(x=>`<tr><td>${esc(x.secao)}</td><td>${esc(x.local)}</td><td>${esc(x.codigo||'—')}</td><td><span class="badge ${x.ativo?'badge-green':'badge-gold'}">${x.ativo?'ATIVO':'INATIVO'}</span></td><td><button class="btn btn-outline btn-sm" onclick="editarLocalSetor('${x.id}')">Editar</button> <button class="btn btn-outline btn-sm" onclick="alternarLocalSetor('${x.id}')">${x.ativo?'Inativar':'Ativar'}</button></td></tr>`).join('')||'<tr><td colspan="5">Nenhum local cadastrado.</td></tr>'}</tbody></table></div>`;
+}
+function editarLocalSetor(id){const x=LOCAIS_SETORES_CACHE.find(v=>v.id===id);if(!x)return;document.getElementById('localSecao').value=secaoCanonica(x.secao);document.getElementById('localNome').value=x.local||'';document.getElementById('localCodigo').value=x.codigo||'';document.getElementById('btnSalvarLocalSetor').dataset.editId=id;document.getElementById('btnSalvarLocalSetor').textContent='ATUALIZAR LOCAL';}
+async function alternarLocalSetor(id){const x=LOCAIS_SETORES_CACHE.find(v=>v.id===id);if(!x)return;const {error}=await authClient.from('mapa_locais_setores').update({ativo:!x.ativo,updated_at:new Date().toISOString()}).eq('id',id);if(error)return toast(error.message,'err');await carregarLocaisSetores();}
+async function salvarLocalSetor(){
+ if(!AUTH_ADMIN)return;
+ const secao=secaoCanonica(document.getElementById('localSecao').value),local=String(document.getElementById('localNome').value||'').trim(),codigo=String(document.getElementById('localCodigo').value||'').trim(),btn=document.getElementById('btnSalvarLocalSetor'),editId=btn.dataset.editId||'';
+ if(!secao||!DB.setores.some(x=>chaveSetor(x)===chaveSetor(secao)))return toast('Selecione uma seção válida.','err');
+ if(!local)return toast('Informe o nome do local.','err');
+ const conflito=LOCAIS_SETORES_CACHE.find(x=>x.id!==editId&&canonTexto(x.local)===canonTexto(local));
+ if(conflito)return toast(`O local ${local} já pertence à seção ${conflito.secao}.`,'err');
+ let q=editId?authClient.from('mapa_locais_setores').update({secao,local,codigo,ativo:true,updated_at:new Date().toISOString()}).eq('id',editId):authClient.from('mapa_locais_setores').insert({secao,local,codigo,ativo:true});
+ const {error}=await q;if(error)return toast(error.message,'err');
+ document.getElementById('localNome').value='';document.getElementById('localCodigo').value='';btn.dataset.editId='';btn.textContent='SALVAR LOCAL';await carregarLocaisSetores();toast('Local salvo.','ok');
+}
+function baixarModeloLocaisSetores(){
+ if(typeof XLSX==='undefined')return toast('Biblioteca XLSX indisponível.','err');
+ const wb=XLSX.utils.book_new();
+ const ws=XLSX.utils.aoa_to_sheet([['SEÇÃO','LOCAL','CÓDIGO','ATIVO'],['Guaicurus','Piquete 01','GUA-P01','SIM'],['Três Pedras','Piquete 15','TP-P15','SIM']]);
+ ws['!cols']=[{wch:22},{wch:28},{wch:16},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,'Locais');XLSX.writeFile(wb,'modelo_locais_setores.xlsx');
+}
+async function importarLocaisSetores(input){
+ const file=input.files?.[0];if(!file)return;
+ try{
+  const rows=await lerArquivo(file),validos=[],erros=[],vistos=new Map();
+  rows.forEach((r,i)=>{const get=(...names)=>{for(const [k,v] of Object.entries(r))if(names.includes(normHeader(k)))return v;return ''};const secao=secaoCanonica(get('SECAO','SETOR')),local=String(get('LOCAL','PASTO','PIQUETE')||'').trim(),codigo=String(get('CODIGO','COD')||'').trim(),ativo=ativoPlanilha(get('ATIVO','STATUS'));const linha=i+2;
+   if(!secao||!DB.setores.some(x=>chaveSetor(x)===chaveSetor(secao)))return erros.push({linha,motivo:'Seção inválida'});
+   if(!local)return erros.push({linha,motivo:'Local ausente'});
+   const k=canonTexto(local);if(vistos.has(k)&&chaveSetor(vistos.get(k))!==chaveSetor(secao))return erros.push({linha,motivo:`Local repetido em seções diferentes (${vistos.get(k)} / ${secao})`});vistos.set(k,secao);validos.push({linha,secao,local,codigo,ativo});
+  });
+  const body=`<div class="kpi-row"><div class="kpi-card"><div><div class="kpi-lbl">LINHAS</div><div class="kpi-val">${rows.length}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">VÁLIDAS</div><div class="kpi-val">${validos.length}</div></div></div><div class="kpi-card tone-red"><div><div class="kpi-lbl">ERROS</div><div class="kpi-val">${erros.length}</div></div></div></div>${erros.length?`<div class="alert alert-gold"><span>${erros.slice(0,8).map(e=>`Linha ${e.linha}: ${esc(e.motivo)}`).join('<br>')}</span></div>`:'<div class="alert alert-ok"><span>Arquivo validado.</span></div>'}`;
+  openModal('Importar Locais por Seção',body,[{label:'Cancelar',cls:'btn-outline',onClick:closeModal},{label:`IMPORTAR ${validos.length}`,cls:'btn-primary',onClick:async()=>{closeModal();await confirmarImportacaoLocais(validos);}}],true);
+ }catch(e){toast(mensagemErroImportacao(e),'err');}finally{input.value='';}
+}
+async function confirmarImportacaoLocais(lista){
+ if(!lista.length)return;
+ const atuais=await carregarLocaisSetores();let salvos=0;
+ for(const x of lista){const existente=atuais.find(a=>canonTexto(a.local)===canonTexto(x.local));let q=existente?authClient.from('mapa_locais_setores').update({secao:x.secao,codigo:x.codigo,ativo:x.ativo,updated_at:new Date().toISOString()}).eq('id',existente.id):authClient.from('mapa_locais_setores').insert({secao:x.secao,local:x.local,codigo:x.codigo,ativo:x.ativo});const {error}=await q;if(!error)salvos++;}
+ await carregarLocaisSetores();toast(`${salvos} local(is) importado(s).`,'ok');
+}
+function classificarPosicaoGestao(pos,mapaIndex,localIndex){
+ const a=mapaIndex.get(normalizarSisbov(pos.sisbov));if(!a||a.status!=='ATIVO')return {...pos,situacao:'NAO_LOCALIZADO',animalMapa:a||null,secaoLocal:''};
+ if(!String(pos.local||'').trim())return {...pos,situacao:'SEM_LOCAL',animalMapa:a,secaoLocal:''};
+ const cad=localIndex.get(canonTexto(pos.local));if(!cad)return {...pos,situacao:'LOCAL_NAO_CADASTRADO',animalMapa:a,secaoLocal:''};
+ const mesma=chaveSetor(cad.secao)===chaveSetor(a.setorAtual);
+ return {...pos,situacao:mesma?'OK':'DIVERGENTE',animalMapa:a,secaoLocal:cad.secao,localCadastro:cad};
+}
+async function conciliarGestaoPecuaria(){
+ if(!AUTH_ADMIN||!authClient)return;
+ const box=document.getElementById('conciliacaoGestaoConteudo');if(box)box.innerHTML='<div class="alert alert-gold"><span>Consultando Gestão Pecuária...</span></div>';
+ const locais=LOCAIS_SETORES_CACHE.length?LOCAIS_SETORES_CACHE:await carregarLocaisSetores();
+ const {data,error}=await authClient.from('gp_animal_positions').select('sisbov,secao_gestao,local,local_codigo,lote,lote_codigo,data_posicao,local_source,lote_source,updated_at');
+ if(error){if(box)box.innerHTML=`<div class="alert alert-red"><span>${esc(error.message)}</span></div>`;return;}
+ const mapa=buildMapaNaData(document.getElementById('mapaAtualData')?.value||todayISO()),idx=new Map((mapa.animais||[]).map(a=>[normalizarSisbov(a.sisbov),a])),lidx=new Map(locais.filter(x=>x.ativo).map(x=>[canonTexto(x.local),x]));
+ CONCILIACAO_GESTAO=(data||[]).map(p=>classificarPosicaoGestao(p,idx,lidx));renderConciliacaoGestao();
+}
+function renderConciliacaoGestao(){
+ const box=document.getElementById('conciliacaoGestaoConteudo');if(!box)return;
+ const lista=CONCILIACAO_GESTAO.filter(x=>x.situacao!=='NAO_LOCALIZADO');
+ const counts={OK:0,DIVERGENTE:0,LOCAL_NAO_CADASTRADO:0,SEM_LOCAL:0};lista.forEach(x=>counts[x.situacao]=(counts[x.situacao]||0)+1);
+ box.innerHTML=`<div class="kpi-row"><div class="kpi-card"><div><div class="kpi-lbl">OK</div><div class="kpi-val">${counts.OK}</div></div></div><div class="kpi-card tone-red"><div><div class="kpi-lbl">DIVERGENTES</div><div class="kpi-val">${counts.DIVERGENTE}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">LOCAL NÃO CADASTRADO</div><div class="kpi-val">${counts.LOCAL_NAO_CADASTRADO}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">SEM LOCAL</div><div class="kpi-val">${counts.SEM_LOCAL}</div></div></div></div><div class="table-wrap"><table class="exec"><thead><tr><th>SISBOV</th><th>Seção Mapa</th><th>Local Gestão</th><th>Seção do Local</th><th>Lote</th><th>Situação</th><th>Ação</th></tr></thead><tbody>${lista.map((x,i)=>`<tr><td>${esc(x.sisbov)}</td><td>${esc(x.animalMapa?.setorAtual||'—')}</td><td>${esc(x.local||'—')}</td><td>${esc(x.secaoLocal||'—')}</td><td>${esc(x.lote||'—')}</td><td><span class="badge ${x.situacao==='OK'?'badge-green':'badge-gold'}">${x.situacao.replaceAll('_',' ')}</span></td><td>${x.situacao==='DIVERGENTE'?`<button class="btn btn-primary btn-sm" onclick="decidirConciliacao(${i},'movimentar')">SIM, MOVIMENTAR</button> <button class="btn btn-outline btn-sm" onclick="decidirConciliacao(${i},'manter')">NÃO</button> <button class="btn btn-outline btn-sm" onclick="decidirConciliacao(${i},'revisar')">REVISAR</button>`:x.situacao==='OK'?`<button class="btn btn-outline btn-sm" onclick="decidirConciliacao(${i},'aplicar')">APLICAR LOCAL/LOTE</button>`:x.situacao==='LOCAL_NAO_CADASTRADO'?`<button class="btn btn-outline btn-sm" onclick="preencherLocalDaConciliacao(${i})">CADASTRAR LOCAL</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="7">Nenhuma posição operacional disponível.</td></tr>'}</tbody></table></div>`;
+ // Índices exibidos precisam referenciar a lista filtrada.
+ window.__CONCILIACAO_VISIVEL=lista;
+}
+function preencherLocalDaConciliacao(i){const x=window.__CONCILIACAO_VISIVEL?.[i];if(!x)return;document.getElementById('localNome').value=x.local||'';document.getElementById('localCodigo').value=x.local_codigo||'';document.getElementById('localSecao').focus();toast('Escolha a seção correta do local e clique em SALVAR LOCAL.','ok');}
+async function registrarDecisaoConciliacao(x,status){
+ const row={sisbov:x.sisbov,local:x.local||'',lote:x.lote||'',secao_mapa:x.animalMapa?.setorAtual||'',secao_local:x.secaoLocal||'',status,source_timestamp:x.data_posicao||x.updated_at||null,decided_at:new Date().toISOString(),decided_by:AUTH_USER?.id||null,updated_at:new Date().toISOString()};
+ const {error}=await authClient.from('mapa_conciliacao_local').insert(row);if(error)console.warn('Registro de conciliação:',error.message);
+}
+async function decidirConciliacao(i,acao){
+ const x=window.__CONCILIACAO_VISIVEL?.[i];if(!x||!x.animalMapa)return;
+ if(acao==='manter'){await registrarDecisaoConciliacao(x,'mantido');toast('Mapa mantido sem movimentação.','ok');return;}
+ if(acao==='revisar'){await registrarDecisaoConciliacao(x,'revisar');toast('Item marcado para revisar depois.','ok');return;}
+ const a=x.animalMapa,base=DB.animais.find(v=>v.id===a.id)||buscarAnimalPorSisbov(x.sisbov),data=toISODate(String(x.data_posicao||'').slice(0,10))||todayISO();
+ if(acao==='movimentar'){
+  if(x.situacao!=='DIVERGENTE'||!x.secaoLocal)return;
+  DB.movimentacoes.push({id:uid('mv'),animalId:a.id,data,tipo:'Transferência entre Seções',sisbov:a.sisbov,brinco:a.brinco||'',chip:a.chip||'',sexo:a.sexo||'',raca:a.raca||'',nascimento:a.nascimento||'',setorOrigem:a.setorAtual||'',setorDestino:x.secaoLocal,local:x.local||'',lote:x.lote||'',quantidade:1,observacao:'Conciliação autorizada pelo administrador a partir da posição do Gestão Pecuária.'});
+  if(base&&x.lote)base.loteAtual=x.lote;
+  await Promise.all([idbSet(LS_KEYS.mov,DB.movimentacoes),idbSet(LS_KEYS.animais,DB.animais)]);agendarSyncCentral();invalidarMapaUICache();await registrarDecisaoConciliacao(x,'movimentado');toast(`Animal movimentado para ${x.secaoLocal}.`,'ok');
+ }else if(acao==='aplicar'){
+  const localAnterior=String(a.localAtual||'').trim();
+  if(x.local&&canonTexto(localAnterior)!==canonTexto(x.local))DB.movimentacoes.push({id:uid('mv'),animalId:a.id,data,tipo:'Movimentação entre Locais',sisbov:a.sisbov,brinco:a.brinco||'',chip:a.chip||'',sexo:a.sexo||'',raca:a.raca||'',nascimento:a.nascimento||'',setorOrigem:a.setorAtual||'',setorDestino:'',localOrigem:localAnterior,local:x.local, lote:x.lote||'',quantidade:1,observacao:'Local sincronizado com Gestão Pecuária.'});
+  if(base&&x.lote)base.loteAtual=x.lote;
+  await Promise.all([idbSet(LS_KEYS.mov,DB.movimentacoes),idbSet(LS_KEYS.animais,DB.animais)]);agendarSyncCentral();invalidarMapaUICache();await registrarDecisaoConciliacao(x,'resolvido');toast('Local/lote aplicado sem alterar o saldo.','ok');
+ }
+ await conciliarGestaoPecuaria();renderMapaAtual();renderHeaderCounters();
+}
+
 function renderSetores(){
   document.getElementById('setoresList').innerHTML = DB.setores.map(s=>`
     <div class="section-chip"><span>${s}</span><button data-setor="${s}">&times;</button></div>`).join('');
@@ -4586,7 +4717,7 @@ function renderFichaAnimal(){
   const a=localizarFichaAnimal(q); if(!a){out.innerHTML='<div class="alert alert-gold"><span>Animal não localizado.</span></div>';return;}
   const movs=DB.movimentacoes.filter(m=>m.animalId===a.id || [m.sisbov,m.sisbovAnterior,m.sisbovNovo,m.brinco,m.brincoAnterior,m.brincoNovo,m.chip].some(v=>v && [a.sisbov,a.brinco,a.chip,q].includes(String(v)))).sort((x,y)=>String(x.data).localeCompare(String(y.data)));
   const status=a.status==='MORTO'?'Morto':a.status==='VENDIDO'?'Vendido':'Ativo';
-  out.innerHTML=`<div class="panel"><div class="panel-head"><h3>${a.sisbov||'Sem SISBOV'}</h3><span class="badge ${a.status==='ATIVO'?'badge-green':'badge-gold'}">${status}</span></div><div class="panel-body"><div class="grid2"><div class="detail-row"><span>Brinco</span><b>${a.brinco||'—'}</b></div><div class="detail-row"><span>Chip</span><b>${a.chip||'—'}</b></div><div class="detail-row"><span>Sexo</span><b>${a.sexo||'—'}</b></div><div class="detail-row"><span>Raça</span><b>${a.raca||'—'}</b></div><div class="detail-row"><span>Setor atual</span><b>${a.setorAtual||'—'}</b></div><div class="detail-row"><span>Categoria</span><b>${a.categoria||'—'}</b></div></div></div></div><div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Linha do tempo</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Data</th><th>Evento</th><th>Identificação</th><th>Origem</th><th>Destino</th><th>Detalhe</th></tr></thead><tbody>${movs.map(m=>`<tr><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td><td>${m.causaMorte||m.observacao||'—'}</td></tr>`).join('')||'<tr><td colspan="6">Sem movimentações.</td></tr>'}</tbody></table></div></div></div>`;
+  out.innerHTML=`<div class="panel"><div class="panel-head"><h3>${a.sisbov||'Sem SISBOV'}</h3><span class="badge ${a.status==='ATIVO'?'badge-green':'badge-gold'}">${status}</span></div><div class="panel-body"><div class="grid2"><div class="detail-row"><span>Brinco</span><b>${a.brinco||'—'}</b></div><div class="detail-row"><span>Chip</span><b>${a.chip||'—'}</b></div><div class="detail-row"><span>Sexo</span><b>${a.sexo||'—'}</b></div><div class="detail-row"><span>Raça</span><b>${a.raca||'—'}</b></div><div class="detail-row"><span>Setor atual</span><b>${a.setorAtual||'—'}</b></div><div class="detail-row"><span>Local atual</span><b>${a.localAtual||'—'}</b></div><div class="detail-row"><span>Lote atual</span><b>${(DB.animais.find(v=>v.id===a.id)?.loteAtual)||a.loteAtual||'—'}</b></div><div class="detail-row"><span>Categoria</span><b>${a.categoria||'—'}</b></div></div></div></div><div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Linha do tempo</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Data</th><th>Evento</th><th>Identificação</th><th>Origem</th><th>Destino</th><th>Detalhe</th></tr></thead><tbody>${movs.map(m=>`<tr><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td><td>${m.causaMorte||m.observacao||'—'}</td></tr>`).join('')||'<tr><td colspan="6">Sem movimentações.</td></tr>'}</tbody></table></div></div></div>`;
 }
 const BASE_DOCUMENTAL_MORTALIDADE=14951;
 function renderMortalidade(){
@@ -4622,7 +4753,7 @@ function renderAll(){
   else if(id==='view-inventario') renderInventario();
   else if(id==='view-relatorio') renderRelatorio();
   else if(id==='view-mortalidade') renderMortalidade();
-  else if(id==='view-config') { renderHistoricoAuditorias(); renderLogSistema(); renderSetores(); }
+  else if(id==='view-config') { renderHistoricoAuditorias(); renderLogSistema(); renderSetores(); renderLocaisSetores(); if(AUTH_ADMIN&&!LOCAIS_SETORES_CACHE.length) void carregarLocaisSetores(); }
   else if(id==='view-fichaAnimal') { /* ficha é renderizada sob demanda pela própria busca */ }
 
   setTimeout(aplicarPermissoesUI,0);
@@ -5811,6 +5942,13 @@ function initEvents(){
   const btnAplicarPerfilUsuario=document.getElementById('btnAplicarPerfilUsuario');if(btnAplicarPerfilUsuario)btnAplicarPerfilUsuario.onclick=aplicarPerfilFormulario;
   const usrRole=document.getElementById('usrRole');if(usrRole)usrRole.onchange=()=>{if(usrRole.value==='admin')renderPermissoesFormulario({});};
   renderPermissoesFormulario({});
+
+  // Locais por Seção / integração Gestão Pecuária
+  const bSalvarLocal=document.getElementById('btnSalvarLocalSetor'); if(bSalvarLocal)bSalvarLocal.onclick=salvarLocalSetor;
+  const bImpLocais=document.getElementById('btnImportLocaisXlsx'); if(bImpLocais)bImpLocais.onclick=()=>document.getElementById('fileLocaisXlsx')?.click();
+  const fImpLocais=document.getElementById('fileLocaisXlsx'); if(fImpLocais)fImpLocais.onchange=()=>importarLocaisSetores(fImpLocais);
+  const bModeloLocais=document.getElementById('btnModeloLocaisXlsx'); if(bModeloLocais)bModeloLocais.onclick=baixarModeloLocaisSetores;
+  const bConciliarGestao=document.getElementById('btnConciliarGestao'); if(bConciliarGestao)bConciliarGestao.onclick=conciliarGestaoPecuaria;
 
   // Configurações / Backup
   document.getElementById('btnExportBackup').onclick = exportarBackup;
