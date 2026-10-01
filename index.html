@@ -4,7 +4,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="mapa-build" content="2026-09-29-reid-lote-performance-fix">
+<meta name="mapa-build" content="2026-10-01-usuarios-acessos-fix">
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
@@ -1700,7 +1700,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-09-29-reid-lote-performance-fix';
+  window.__MAPA_BUILD__='2026-10-01-usuarios-acessos-fix';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1821,13 +1821,14 @@ async function sairSistema(){ if(authClient) await authClient.auth.signOut(); AU
 
 const MODULOS_ACESSO=[
  ['dashboard','Dashboard'],['mapaInicial','Mapa Inicial'],['mapaAtual','Mapa Atual / Final'],
- ['movimentacoes','Movimentações'],['fichaAnimal','Ficha do Animal'],['inventario','Inventário / Auditoria'],
+ ['movimentacoes','Movimentações'],['nascimentos','Nascimentos'],['mortalidade','Mortalidade'],
+ ['reidentificacao','Reidentificação'],['fichaAnimal','Ficha do Animal'],['inventario','Inventário / Auditoria'],
  ['relatorios','Relatórios'],['configuracoes','Configurações / Backup']
 ];
 const PERFIS_ACESSO={
- visualizacao:{dashboard:['ver'],mapaInicial:['ver'],mapaAtual:['ver'],movimentacoes:['ver'],fichaAnimal:['ver'],inventario:['ver'],mortalidade:['ver'],relatorios:['ver']},
- gestor:{dashboard:['ver'],mapaInicial:['ver','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],mortalidade:['ver','exportar'],relatorios:['ver','exportar']},
- controladoria:{dashboard:['ver'],mapaInicial:['ver','editar','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','editar','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],mortalidade:['ver','exportar'],relatorios:['ver','exportar']}
+ visualizacao:{dashboard:['ver'],mapaInicial:['ver'],mapaAtual:['ver'],movimentacoes:['ver'],nascimentos:['ver'],mortalidade:['ver'],reidentificacao:['ver'],fichaAnimal:['ver'],inventario:['ver'],relatorios:['ver']},
+ gestor:{dashboard:['ver'],mapaInicial:['ver','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','exportar'],nascimentos:['ver','exportar'],mortalidade:['ver','exportar'],reidentificacao:['ver','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],relatorios:['ver','exportar']},
+ controladoria:{dashboard:['ver'],mapaInicial:['ver','editar','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','editar','exportar'],nascimentos:['ver','editar','exportar'],mortalidade:['ver','editar','exportar'],reidentificacao:['ver','editar','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],relatorios:['ver','exportar']}
 };
 let AUTH_PERMISSIONS={};
 function moduloViewAcesso(v){
@@ -1835,9 +1836,9 @@ function moduloViewAcesso(v){
  if(x.includes('mapa-inicial')||x==='mapainicial')return'mapaInicial';
  if(x.includes('mapa-atual')||x.includes('mapa-final')||x==='mapaatual')return'mapaAtual';
  if(x.includes('moviment'))return'movimentacoes'; if(x.includes('ficha'))return'fichaAnimal';
- if(x.includes('invent'))return'inventario'; if(x.includes('mortal'))return'mortalidade';
+ if(x.includes('invent'))return'inventario'; if(x.includes('nasc'))return'nascimentos'; if(x.includes('mortal'))return'mortalidade';
  if(x.includes('relat'))return'relatorios'; if(x.includes('config')||x.includes('backup'))return'configuracoes';
- if(x==='reidentificacao')return'movimentacoes'; if(x.includes('dashboard')||x==='home')return'dashboard'; return x;
+ if(x==='reidentificacao')return'reidentificacao'; if(x.includes('dashboard')||x==='home')return'dashboard'; return x;
 }
 function podeAcesso(mod,acao='ver'){return AUTH_ADMIN || (Array.isArray(AUTH_PERMISSIONS?.[mod])&&AUTH_PERMISSIONS[mod].includes(acao));}
 function exigirAdmin(acao='alterar dados'){if(AUTH_ADMIN)return true;toast(`Você não tem permissão para ${acao}.`,'err');return false;}
@@ -1899,9 +1900,15 @@ async function liberarSessao(user){
 }
 async function chamarAdminUsers(payload){
  if(!AUTH_ADMIN)throw new Error('Acesso exclusivo do administrador.');
- const {data:{session}}=await authClient.auth.getSession();if(!session)throw new Error('Sessão expirada.');
+ const {data:{session},error:sessionError}=await authClient.auth.getSession();
+ if(sessionError||!session?.access_token)throw new Error('Sessão expirada. Entre novamente no sistema.');
  const {data,error}=await authClient.functions.invoke('admin-users',{body:payload});
- if(error)throw error;if(data?.error)throw new Error(data.error);return data;
+ if(error){
+   const msg=error?.context?.body?.error||error?.message||'Falha ao acessar o serviço de usuários.';
+   throw new Error(msg);
+ }
+ if(data?.error)throw new Error(data.error);
+ return data||{};
 }
 function dataHoraBR(v){if(!v)return'—';try{return new Date(v).toLocaleString('pt-BR')}catch{return'—'}}
 function renderPermissoesFormulario(perms={}){
@@ -1925,11 +1932,13 @@ function limparFormularioUsuario(){
  renderPermissoesFormulario({});
 }
 async function carregarUsuarios(){
- const body=document.getElementById('usuariosBody');if(!body||!AUTH_ADMIN)return;body.innerHTML='<tr><td colspan="6">Carregando...</td></tr>';
+ const body=document.getElementById('usuariosBody'),msg=document.getElementById('usuariosMsg');
+ if(!body||!AUTH_ADMIN)return;
+ body.innerHTML='<tr><td colspan="6">Carregando...</td></tr>';if(msg)msg.style.display='none';
  try{
    const out=await chamarAdminUsers({action:'list'}),users=out.users||[];window.__USERS_ADMIN=users;
    body.innerHTML=users.map((u,i)=>`<tr><td>${esc(u.nome||'—')}</td><td>${esc(u.email||'—')}</td><td><span class="badge ${u.role==='admin'?'badge-gold':'badge-ativo'}">${u.role==='admin'?'Administrador':(u.role||'Personalizado')}</span></td><td>${u.ativo===false?'Bloqueado':'Ativo'}</td><td>${esc(dataHoraBR(u.last_sign_in_at||u.created_at))}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="editarUsuarioAcesso(${i})">Acessos</button> <button class="btn btn-outline btn-sm" onclick="alternarUsuarioAcesso(${i})">${u.ativo===false?'Ativar':'Bloquear'}</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum usuário cadastrado.</td></tr>';
- }catch(e){body.innerHTML=`<tr><td colspan="6" style="color:var(--vermelho)">${esc(e.message)}</td></tr>`;}
+ }catch(e){const t=e?.message||'Falha ao carregar usuários.';body.innerHTML=`<tr><td colspan="6" style="color:var(--vermelho)">${esc(t)}</td></tr>`;if(msg){msg.style.display='block';msg.innerHTML=`<b>Não foi possível carregar os usuários:</b> ${esc(t)}`;}}
 }
 function editarUsuarioAcesso(i){
  const u=window.__USERS_ADMIN?.[i];if(!u)return;
@@ -5393,6 +5402,7 @@ function irParaView(view){
   if(view==='relatorio') renderRelatorio();
   if(view==='fichaAnimal') renderFichaAnimal();
   if(view==='mortalidade') renderMortalidade();
+  if(view==='usuarios'){ renderPermissoesFormulario({}); carregarUsuarios(); }
   if(view==='config'){ renderSetores(); renderAuditoriaPanel(); renderEditorVisual(); }
 }
 document.getElementById('mainTabs').addEventListener('click', e=>{
@@ -5793,6 +5803,14 @@ function initEvents(){
   const cpre=document.getElementById('cancelarPreValidacao');if(cpre)cpre.onclick=fecharPreValidacaoArquivo;
   const confpre=document.getElementById('confirmarPreValidacao');if(confpre)confpre.onclick=confirmarPreValidacaoArquivo;
   const bel=document.getElementById('btnExportLog');if(bel)bel.onclick=exportarLogSistema;
+
+  // Usuários e Acessos
+  const btnCriarUsuario=document.getElementById('btnCriarUsuario');if(btnCriarUsuario)btnCriarUsuario.onclick=salvarUsuarioAcesso;
+  const btnCancelarEdicaoUsuario=document.getElementById('btnCancelarEdicaoUsuario');if(btnCancelarEdicaoUsuario)btnCancelarEdicaoUsuario.onclick=limparFormularioUsuario;
+  const btnAtualizarUsuarios=document.getElementById('btnAtualizarUsuarios');if(btnAtualizarUsuarios)btnAtualizarUsuarios.onclick=carregarUsuarios;
+  const btnAplicarPerfilUsuario=document.getElementById('btnAplicarPerfilUsuario');if(btnAplicarPerfilUsuario)btnAplicarPerfilUsuario.onclick=aplicarPerfilFormulario;
+  const usrRole=document.getElementById('usrRole');if(usrRole)usrRole.onchange=()=>{if(usrRole.value==='admin')renderPermissoesFormulario({});};
+  renderPermissoesFormulario({});
 
   // Configurações / Backup
   document.getElementById('btnExportBackup').onclick = exportarBackup;
