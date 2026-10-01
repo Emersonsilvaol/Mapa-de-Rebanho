@@ -1866,63 +1866,59 @@ function moduloViewAcesso(v){
 function podeAcesso(mod,acao='ver'){return AUTH_ADMIN || (Array.isArray(AUTH_PERMISSIONS?.[mod])&&AUTH_PERMISSIONS[mod].includes(acao));}
 function exigirAdmin(acao='alterar dados'){if(AUTH_ADMIN)return true;toast(`Você não tem permissão para ${acao}.`,'err');return false;}
 function aplicarPermissoes(){
-  document.querySelectorAll('.admin-only').forEach(el=>el.hidden=!AUTH_ADMIN);
+  document.querySelectorAll('.admin-only').forEach(el=>{ el.hidden=!AUTH_ADMIN; });
+
   document.querySelectorAll('[data-view]').forEach(el=>{
-    const m=moduloViewAcesso(el.dataset.view);
-    if(m==='usuarios')el.style.display=AUTH_ADMIN?'':'none';
-    else el.style.display=podeAcesso(m,'ver')?'':'none';
+    const view=el.dataset.view||'';
+    const mod=moduloViewAcesso(view);
+    const permitido=view==='usuarios' ? AUTH_ADMIN : podeAcesso(mod,'ver');
+    el.hidden=!permitido;
+    el.setAttribute('aria-hidden',permitido?'false':'true');
+    if(!permitido) el.classList.remove('active');
   });
 
-  // A permissão controla também a própria view, não apenas o botão do menu.
   document.querySelectorAll('main .view').forEach(sec=>{
     const view=(sec.id||'').replace('view-','');
     const mod=moduloViewAcesso(view);
-    const permitido=view==='usuarios'?AUTH_ADMIN:podeAcesso(mod,'ver');
-    if(!permitido){
-      sec.classList.remove('active');
-      sec.style.display='none';
-      sec.setAttribute('aria-hidden','true');
-    }else{
-      sec.style.removeProperty('display');
-      sec.removeAttribute('aria-hidden');
-    }
+    const permitido=view==='usuarios' ? AUTH_ADMIN : podeAcesso(mod,'ver');
+    sec.hidden=!permitido;
+    sec.setAttribute('aria-hidden',permitido?'false':'true');
+    if(!permitido) sec.classList.remove('active');
   });
 
-  // Se a tela padrão (Dashboard) não estiver liberada, abre a primeira view permitida.
-  if(AUTH_USER && !document.querySelector('main .view.active')){
+  if(AUTH_USER && !document.querySelector('main .view.active:not([hidden])')){
     const ordem=['dashboard','mapaInicial','mapaAtual','fichaAnimal','movimentacoes','nascimentos','mortalidade','reidentificacao','inventario','relatorio','config'];
     const primeira=ordem.find(v=>podeAcesso(moduloViewAcesso(v),'ver'));
     if(primeira){
-      document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===primeira));
       const alvo=document.getElementById('view-'+primeira);
-      if(alvo){
-        alvo.style.removeProperty('display');
-        alvo.removeAttribute('aria-hidden');
-        alvo.classList.add('active');
-      }
+      if(alvo){ alvo.hidden=false; alvo.setAttribute('aria-hidden','false'); alvo.classList.add('active'); }
+      document.querySelectorAll('nav.tabs button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===primeira));
     }
   }
-  const chip=document.getElementById('authUser');if(chip)chip.style.display=AUTH_USER?'inline-flex':'none';
- const nm=document.getElementById('authUserName'),rl=document.getElementById('authUserRole');
- if(AUTH_USER){
-   const meta=AUTH_USER.user_metadata||{};let nome=meta.full_name||meta.name||meta.nome||'';
-   if(!nome){const parte=(AUTH_USER.email||'Usuário').split('@')[0].replace(/[._-]+/g,' ').trim();nome=parte.replace(/\b\w/g,c=>c.toUpperCase());}
-   if(nm)nm.textContent=nome;if(rl)rl.textContent=AUTH_ADMIN?'Administrador':'Acesso personalizado';
- }
- const out=document.getElementById('btnLogout');if(out)out.style.display=AUTH_USER?'inline-block':'none';
- // action-level buttons
- document.querySelectorAll('section.view').forEach(sec=>{
-   const mod=moduloViewAcesso((sec.id||'').replace('view-',''));
-   sec.querySelectorAll('button,a').forEach(el=>{
-     if(sec.id==='view-usuarios')return;
-     const t=(el.textContent||'').toLowerCase();
-     let acao=null;
-     if(t.includes('excluir')||t.includes('apagar'))acao='excluir';
-     else if(t.includes('export')||t.includes('pdf')||t.includes('xlsx'))acao='exportar';
-     else if(t.includes('salvar')||t.includes('import')||t.includes('editar')||t.includes('novo')||t.includes('lançar')||t.includes('reprocess'))acao='editar';
-     if(acao&&!podeAcesso(mod,acao))el.style.display='none';
-   });
- });
+
+  const chip=document.getElementById('authUser'); if(chip)chip.style.display=AUTH_USER?'inline-flex':'none';
+  const nm=document.getElementById('authUserName'), rl=document.getElementById('authUserRole');
+  if(AUTH_USER){
+    const meta=AUTH_USER.user_metadata||{};
+    let nome=String(AUTH_PROFILE?.nome||meta.full_name||meta.name||meta.nome||'').trim();
+    if(!nome){ const parte=(AUTH_USER.email||'Usuário').split('@')[0].replace(/[._-]+/g,' ').trim(); nome=parte.replace(/\b\w/g,c=>c.toUpperCase()); }
+    if(nm)nm.textContent=nome;
+    if(rl)rl.textContent=AUTH_ADMIN?'Administrador':(AUTH_PROFILE?.role==='visualizacao'?'Visualização':'Acesso personalizado');
+  }
+  const out=document.getElementById('btnLogout'); if(out)out.style.display=AUTH_USER?'inline-block':'none';
+
+  document.querySelectorAll('section.view:not([hidden])').forEach(sec=>{
+    const mod=moduloViewAcesso((sec.id||'').replace('view-',''));
+    sec.querySelectorAll('button,a').forEach(el=>{
+      if(sec.id==='view-usuarios')return;
+      const t=(el.textContent||'').toLowerCase();
+      let acao=null;
+      if(t.includes('excluir')||t.includes('apagar'))acao='excluir';
+      else if(t.includes('export')||t.includes('pdf')||t.includes('xlsx'))acao='exportar';
+      else if(t.includes('salvar')||t.includes('import')||t.includes('editar')||t.includes('novo')||t.includes('lançar')||t.includes('reprocess')||t.includes('movimentar'))acao='editar';
+      if(acao){ const ok=podeAcesso(mod,acao); el.hidden=!ok; el.disabled=!ok; }
+    });
+  });
 }
 
 // API única e estável para reaplicar permissões após qualquer renderização.
@@ -1931,25 +1927,40 @@ function aplicarPermissoesUI(){
 }
 
 async function liberarSessao(user){
- AUTH_USER=user;AUTH_ADMIN=false;AUTH_PERMISSIONS={};
- try{
-   const {data:perfil,error}=await authClient.from('profiles').select('role,ativo,permissions').eq('id',user.id).maybeSingle();
-   if(error)throw error;
-   if(perfil?.ativo===false){await authClient.auth.signOut();throw new Error('Usuário bloqueado');}
-   AUTH_ADMIN=String(perfil?.role||'').toLowerCase()==='admin';
-   AUTH_PERMISSIONS=perfil?.permissions||{};
- }catch(e){console.warn('Perfil/permissões:',e);}
- if(!AUTH_ADMIN)AUTH_ADMIN=ADMIN_EMAILS.includes((user.email||'').toLowerCase());
- document.getElementById('authGate').hidden=true;aplicarPermissoes();
- requestAnimationFrame(()=>{
-   renderDashboard();
-   renderHeaderCounters();
-   recuperarBaseCentralAposInicio().then(()=>{
-     renderDashboard();
-     renderHeaderCounters();
-     window.dispatchEvent(new Event('resize'));
-   });
- });
+  AUTH_USER=user; AUTH_ADMIN=false; AUTH_PERMISSIONS={}; AUTH_PROFILE={};
+  try{
+    const {data:perfil,error}=await authClient.from('profiles').select('nome,email,role,ativo,permissions').eq('id',user.id).maybeSingle();
+    if(error)throw error;
+    if(!perfil)throw new Error('Perfil de acesso não encontrado.');
+    if(perfil.ativo===false){ await authClient.auth.signOut(); throw new Error('Usuário bloqueado'); }
+    AUTH_PROFILE=perfil||{};
+    AUTH_ADMIN=String(perfil.role||'').toLowerCase()==='admin';
+    AUTH_PERMISSIONS=(perfil.permissions && typeof perfil.permissions==='object')?perfil.permissions:{};
+  }catch(e){
+    console.error('Perfil/permissões:',e);
+    if(!ADMIN_EMAILS.includes((user.email||'').toLowerCase())){
+      AUTH_USER=null; AUTH_PROFILE={}; AUTH_PERMISSIONS={}; AUTH_ADMIN=false;
+      document.getElementById('authGate').hidden=false;
+      const msg=document.getElementById('loginMsg'); if(msg)msg.textContent='Não foi possível carregar suas permissões. Entre novamente ou contate o administrador.';
+      aplicarPermissoes();
+      return false;
+    }
+  }
+  if(!AUTH_ADMIN)AUTH_ADMIN=ADMIN_EMAILS.includes((user.email||'').toLowerCase());
+  document.getElementById('authGate').hidden=true;
+  aplicarPermissoes();
+  requestAnimationFrame(()=>{
+    if(podeAcesso('dashboard','ver'))renderDashboard();
+    renderHeaderCounters();
+    aplicarPermissoes();
+    recuperarBaseCentralAposInicio().then(()=>{
+      if(podeAcesso('dashboard','ver'))renderDashboard();
+      renderHeaderCounters();
+      aplicarPermissoes();
+      window.dispatchEvent(new Event('resize'));
+    });
+  });
+  return true;
 }
 async function chamarAdminUsers(payload){
  if(!AUTH_ADMIN)throw new Error('Acesso exclusivo do administrador.');
@@ -5565,7 +5576,7 @@ function irParaView(view){
   if(view==='mortalidade') renderMortalidade();
   if(view==='usuarios'){ renderPermissoesFormulario({}); carregarUsuarios(); }
   if(view==='config'){ renderSetores(); renderAuditoriaPanel(); renderEditorVisual(); }
-}
+ aplicarPermissoes(); }
 document.getElementById('mainTabs').addEventListener('click', e=>{
   const btn = e.target.closest('button[data-view]');
   if(btn) irParaView(btn.dataset.view);
@@ -6018,7 +6029,7 @@ async function iniciarSistema(){
     renderHeaderCounters();
     window.dispatchEvent(new Event('resize'));
   });
-  setTimeout(()=>renderHeaderCounters(),350);
+  setTimeout(()=>{renderHeaderCounters();aplicarPermissoes();},350);
   setTimeout(()=>recuperarBaseCentralAposInicio(),700);
   setTimeout(()=>recuperarBaseCentralAposInicio(),2200);
 }
