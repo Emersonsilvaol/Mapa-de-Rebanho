@@ -1723,7 +1723,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-01-usuarios-acessos-fix';
+  window.__MAPA_BUILD__='2026-10-01-permissoes-modulos-fix';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1866,13 +1866,43 @@ function moduloViewAcesso(v){
 function podeAcesso(mod,acao='ver'){return AUTH_ADMIN || (Array.isArray(AUTH_PERMISSIONS?.[mod])&&AUTH_PERMISSIONS[mod].includes(acao));}
 function exigirAdmin(acao='alterar dados'){if(AUTH_ADMIN)return true;toast(`Você não tem permissão para ${acao}.`,'err');return false;}
 function aplicarPermissoes(){
- document.querySelectorAll('.admin-only').forEach(el=>el.hidden=!AUTH_ADMIN);
- document.querySelectorAll('[data-view]').forEach(el=>{
-   const m=moduloViewAcesso(el.dataset.view);
-   if(m==='usuarios')el.style.display=AUTH_ADMIN?'':'none';
-   else el.style.display=podeAcesso(m,'ver')?'':'none';
- });
- const chip=document.getElementById('authUser');if(chip)chip.style.display=AUTH_USER?'inline-flex':'none';
+  document.querySelectorAll('.admin-only').forEach(el=>el.hidden=!AUTH_ADMIN);
+  document.querySelectorAll('[data-view]').forEach(el=>{
+    const m=moduloViewAcesso(el.dataset.view);
+    if(m==='usuarios')el.style.display=AUTH_ADMIN?'':'none';
+    else el.style.display=podeAcesso(m,'ver')?'':'none';
+  });
+
+  // A permissão controla também a própria view, não apenas o botão do menu.
+  document.querySelectorAll('main .view').forEach(sec=>{
+    const view=(sec.id||'').replace('view-','');
+    const mod=moduloViewAcesso(view);
+    const permitido=view==='usuarios'?AUTH_ADMIN:podeAcesso(mod,'ver');
+    if(!permitido){
+      sec.classList.remove('active');
+      sec.style.display='none';
+      sec.setAttribute('aria-hidden','true');
+    }else{
+      sec.style.removeProperty('display');
+      sec.removeAttribute('aria-hidden');
+    }
+  });
+
+  // Se a tela padrão (Dashboard) não estiver liberada, abre a primeira view permitida.
+  if(AUTH_USER && !document.querySelector('main .view.active')){
+    const ordem=['dashboard','mapaInicial','mapaAtual','fichaAnimal','movimentacoes','nascimentos','mortalidade','reidentificacao','inventario','relatorio','config'];
+    const primeira=ordem.find(v=>podeAcesso(moduloViewAcesso(v),'ver'));
+    if(primeira){
+      document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===primeira));
+      const alvo=document.getElementById('view-'+primeira);
+      if(alvo){
+        alvo.style.removeProperty('display');
+        alvo.removeAttribute('aria-hidden');
+        alvo.classList.add('active');
+      }
+    }
+  }
+  const chip=document.getElementById('authUser');if(chip)chip.style.display=AUTH_USER?'inline-flex':'none';
  const nm=document.getElementById('authUserName'),rl=document.getElementById('authUserRole');
  if(AUTH_USER){
    const meta=AUTH_USER.user_metadata||{};let nome=meta.full_name||meta.name||meta.nome||'';
