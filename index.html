@@ -1199,6 +1199,13 @@ thead th{
 </style>
 
 <script>try{if(localStorage.getItem('mapa-display-theme')==='dark')document.documentElement.dataset.theme='dark';}catch(e){}</script>
+<style>
+#authGate{z-index:2147483647!important}
+.data-quality{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:16px 0;padding:15px 18px;border:1px solid var(--line,#deded6);border-left:4px solid #b58439;border-radius:12px;background:var(--surface,#fff)}
+.data-quality strong{display:block;font-size:14px}.data-quality p{margin:5px 0 0;font-size:12px;color:var(--cinza-600)}
+.quality-filters{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}.quality-filters .field{flex:1;min-width:180px}.quality-detail{font-size:12px;color:var(--cinza-600);display:block;margin-top:4px}
+@media(max-width:600px){.data-quality{align-items:flex-start;flex-direction:column}.data-quality button{width:100%}}
+</style>
 </head>
 <body>
 <div id="authGate">
@@ -1210,8 +1217,8 @@ thead th{
       <div class="auth-field"><label>E-mail</label><input id="loginEmail" type="email" autocomplete="username" required placeholder="seu@email.com"></div>
       <div class="auth-field"><label>Senha</label><input id="loginSenha" type="password" autocomplete="current-password" required placeholder="Sua senha"></div>
       <button class="btn btn-primary" type="submit" id="btnLogin" style="width:100%;justify-content:center;padding:12px 14px;border-radius:9px">ENTRAR</button>
-      <div class="auth-msg" id="loginMsg"></div>
     </form>
+    <div class="auth-msg" id="loginMsg" role="status" aria-live="polite"></div>
     <div class="auth-foot"><b>FAZENDA BODOQUENA</b><br>Acesso restrito a usuários autorizados</div>
   </div>
 </div>
@@ -1266,6 +1273,7 @@ thead th{
     <h2 class="view-title">Visão Geral</h2><p class="view-sub">Posição do rebanho, movimentações e indicadores por seção.</p>
     <div class="exec-sync exec-sync-top" id="dashSync"></div>
     <div class="exec-kpis" id="dashKpis"></div>
+    <div id="dashDataQuality" class="data-quality" hidden></div>
     <div class="exec-row exec-row-main">
       <div class="panel"><div class="panel-head"><h3>Evolução do saldo do rebanho</h3></div><div class="panel-body" id="dashEvolution"></div></div>
       <div class="panel"><div class="panel-head"><h3>Transferências entre seções</h3></div><div class="panel-body" id="dashTransfer"></div></div>
@@ -1735,7 +1743,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-02-design-mapas-verdes-v3';
+  window.__MAPA_BUILD__='2026-10-02-qualidade-sessao-v4';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1841,7 +1849,11 @@ async function iniciarAutenticacao(){
   const gate=document.getElementById('authGate'), msg=document.getElementById('loginMsg');
   if(!window.supabase){ msg.textContent='Falha ao carregar o serviço de autenticação.'; return false; }
   if(SUPABASE_PUBLISHABLE_KEY.startsWith('COLE_AQUI')){ msg.textContent='Configuração do Supabase pendente: falta a chave publishable.'; return false; }
-  authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+  authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  authClient.auth.onAuthStateChange((event,session)=>{
+    if(event==='SIGNED_OUT')setTimeout(()=>{AUTH_USER=null;clearInterval(PERFIL_POLL);bloquearAcesso('Sessão encerrada. Entre para continuar.');},0);
+    else if(event==='TOKEN_REFRESHED'&&session?.user)AUTH_USER=session.user;
+  });
   const {data:{session}}=await authClient.auth.getSession();
   if(session?.user) return await liberarSessao(session.user);
   gate.hidden=false; aplicarPermissoes(); return false;
@@ -1946,22 +1958,38 @@ function aplicarPermissoesUI(){
 }
 
 async function acessoServidor(body){
- const {data,error}=await authClient.functions.invoke('mapa-acesso',{body});
+ let result=await authClient.functions.invoke('mapa-acesso',{body});
+ if(result.error?.context?.status===401&&authClient.auth?.refreshSession){
+  const renewed=await authClient.auth.refreshSession();
+  if(!renewed.error&&renewed.data?.session)result=await authClient.functions.invoke('mapa-acesso',{body});
+ }
+ const {data,error}=result;
  if(error||data?.error){
-   let status=error?.context?.status;
-   if(status===401||status===403)bloquearAcesso(data?.error||'Seu acesso foi bloqueado ou alterado.');
-   throw new Error(data?.error||'Não foi possível validar o acesso no servidor.');
+   const status=error?.context?.status;
+   const e=new Error(data?.error||(status===401?'Sua sessão expirou. Entre novamente.':status===403?'Seu acesso foi bloqueado ou alterado.':'Não foi possível validar o acesso no servidor.'));
+   e.status=status;
+   if(status===401||status===403)bloquearAcesso(e.message);
+   throw e;
  }
  return data;
 }
-function bloquearAcesso(msg){
- ACESSO_SUSPENSO=true;AUTH_ADMIN=false;AUTH_PERMISSIONS={};MAPA_SERVIDOR=null;
- if(typeof DB!=='undefined'){DB.animais=[];DB.movimentacoes=[];DB.config={};}
- document.querySelectorAll('main .view').forEach(s=>s.hidden=true);
- document.querySelectorAll('.modal-overlay').forEach(s=>s.classList.remove('open'));
+function mostrarGateAcesso(msg,login=true){
  document.getElementById('authGate').hidden=false;
+ document.getElementById('loginForm').hidden=!login;
  document.getElementById('loginMsg').textContent=msg;
- aplicarPermissoes();
+ let recovery=document.getElementById('accessRecovery');
+ if(!recovery){recovery=document.createElement('div');recovery.id='accessRecovery';recovery.innerHTML='<p class="auth-sub">Sua sessão será retomada assim que o acesso for confirmado.</p><button type="button" class="btn btn-primary" id="btnRetomarAcesso">TENTAR NOVAMENTE</button>';document.getElementById('loginForm').after(recovery);recovery.querySelector('button').onclick=()=>void verificarAcessoAtual();}
+ recovery.hidden=login;
+}
+let VIEW_ANTES_VALIDACAO='', VALIDACAO_PROMISE=null, ACESSO_EPOCH=0;
+function guardarTelaAtual(){if(VIEW_ANTES_VALIDACAO)return;const v=document.querySelector('main .view.active');if(v)VIEW_ANTES_VALIDACAO=v.id;}
+function bloquearAcesso(msg,login=true){
+ guardarTelaAtual();ACESSO_EPOCH++;
+ ACESSO_SUSPENSO=true;AUTH_ADMIN=false;AUTH_PERMISSIONS={};MAPA_SERVIDOR=null;
+ if(typeof DB!=='undefined'){DB.animais=[];DB.movimentacoes=[];DB.config={};invalidarMapaUICache();}
+ document.querySelectorAll('main .view').forEach(s=>s.hidden=true);
+ closeModal();document.querySelectorAll('.modal-overlay').forEach(s=>s.classList.remove('open'));
+ mostrarGateAcesso(msg,login);aplicarPermissoes();
 }
 function aplicarPerfilServidor(data){
  AUTH_PROFILE=data.profile;AUTH_ADMIN=data.owner===true;
@@ -1970,16 +1998,44 @@ function aplicarPerfilServidor(data){
 }
 async function verificarAcessoAtual(){
  if(!AUTH_USER||!authClient)return false;
- try{
-  const suspenso=ACESSO_SUSPENSO;const anterior=JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS]);
-  const data=await acessoServidor({action:'session'});aplicarPerfilServidor(data);
-  if(suspenso||anterior!==JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS])){
-   DB.animais=[];DB.movimentacoes=[];MAPA_SERVIDOR=null;invalidarMapaUICache();
-   if(suspenso&&AUTH_ADMIN){await loadDB();}else if(!await carregarBaseCentral())throw new Error('Não foi possível carregar os dados autorizados.');renderAll();
-  }
-  document.getElementById('authGate').hidden=true;
-  return true;
- }catch(e){bloquearAcesso('Não foi possível validar seu acesso. Conecte-se e entre novamente.');return false;}
+ if(VALIDACAO_PROMISE)return VALIDACAO_PROMISE;
+ VALIDACAO_PROMISE=(async()=>{
+  try{
+   while(AUTH_USER){
+    const epoch=ACESSO_EPOCH,suspenso=ACESSO_SUSPENSO,anterior=JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS]);
+    if(authClient.auth?.getSession){
+     const {data,error}=await authClient.auth.getSession();
+     if(error)throw error;
+     if(!data?.session){const e=new Error('Sua sessão expirou. Entre novamente.');e.status=401;throw e;}
+    }
+    const data=await acessoServidor({action:'session'});
+    if(epoch!==ACESSO_EPOCH)continue;
+    const mudou=anterior!==JSON.stringify([data.owner===true,data.profile.permissions||{}]);
+    aplicarPerfilServidor(data);
+    let recarregou=false;
+    if(mudou||(suspenso&&!DB.animais.length)){
+     if(mudou){closeModal();document.querySelectorAll('.modal-overlay').forEach(s=>s.classList.remove('open'));}
+     DB.animais=[];DB.movimentacoes=[];MAPA_SERVIDOR=null;invalidarMapaUICache();
+     if(suspenso&&AUTH_ADMIN){await loadDB();}else if(!await carregarBaseCentral())throw new Error('Não foi possível carregar os dados autorizados.');
+     recarregou=true;
+    }
+    if(epoch!==ACESSO_EPOCH)continue;
+    if(VIEW_ANTES_VALIDACAO){const v=document.getElementById(VIEW_ANTES_VALIDACAO);if(v&&podeAcesso(moduloViewAcesso(v.id.replace('view-','')),'ver')){document.querySelectorAll('main .view').forEach(x=>x.classList.toggle('active',x===v));document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active','view-'+b.dataset.view===v.id));}VIEW_ANTES_VALIDACAO='';}
+    if(!SISTEMA_INICIADO){SISTEMA_INICIADO=true;prepararSistemaCarregado();acompanharPerfil();}
+    else if(mudou||recarregou)renderAll();
+    document.getElementById('authGate').hidden=true;document.getElementById('loginForm').hidden=false;
+    return true;
+   }
+   return false;
+  }catch(e){bloquearAcesso(e.status===401||e.status===403?e.message:'Não foi possível confirmar o acesso. Verifique a conexão e tente novamente.',e.status===401||e.status===403);return false;}
+ })();
+ try{return await VALIDACAO_PROMISE;}finally{VALIDACAO_PROMISE=null;}
+}
+function retomarAcessoAoVoltar(){
+ if(!AUTH_USER)return;
+ guardarTelaAtual();ACESSO_SUSPENSO=true;aplicarPermissoes();
+ mostrarGateAcesso('Confirmando seu acesso...',false);
+ void verificarAcessoAtual();
 }
 function acompanharPerfil(){
  if(PERFIL_CHANNEL)authClient.removeChannel(PERFIL_CHANNEL);
@@ -1991,12 +2047,12 @@ async function liberarSessao(user){
  AUTH_USER=user;AUTH_ADMIN=false;AUTH_PERMISSIONS={};AUTH_PROFILE={};
  try{
   aplicarPerfilServidor(await acessoServidor({action:'session'}));
-  document.getElementById('authGate').hidden=true;acompanharPerfil();return true;
- }catch(e){bloquearAcesso(e.message);return false;}
+  document.getElementById('authGate').hidden=true;document.getElementById('loginForm').hidden=false;acompanharPerfil();return true;
+ }catch(e){bloquearAcesso(e.message,e.status===401||e.status===403);return false;}
 }
-window.addEventListener('offline',()=>bloquearAcesso('Conexão perdida. O acesso exige validação no servidor.'));
+window.addEventListener('offline',()=>bloquearAcesso('Conexão perdida. Reconecte-se para retomar o acesso.',false));
 window.addEventListener('online',()=>void verificarAcessoAtual());
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&AUTH_USER){bloquearAcesso('Validando acesso...');void verificarAcessoAtual();}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')retomarAcessoAoVoltar();});
 async function autorizarExportacao(mod,formato){
  if(!await verificarAcessoAtual()||!podeAcesso(mod,'exportar')||(mod==='configuracoes'&&!AUTH_ADMIN)){toast('Exportação não autorizada.','err');return false;}
  try{await acessoServidor({action:'export',module:mod,format:formato});return true;}catch(e){toast(e.message,'err');return false;}
@@ -2334,8 +2390,9 @@ async function carregarBaseCentral(){
       return true;
     }
   }catch(e){
+    if(e.status===401||e.status===403)throw e;
     console.error('Erro ao carregar base central do Supabase',e);
-    toast('Não foi possível carregar a base central. Tentando o cache deste navegador.','err');
+    toast('Não foi possível carregar a base central. Verifique sua conexão.','err');
   }
   return false;
 }
@@ -2391,7 +2448,7 @@ async function loadDB(){
   const central=await carregarBaseCentral();
   if(AUTH_ADMIN){const draft=await idbGet('mapa_pending_draft').catch(()=>null);if(draft?.payload){DB={...draft.payload};CENTRAL_REVISION=draft.revision;PENDING_REASON=draft.reason||'Rascunho recuperado';LOCAL_DIRTY=true;CONFLITO_CENTRAL=true;mostrarConflitoCentral();}}
   if(!AUTH_ADMIN){
-    if(!central){DB.animais=[];DB.movimentacoes=[];bloquearAcesso('Não foi possível carregar os dados autorizados.');}
+    if(!central){DB.animais=[];DB.movimentacoes=[];bloquearAcesso('Não foi possível carregar os dados autorizados. Tente retomar o acesso.',false);}
     return;
   }
   if(!central){
@@ -3888,12 +3945,72 @@ function buildMapaUICached(ref){
 }
 function invalidarMapaUICache(){ __MAPA_UI_CACHE={key:'',value:null}; }
 
+function campoDadosValido(v){const x=String(v??'').trim();return !!x&&!['—','-','pendente','n/a','na','sem setor','sem seção'].includes(x.toLowerCase());}
+function problemasQualidadeDados(ativos){
+ const issues=[],masters=new Map(DB.animais.map(a=>[a.id,a])),lastTransfer=new Map(),linked=new Set(),seen=new Map(),ref=todayISO();
+ for(const m of [...DB.movimentacoes].filter(m=>m.data<=ref).sort((a,b)=>String(a.data).localeCompare(String(b.data))))if(m.tipo==='Transferência entre Seções'){if(m.animalId)lastTransfer.set(m.animalId,m);if(m.sisbov)lastTransfer.set('sis:'+normalizarSisbov(m.sisbov),m);}
+ const add=(a,tipo,detalhe,m=null)=>{issues.push({tipo,detalhe,animalId:a.id||'',movId:m?.id||'',sisbov:a.sisbov||m?.sisbov||'',brinco:a.brinco||m?.brinco||'',chip:a.chip||m?.chip||'',setor:a.setorAtual||'',data:m?.data||'',origem:m?.setorOrigem||'',destino:m?.setorDestino||''});if(m?.id)linked.add(m.id);};
+ for(const a of ativos){
+  if(!campoDadosValido(a.setorAtual||a.setor)){
+   const m=lastTransfer.get(a.id)||lastTransfer.get('sis:'+normalizarSisbov(a.sisbov));
+   add(a,'Sem setor',m&&!campoDadosValido(m.setorDestino)?`Transferência de ${formatBR(m.data)} sem seção de destino. Corrija a movimentação.`:'Seção atual não informada. Confira o cadastro e as movimentações.',m&&!campoDadosValido(m.setorDestino)?m:null);
+  }else if(!DB.setores.some(s=>chaveSetor(typeof s==='string'?s:s.nome)===chaveSetor(a.setorAtual||a.setor)))add(a,'Seção não cadastrada','A seção atual não existe na lista de seções. Confira o nome ou o cadastro.');
+  const sis=normalizarSisbov(a.sisbov);
+  if(!sis||!/^\d{15}$/.test(sis))add(a,'SISBOV inválido',sis?'O SISBOV deve ter 15 dígitos.':'Animal ativo sem SISBOV.');
+  if(sis){if(seen.has(sis)){const previous=seen.get(sis);if(!previous.flag){add(previous.a,'SISBOV repetido','Mais de um animal ativo usa este SISBOV. Confira os registros.');previous.flag=true;}add(a,'SISBOV repetido','Mais de um animal ativo usa este SISBOV. Confira os registros.');}else seen.set(sis,{a,flag:false});}
+  if(!['macho','fêmea','femea'].includes(String(a.sexo||'').trim().toLowerCase()))add(a,'Sexo não informado','Informe o sexo no cadastro para a composição do mapa.');
+  if(!a.nascimento||!/^\d{4}-\d{2}-\d{2}$/.test(a.nascimento)||!Number.isFinite(Date.parse(a.nascimento+'T00:00:00Z'))||new Date(a.nascimento+'T00:00:00Z').toISOString().slice(0,10)!==a.nascimento||a.nascimento>ref)add(a,'Nascimento inválido','Confira a data de nascimento; ela deve ser válida e não pode ser futura.');
+ }
+ for(const m of DB.movimentacoes){
+  if(linked.has(m.id))continue;
+  let detail='';
+  if(m.tipo==='Transferência entre Seções'&&(!campoDadosValido(m.setorOrigem)||!campoDadosValido(m.setorDestino)))detail='Transferência sem seção de origem ou de destino. Confira a movimentação.';
+  else if(['Nascimento','Compra'].includes(m.tipo)&&!campoDadosValido(m.setorDestino||m.setorOrigem))detail='Entrada sem seção informada. Confira a movimentação.';
+  else if(m.tipo==='Transferência entre Seções'&&chaveSetor(m.setorOrigem)===chaveSetor(m.setorDestino))detail='Origem e destino iguais na transferência.';
+  if(detail)add(masters.get(m.animalId)||{id:m.animalId,sisbov:m.sisbov,brinco:m.brinco,chip:m.chip},'Movimentação incompleta',detail,m);
+ }
+ return issues;
+}
+let QUALIDADE_DADOS=[];
+function renderQualidadeDados(ativos){
+ const el=document.getElementById('dashDataQuality');if(!el)return;
+ QUALIDADE_DADOS=problemasQualidadeDados(ativos);el.hidden=!QUALIDADE_DADOS.length;
+ if(!QUALIDADE_DADOS.length){el.innerHTML='';return;}
+ const semSetor=QUALIDADE_DADOS.filter(i=>i.tipo==='Sem setor').length;
+ el.innerHTML=`<div><strong>${semSetor?`${semSetor} ${semSetor===1?'animal sem setor':'animais sem setor'}`:'Inconsistências nos dados do rebanho'}</strong><p>${QUALIDADE_DADOS.length.toLocaleString('pt-BR')} ${QUALIDADE_DADOS.length===1?'ocorrência para conferir':'ocorrências para conferir'} · Veja o SISBOV, a causa e o registro para corrigir.</p></div><button type="button" class="btn btn-outline" id="btnConferirDados">CONFERIR DADOS</button>`;
+ el.querySelector('button').onclick=()=>abrirQualidadeDados(semSetor?'Sem setor':'');
+}
+function abrirQualidadeDados(filtro=''){
+ if(!podeAcesso('dashboard','ver')){toast('Você não tem permissão para acessar o Dashboard.','err');return;}
+ const list=problemasQualidadeDados(buildMapaUICached(todayISO()).animais.filter(a=>a.status==='ATIVO'));
+ const tipos=[...new Set(list.map(i=>i.tipo))];
+ openModal('Conferência dos dados do rebanho',`<p>Consulte os registros abaixo. Depois da correção, o aviso é atualizado no Dashboard.</p><div class="quality-filters"><div class="field"><label>Problema</label><select id="qualityTipo"><option value="">Todos</option>${tipos.map(t=>`<option ${filtro===t?'selected':''}>${esc(t)}</option>`).join('')}</select></div><div class="field"><label>SISBOV, brinco ou chip</label><input id="qualityBusca" placeholder="Buscar animal" autocomplete="off"></div></div><div id="qualityCount"></div><div class="table-wrap" style="max-height:460px"><table class="exec"><thead><tr><th>Animal</th><th>Problema / Causa</th><th>Registro</th><th>Ação</th></tr></thead><tbody id="qualityRows"></tbody></table></div><div id="qualityPages" style="display:flex;gap:12px;align-items:center;margin-top:12px"></div>`,[{label:'FECHAR',cls:'btn-outline',onClick:closeModal}],true);
+ let page=0;
+ function render(){
+  const tipo=document.getElementById('qualityTipo').value,busca=document.getElementById('qualityBusca').value.trim().toLowerCase();
+  const found=list.map((i,index)=>({...i,index})).filter(i=>(!tipo||i.tipo===tipo)&&(!busca||[i.sisbov,i.brinco,i.chip].some(v=>String(v).toLowerCase().includes(busca))));
+  const pages=Math.max(1,Math.ceil(found.length/100));page=Math.min(page,pages-1);
+  document.getElementById('qualityCount').textContent=`${found.length.toLocaleString('pt-BR')} ocorrência(s)`;
+  document.getElementById('qualityRows').innerHTML=found.slice(page*100,(page+1)*100).map(i=>`<tr><td><b>${esc(i.sisbov||'Sem SISBOV')}</b><span class="quality-detail">Brinco ${esc(i.brinco||'—')} · Chip ${esc(i.chip||'—')}</span></td><td><b>${esc(i.tipo)}</b><span class="quality-detail">${esc(i.detalhe)}</span></td><td>${i.movId?`${esc(formatBR(i.data))}<span class="quality-detail">${esc(i.origem||'Sem origem')} → ${esc(i.destino||'Sem destino')}</span>`:`Cadastro<span class="quality-detail">${esc(i.setor||'Sem setor')}</span>`}</td><td>${AUTH_ADMIN?`<button type="button" class="btn btn-outline btn-sm" data-quality-edit="${i.index}">${i.movId?'CORRIGIR MOVIMENTAÇÃO':'CONFERIR CADASTRO'}</button>`:'Consulta'}</td></tr>`).join('')||'<tr><td colspan="4">Nenhum registro neste filtro.</td></tr>';
+  document.getElementById('qualityPages').innerHTML=`<button type="button" class="btn btn-outline btn-sm" id="qualityPrev" ${page===0?'disabled':''}>ANTERIOR</button><span>${page+1} / ${pages}</span><button type="button" class="btn btn-outline btn-sm" id="qualityNext" ${page>=pages-1?'disabled':''}>PRÓXIMA</button>`;
+  document.getElementById('qualityPrev').onclick=()=>{page--;render();};document.getElementById('qualityNext').onclick=()=>{page++;render();};
+  document.querySelectorAll('[data-quality-edit]').forEach(btn=>btn.onclick=async()=>{
+   const i=list[Number(btn.dataset.qualityEdit)];if(!await verificarAcessoAtual()||!exigirAdmin('corrigir dados'))return;
+   if(i.movId){const m=DB.movimentacoes.find(x=>x.id===i.movId);if(m)abrirFormularioMov(m);else toast('A movimentação mudou. Reabra a conferência.','err');}
+   else if(DB.animais.some(a=>a.id===i.animalId))abrirEdicaoAnimal(i.animalId);else toast('Confira a entrada que originou este animal em Movimentações.','err');
+  });
+ }
+ document.getElementById('qualityTipo').onchange=()=>{page=0;render();};document.getElementById('qualityBusca').oninput=()=>{page=0;render();};render();
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-quality-filter]');if(b)abrirQualidadeDados(b.dataset.qualityFilter);});
+
 function renderDashboard(){
   document.getElementById('alertaCadastro')?.remove();
   const ref=todayISO();
   const {animais}=buildMapaUICached(ref);
   const ativos=animais.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
   setHeaderHerdCount(ativos.length);
+  renderQualidadeDados(ativos);
   const inicial=DB.animais.filter(a=>a.origem==='inicial').length;
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   const tipo=m=>norm(tipoOperacionalMov(m)||m.tipo);
@@ -3947,7 +4064,7 @@ function renderDashboard(){
   document.getElementById('dashTransfer').innerHTML=`<div class="transfer-symbol">⇄</div><div class="transfer-value">${transf.toLocaleString('pt-BR')}</div><p>Transferências entre seções</p><span>Não alteram o saldo total da fazenda</span>`;
   const byInitial={};DB.animais.filter(a=>a.origem==='inicial').forEach(a=>{const k=a.setorInicial||'Sem seção';byInitial[k]=(byInitial[k]||0)+1});
   const sections=[...new Set([...DB.setores,...Object.keys(byInitial),...Object.keys(setorCounts)])];
-  document.getElementById('dashSections').innerHTML=`<div class="table-wrap"><table class="exec section-comparison"><thead><tr><th>Seção</th><th class="num">Saldo inicial</th><th class="num">Saldo atual</th><th class="num">Variação</th><th>Participação atual</th></tr></thead><tbody>${sections.map(k=>{const a=byInitial[k]||0,b=setorCounts[k]||0,d=b-a;return `<tr><td>${esc(k)}</td><td class="num">${a.toLocaleString('pt-BR')}</td><td class="num"><b>${b.toLocaleString('pt-BR')}</b></td><td class="num">${d>0?'+':''}${d.toLocaleString('pt-BR')}</td><td><div class="section-share"><i style="width:${ativos.length?b/ativos.length*100:0}%"></i></div></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${inicial.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td><td class="num">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</td><td>100%</td></tr></tbody></table></div>`;
+  document.getElementById('dashSections').innerHTML=`<div class="table-wrap"><table class="exec section-comparison"><thead><tr><th>Seção</th><th class="num">Saldo inicial</th><th class="num">Saldo atual</th><th class="num">Variação</th><th>Participação atual</th></tr></thead><tbody>${sections.map(k=>{const a=byInitial[k]||0,b=setorCounts[k]||0,d=b-a;return `<tr><td>${k==='Sem setor'?'<button type="button" class="btn btn-outline btn-sm" data-quality-filter="Sem setor">Sem setor · conferir</button>':esc(k)}</td><td class="num">${a.toLocaleString('pt-BR')}</td><td class="num"><b>${b.toLocaleString('pt-BR')}</b></td><td class="num">${d>0?'+':''}${d.toLocaleString('pt-BR')}</td><td><div class="section-share"><i style="width:${ativos.length?b/ativos.length*100:0}%"></i></div></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${inicial.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td><td class="num">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</td><td>100%</td></tr></tbody></table></div>`;
 
   const ageCounts={}; CATEGORIAS.forEach(c=>ageCounts[c]=0); ativos.forEach(a=>{if(ageCounts[a.categoria]!==undefined)ageCounts[a.categoria]++});
   const ageEl=document.getElementById('dashAge'); if(ageEl) ageEl.innerHTML=barList(ageCounts,c=>c+' meses');
@@ -6172,8 +6289,11 @@ function initEvents(){
 let SISTEMA_INICIADO=false;
 async function iniciarSistema(){
   if(SISTEMA_INICIADO) return; SISTEMA_INICIADO=true;
-  await loadDB();
+  try{await loadDB();}catch(e){bloquearAcesso(e.message,e.status===401||e.status===403);SISTEMA_INICIADO=false;return;}
   if(ACESSO_SUSPENSO){SISTEMA_INICIADO=false;return;}
+  prepararSistemaCarregado();
+}
+function prepararSistemaCarregado(){
   aplicarVisualConfig();
   document.getElementById('mapaAtualData').value = todayISO();
   document.getElementById('relFim').value = todayISO();
