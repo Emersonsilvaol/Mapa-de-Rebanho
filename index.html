@@ -12,7 +12,7 @@
 <script src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <style>
 /* O bloqueio por perfil prevalece sobre as regras visuais dos menus e botões. */
 html body [hidden][hidden] { display: none !important; }
@@ -1743,7 +1743,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-02-qualidade-sessao-v4';
+  window.__MAPA_BUILD__='2026-10-02-sessao-persistente-v5';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1845,25 +1845,77 @@ function aplicarPermissoes(){
   }
   const out=document.getElementById('btnLogout'); if(out) out.style.display=AUTH_USER?'inline-block':'none';
 }
+// Persistent auth storage. Never fall back silently to a session held only in memory.
+const AUTH_STORAGE_KEY='sb-ernbxfwhfqsriklqruhn-auth-token';
+let AUTH_STORAGE_DB=null;
+function abrirBancoSessao(){
+ if(AUTH_STORAGE_DB)return AUTH_STORAGE_DB;
+ AUTH_STORAGE_DB=new Promise((resolve,reject)=>{
+  if(!window.indexedDB){reject(new Error('Armazenamento indisponível.'));return;}
+  const req=indexedDB.open('mapa-auth-session',1);
+  req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('sessions'))req.result.createObjectStore('sessions');};
+  req.onsuccess=()=>{const db=req.result;db.onversionchange=()=>{db.close();AUTH_STORAGE_DB=null;};resolve(db);};
+  req.onerror=()=>reject(req.error);req.onblocked=()=>reject(new Error('Armazenamento de sessão ocupado.'));
+ });
+ AUTH_STORAGE_DB.catch(()=>{AUTH_STORAGE_DB=null;});return AUTH_STORAGE_DB;
+}
+async function itemBancoSessao(mode,key,value){
+ const db=await abrirBancoSessao();
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction('sessions',mode==='get'?'readonly':'readwrite'),store=tx.objectStore('sessions');
+  const req=mode==='get'?store.get(key):mode==='remove'?store.delete(key):store.put(value,key);
+  let result;req.onsuccess=()=>{result=req.result;};tx.oncomplete=()=>resolve(result??null);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Não foi possível salvar a sessão.'));
+ });
+}
+const AUTH_STORAGE={
+ async getItem(key){
+  let local=null,localOK=false;
+  try{local=localStorage.getItem(key);localOK=true;}catch(_e){}
+  if(local==='null')return null;
+  if(local!==null){await itemBancoSessao('set',key,local).catch(()=>{});return local;}
+  try{const saved=await itemBancoSessao('get',key);if(saved!==null){try{localStorage.setItem(key,saved);}catch(_e){}return saved;}return null;}catch(_e){if(localOK)return null;throw new Error('O navegador não permitiu recuperar a sessão salva.');}
+ },
+ async setItem(key,value){
+  let saved=false;try{localStorage.setItem(key,value);saved=true;}catch(_e){}
+  try{await itemBancoSessao('set',key,value);saved=true;}catch(_e){}
+  if(!saved)throw new Error('O navegador não permitiu salvar sua sessão. Verifique o armazenamento deste site.');
+ },
+ async removeItem(key){
+  let removed=false;try{localStorage.setItem(key,'null');removed=true;}catch(_e){}
+  try{await itemBancoSessao('remove',key);removed=true;}catch(_e){}
+  if(!removed)throw new Error('O navegador não permitiu encerrar a sessão salva.');
+ }
+};
+async function restaurarSessaoSalva(){
+ mostrarGateAcesso('Recuperando sua sessão...',false);
+ try{
+  const {data,error}=await authClient.auth.getSession();
+  if(error)throw error;
+  if(data?.session?.user){if(await liberarSessao(data.session.user)){await iniciarSistema();return true;}return false;}
+  mostrarGateAcesso('',true);aplicarPermissoes();return false;
+ }catch(_e){mostrarGateAcesso('Não foi possível recuperar a sessão agora. Verifique a conexão e tente novamente.',false);return false;}
+}
+
 async function iniciarAutenticacao(){
   const gate=document.getElementById('authGate'), msg=document.getElementById('loginMsg');
   if(!window.supabase){ msg.textContent='Falha ao carregar o serviço de autenticação.'; return false; }
   if(SUPABASE_PUBLISHABLE_KEY.startsWith('COLE_AQUI')){ msg.textContent='Configuração do Supabase pendente: falta a chave publishable.'; return false; }
-  authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:AUTH_STORAGE_KEY,storage:AUTH_STORAGE}});
   authClient.auth.onAuthStateChange((event,session)=>{
     if(event==='SIGNED_OUT')setTimeout(()=>{AUTH_USER=null;clearInterval(PERFIL_POLL);bloquearAcesso('Sessão encerrada. Entre para continuar.');},0);
     else if(event==='TOKEN_REFRESHED'&&session?.user)AUTH_USER=session.user;
   });
-  const {data:{session}}=await authClient.auth.getSession();
-  if(session?.user) return await liberarSessao(session.user);
-  gate.hidden=false; aplicarPermissoes(); return false;
+  return await restaurarSessaoSalva();
 }
 async function efetuarLogin(e){
   e.preventDefault(); const msg=document.getElementById('loginMsg'), btn=document.getElementById('btnLogin'); msg.textContent=''; btn.disabled=true; btn.textContent='ENTRANDO...';
   try{ const email=document.getElementById('loginEmail').value.trim(), password=document.getElementById('loginSenha').value; const {data,error}=await authClient.auth.signInWithPassword({email,password}); if(error) throw error; if(await liberarSessao(data.user)) await iniciarSistema(); }
   catch(err){ msg.textContent='E-mail ou senha inválidos.'; } finally{ btn.disabled=false; btn.textContent='ENTRAR'; }
 }
-async function sairSistema(){ if(authClient) await authClient.auth.signOut(); AUTH_USER=null; AUTH_ADMIN=false; aplicarPermissoes(); location.reload(); }
+async function sairSistema(){
+ try{if(authClient){const {error}=await authClient.auth.signOut({scope:'local'});if(error)throw error;}await AUTH_STORAGE.removeItem(AUTH_STORAGE_KEY);AUTH_USER=null;AUTH_ADMIN=false;aplicarPermissoes();location.reload();}
+ catch(_e){toast('Não foi possível encerrar a sessão. Tente novamente.','err');}
+}
 
 
 const MODULOS_ACESSO=[
@@ -1978,7 +2030,7 @@ function mostrarGateAcesso(msg,login=true){
  document.getElementById('loginForm').hidden=!login;
  document.getElementById('loginMsg').textContent=msg;
  let recovery=document.getElementById('accessRecovery');
- if(!recovery){recovery=document.createElement('div');recovery.id='accessRecovery';recovery.innerHTML='<p class="auth-sub">Sua sessão será retomada assim que o acesso for confirmado.</p><button type="button" class="btn btn-primary" id="btnRetomarAcesso">TENTAR NOVAMENTE</button>';document.getElementById('loginForm').after(recovery);recovery.querySelector('button').onclick=()=>void verificarAcessoAtual();}
+ if(!recovery){recovery=document.createElement('div');recovery.id='accessRecovery';recovery.innerHTML='<p class="auth-sub">Sua sessão será retomada assim que o acesso for confirmado.</p><button type="button" class="btn btn-primary" id="btnRetomarAcesso">TENTAR NOVAMENTE</button>';document.getElementById('loginForm').after(recovery);recovery.querySelector('button').onclick=()=>void (AUTH_USER?verificarAcessoAtual():restaurarSessaoSalva());}
  recovery.hidden=login;
 }
 let VIEW_ANTES_VALIDACAO='', VALIDACAO_PROMISE=null, ACESSO_EPOCH=0;
