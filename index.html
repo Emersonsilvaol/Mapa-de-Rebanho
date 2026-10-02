@@ -1564,7 +1564,7 @@ thead th{
             <button class="btn btn-gold" id="btnExportBackup">Exportar Backup</button>
             <button class="btn btn-outline" id="btnDesfazerOperacao">Desfazer última operação crítica</button>
             <span id="ultimoPontoRecuperacao" style="font-size:11.5px;color:var(--cinza-600);align-self:center"></span>
-            <button class="btn btn-outline" id="btnImportBackup">Importar Backup</button>
+            <button class="btn btn-outline" id="btnImportBackup">Importar Backup</button><button class="btn btn-outline" id="btnHistoricoProtecao" onclick="abrirHistoricoProtecao()">Backups e exclusões</button><span id="estadoProtecao"></span><p>Backup diário às 03h (Campo Grande), mantido por 90 dias. Até 100 versões anteriores de alterações. Exclusões ficam na lixeira com data, responsável e motivo.</p>
           </div>
         </div>
       </div>
@@ -1726,7 +1726,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-02-seguranca-acessos-servidor';
+  window.__MAPA_BUILD__='2026-10-02-protecao-dados-v1';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1962,11 +1962,11 @@ function aplicarPerfilServidor(data){
 async function verificarAcessoAtual(){
  if(!AUTH_USER||!authClient)return false;
  try{
-  const anterior=JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS]);
+  const suspenso=ACESSO_SUSPENSO;const anterior=JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS]);
   const data=await acessoServidor({action:'session'});aplicarPerfilServidor(data);
-  if(anterior!==JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS])){
+  if(suspenso||anterior!==JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS])){
    DB.animais=[];DB.movimentacoes=[];MAPA_SERVIDOR=null;invalidarMapaUICache();
-   if(!await carregarBaseCentral())throw new Error('Não foi possível carregar os dados autorizados.');renderAll();
+   if(suspenso&&AUTH_ADMIN){await loadDB();}else if(!await carregarBaseCentral())throw new Error('Não foi possível carregar os dados autorizados.');renderAll();
   }
   document.getElementById('authGate').hidden=true;
   return true;
@@ -1995,7 +1995,7 @@ async function autorizarExportacao(mod,formato){
 async function buscarBaseAutorizada(ref=todayISO()){
  const data=await acessoServidor({action:'read',ref});aplicarPerfilServidor(data);
  MAPA_SERVIDOR=data.mapaCalculado||null;CONCILIACAO_SERVIDOR=data.conciliacao||null;MAPA_SERVIDOR_REF=data.ref||ref;
- return {payload:data.payload,updated_at:data.updated_at};
+ return {payload:data.payload,updated_at:data.updated_at,revision:data.revision};
 }
 async function chamarAdminUsers(payload){
  if(!AUTH_ADMIN)throw new Error('Acesso exclusivo do administrador.');
@@ -2307,18 +2307,20 @@ async function idbSet(chave,valor){
     tx.onerror = ()=>reject(tx.error);
   });
 }
+let CENTRAL_REVISION=null, LOCAL_DIRTY=false, DB_GENERATION=0, CONFLITO_CENTRAL=false, PENDING_REASON="";
 async function carregarBaseCentral(){
   if(!authClient || !AUTH_USER) return false;
   try{
     const {data,error}={data:await buscarBaseAutorizada(),error:null};
     if(error) throw error;
     const p=data?.payload;
-    if(p && Array.isArray(p.animais) && (p.animais.length || (p.movimentacoes||[]).length)){
+    if(p && Array.isArray(p.animais)){
       DB.animais=p.animais||[];
       DB.movimentacoes=p.movimentacoes||[];
       DB.setores=p.setores||[];
       DB.config=p.config||{dataMapaInicial:todayISO()};
       DB.config._centralUpdatedAt=data.updated_at||p.geradoEm||'';
+      CENTRAL_REVISION=data.revision;LOCAL_DIRTY=false;CONFLITO_CENTRAL=false;atualizarEstadoProtecao();
       return true;
     }
   }catch(e){
@@ -2332,86 +2334,51 @@ function payloadCentral(){
 }
 let _syncTimer=null, _syncEmAndamento=false, _syncPendente=false;
 async function sincronizarSupabase(){
+  if(!LOCAL_DIRTY)return true;
+  if(CONFLITO_CENTRAL||CENTRAL_REVISION==null){mostrarConflitoCentral();return false;}
+  if(_syncEmAndamento){_syncPendente=true;return false;}
   if(!await verificarAcessoAtual()||!AUTH_ADMIN)return false;
-  if(!AUTH_ADMIN || !authClient || !AUTH_USER) return false;
-  if(_syncEmAndamento){ _syncPendente=true; return false; }
-  _syncEmAndamento=true;
+  _syncEmAndamento=true;const generation=DB_GENERATION;
   try{
-    const {error}=await authClient.from('mapa_rebanho_estado').upsert({id:'principal',payload:payloadCentral(),updated_at:new Date().toISOString(),updated_by:AUTH_USER.id},{onConflict:'id'});
-    if(error) throw error;
-    return true;
-  }catch(e){
-    console.error('Erro ao sincronizar base central',e);
-    toast('Os dados foram salvos neste navegador, mas a sincronização com o Supabase falhou.','err');
-    return false;
-  }finally{
-    _syncEmAndamento=false;
-    if(_syncPendente){ _syncPendente=false; agendarSyncCentral(); }
-  }
+    const {data,error}=await authClient.rpc('mapa_salvar',{p_payload:JSON.parse(JSON.stringify(payloadCentral())),p_revision:CENTRAL_REVISION,p_reason:PENDING_REASON});
+    if(error)throw error;
+    if(!data?.ok){CONFLITO_CENTRAL=true;mostrarConflitoCentral();return false;}
+    CENTRAL_REVISION=data.revision;
+    if(generation===DB_GENERATION){LOCAL_DIRTY=false;PENDING_REASON='';await idbSet('mapa_pending_draft',null);}
+    else _syncPendente=true;
+    atualizarEstadoProtecao();return !LOCAL_DIRTY;
+  }catch(e){toast('Alteração ainda não sincronizada: '+e.message,'err');atualizarEstadoProtecao();return false;}
+  finally{_syncEmAndamento=false;if(_syncPendente&&!CONFLITO_CENTRAL){_syncPendente=false;agendarSyncCentral();}}
 }
+function atualizarEstadoProtecao(){const e=document.getElementById('estadoProtecao');if(e)e.textContent=CONFLITO_CENTRAL?'Conflito: rascunho preservado':LOCAL_DIRTY?'Alterações aguardando sincronização':CENTRAL_REVISION==null?'Sem versão central validada':'Sincronizado · versão '+CENTRAL_REVISION;}
+function mostrarConflitoCentral(){
+ let e=document.getElementById('conflitoCentral');if(!e){e=document.createElement('div');e.id='conflitoCentral';e.className='alert alert-gold';document.body.prepend(e);}
+ e.hidden=false;e.innerHTML='<span>Outra sessão alterou a base, ou a versão central não foi validada. Seu rascunho foi preservado. Exporte o rascunho antes de carregar a versão central.</span><button id="baixarRascunho" class="btn btn-outline">Exportar rascunho</button><button id="recarregarCentral" class="btn btn-outline">Carregar versão central</button>';
+ document.getElementById('baixarRascunho').onclick=exportarBackup;
+ document.getElementById('recarregarCentral').onclick=()=>confirmDialog('Carregar versão central','Isso descartará as alterações locais não sincronizadas. Exporte o rascunho antes de continuar.',async()=>{if(await carregarBaseCentral()){await idbSet('mapa_pending_draft',null);e.hidden=true;await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes),idbSet(LS_KEYS.setores,DB.setores),idbSet(LS_KEYS.config,DB.config)]);closeModal();renderAll();}});
+ atualizarEstadoProtecao();
+}
+
 function agendarSyncCentral(){
   if(!AUTH_ADMIN) return;
+  LOCAL_DIRTY=true;DB_GENERATION++;if(!PENDING_REASON)PENDING_REASON='Alteração de registros pelo proprietário';
+  void idbSet('mapa_pending_draft',{payload:JSON.parse(JSON.stringify(payloadCentral())),revision:CENTRAL_REVISION,reason:PENDING_REASON}).catch(()=>toast('Não foi possível preservar o rascunho local.','err'));atualizarEstadoProtecao();
   clearTimeout(_syncTimer);
   _syncTimer=setTimeout(sincronizarSupabase,800);
 }
 
 let _recuperacaoCentralEmCurso=false;
 async function recuperarBaseCentralAposInicio(){
-  if(!AUTH_ADMIN)return false;
-  if(_recuperacaoCentralEmCurso || !authClient || !AUTH_USER) return false;
-  _recuperacaoCentralEmCurso=true;
-  try{
-    const {data,error}={data:await buscarBaseAutorizada(),error:null};
-    if(error) throw error;
-    const p=data?.payload;
-    if(p && Array.isArray(p.animais) && p.animais.length){
-      const centralMaisCompleta=p.animais.length>(DB.animais||[]).length || !(DB.animais||[]).length;
-      if(centralMaisCompleta){
-        DB.animais=p.animais||[];
-        DB.movimentacoes=p.movimentacoes||[];
-        DB.setores=p.setores||[];
-        DB.config=p.config||{dataMapaInicial:todayISO()};
-        DB.config._centralUpdatedAt=data.updated_at||p.geradoEm||'';
-        try{
-          await Promise.all([
-            idbSet(LS_KEYS.animais,DB.animais),
-            idbSet(LS_KEYS.mov,DB.movimentacoes),
-            idbSet(LS_KEYS.setores,DB.setores),
-            idbSet(LS_KEYS.config,DB.config)
-          ]);
-        }catch(_){}
-        // Limpa caches calculados antes da chegada da base central.
-        mapaAtualCache=null;
-        mapaAtualFiltrado=[];
-        // Força o mesmo ciclo que antes só acontecia ao trocar de aba.
-        renderAll();
-        renderHeaderCounters();
-        renderDashboard();
-        requestAnimationFrame(()=>{
-          renderDashboard();
-          renderHeaderCounters();
-          window.dispatchEvent(new Event('resize'));
-        });
-        setTimeout(()=>{
-          renderDashboard();
-          renderHeaderCounters();
-          window.dispatchEvent(new Event('resize'));
-        },180);
-        toast('Base central carregada: '+DB.animais.length.toLocaleString('pt-BR')+' cadastros.','ok');
-      }else{
-        renderHeaderCounters();
-      }
-      return true;
-    }
-    return false;
-  }catch(e){
-    console.error('Recuperação da base central:',e);
-    return false;
-  }finally{_recuperacaoCentralEmCurso=false;}
+ if(!AUTH_ADMIN||LOCAL_DIRTY||_syncEmAndamento||_recuperacaoCentralEmCurso)return false;
+ _recuperacaoCentralEmCurso=true;
+ try{const generation=DB_GENERATION;const data=await buscarBaseAutorizada();if(LOCAL_DIRTY||generation!==DB_GENERATION)return false;
+ if(data.revision!==CENTRAL_REVISION){if(await carregarBaseCentral()){renderAll();return true;}}return true;
+ }catch(e){return false;}finally{_recuperacaoCentralEmCurso=false;}
 }
 
 async function loadDB(){
   const central=await carregarBaseCentral();
+  if(AUTH_ADMIN){const draft=await idbGet('mapa_pending_draft').catch(()=>null);if(draft?.payload){DB={...draft.payload};CENTRAL_REVISION=draft.revision;PENDING_REASON=draft.reason||'Rascunho recuperado';LOCAL_DIRTY=true;CONFLITO_CENTRAL=true;mostrarConflitoCentral();}}
   if(!AUTH_ADMIN){
     if(!central){DB.animais=[];DB.movimentacoes=[];bloquearAcesso('Não foi possível carregar os dados autorizados.');}
     return;
@@ -2433,7 +2400,7 @@ async function loadDB(){
           DB.config = JSON.parse(localStorage.getItem(LS_KEYS.config)||'null') || { dataMapaInicial: todayISO() };
         }catch(e){ console.error('Erro na migração de dados antigos', e); }
       }
-      if(AUTH_ADMIN && (DB.animais.length || DB.movimentacoes.length)) agendarSyncCentral();
+      CENTRAL_REVISION=null;
     }catch(e){
       console.error('Erro ao carregar cache local',e);
       toast('Não foi possível carregar o cache deste navegador.','err');
@@ -2456,6 +2423,8 @@ async function loadDB(){
 async function saveDB(part){
   if(!await verificarAcessoAtual()||!AUTH_ADMIN)return false;
   if(!exigirAdmin('salvar alterações')) return false;
+  LOCAL_DIRTY=true;DB_GENERATION++;atualizarEstadoProtecao();
+  if(!PENDING_REASON)PENDING_REASON='Alteração de registros pelo proprietário';
   try{
     const gravacoes=[];
     if(!part || part==='animais') gravacoes.push(idbSet(LS_KEYS.animais, DB.animais));
@@ -2972,8 +2941,42 @@ function separarMovimentacoesNovas(lista){
   return {novas,duplicadas};
 }
 
+function saldoPrevia(base){const original=DB;try{DB=base;return buildMapaNaData(todayISO()).animais.filter(a=>a.status==='ATIVO').length;}finally{DB=original;}}
+function previaImportacaoMov(separadas){
+ const animais=DB.animais.map(a=>({...a})),movs=separadas.novas.map(m=>({...m}));
+ movs.forEach(m=>{if(['Nascimento','Compra','Animais sem auditar'].includes(m.tipo)&&m.sisbov&&m.quantidade===1&&!animais.some(a=>a.sisbov===m.sisbov))animais.push({id:uid('an'),sisbov:m.sisbov,brinco:m.brinco,chip:'',sexo:m.sexo,raca:m.raca,nascimento:m.nascimento,setorInicial:m.setorDestino||m.setorOrigem,origem:m.tipo==='Nascimento'?'nascimento':'compra'});const a=animais.find(a=>a.sisbov&&a.sisbov===m.sisbov);if(a)m.animalId=a.id;});
+ const qtd=tipos=>movs.filter(m=>tipos.includes(m.tipo)).reduce((n,m)=>n+Number(m.quantidade||1),0);
+ const saldo=saldoPrevia({...DB,animais,movimentacoes:DB.movimentacoes.concat(movs)});
+ return `<div class="alert alert-gold"><span>Prévia antes de gravar: ${movs.length} eventos novos; ${separadas.duplicadas.length} duplicados ignorados. Entradas: ${qtd(['Nascimento','Compra','Animais sem auditar'])}; saídas: ${qtd(['Morte','Venda Frigorífico','Venda Terceiro'])}; transferências: ${qtd(['Transferência entre Seções'])}. Saldo atual: ${saldoPrevia(DB)} → saldo previsto hoje: ${saldo}. Eventos futuros só alteram o mapa na data correspondente.</span></div>`;
+}
+function confirmarImportInicial(res){
+ if(!exigirAdmin('importar Mapa Inicial'))return;
+ const generation=DB_GENERATION;
+ const candidate={...DB,animais:DB.animais.concat(res.validos)};
+ const body=`<p>Prévia: ${res.validos.length} animais novos, ${(res.duplicados||[]).length} duplicados ignorados, ${res.erros.length} linhas bloqueadas.</p><p>Saldo atual: ${saldoPrevia(DB)} → saldo previsto hoje: ${saldoPrevia(candidate)}.</p><p>Seções do arquivo: ${esc([...new Set(res.validos.map(a=>a.setorInicial).filter(Boolean))].join(', '))}.</p>${res.erros.length?'<p>'+res.erros.slice(0,50).map(e=>esc(e.motivo||e.erro||JSON.stringify(e))).join('<br>')+'</p>':''}<p>Os registros atuais serão preservados.</p>`;
+ openModal('Prévia — Mapa Inicial',body,[{label:'Cancelar',cls:'btn-outline',onClick:closeModal},{label:'Confirmar importação',cls:'btn-primary',onClick:async()=>{
+ if(generation!==DB_GENERATION){toast('A base mudou. Abra novamente a prévia.','err');return;}
+ if(!res.validos.length){toast('Nenhum registro novo para importar.','err');return;}
+ DB.animais=candidate.animais;DB.setores=[...new Set([...DB.setores,...res.validos.map(a=>a.setorInicial).filter(Boolean)])];PENDING_REASON='Importação do Mapa Inicial';
+ if(!await saveDB()||!await sincronizarSupabase())return;closeModal();renderAll();toast('Importação sincronizada.','ok');
+ }}]);
+}
+async function abrirHistoricoProtecao(){
+ if(!await verificarAcessoAtual()||!AUTH_ADMIN)return;
+ const results=await Promise.all([authClient.from('mapa_backups').select('id,revision,tipo,motivo,created_at,created_by,animais_count,mov_count').order('id',{ascending:false}).limit(100),authClient.from('mapa_lixeira').select('id,revision,motivo,deleted_at,deleted_by,restored_at,animais_count,mov_count').order('id',{ascending:false}).limit(100)]);
+ if(results.some(r=>r.error)){toast(results.find(r=>r.error).error.message,'err');return;}
+ const rows=(items,kind)=>items.map(x=>`<tr><td>${dataHoraBR(x.created_at||x.deleted_at)}</td><td>${esc(x.tipo||'Exclusão')}</td><td>${x.animais_count} animais / ${x.mov_count} eventos</td><td>${esc(x.motivo)}</td><td>${esc(x.created_by||x.deleted_by||'Automático')}</td><td>${x.restored_at?'Recuperado':`<button class="btn btn-outline btn-sm" data-recuperar="${x.id}" data-kind="${kind}">Recuperar</button>`}</td></tr>`).join('');
+ openModal('Backups e exclusões recuperáveis',`<p>Versão atual: ${CENTRAL_REVISION}. Restauração de backup substitui a base inteira. Recuperar exclusão acrescenta somente os registros removidos.</p><div class="table-wrap" style="max-height:480px"><table><thead><tr><th>Data</th><th>Tipo</th><th>Conteúdo</th><th>Motivo</th><th>Responsável</th><th>Ação</th></tr></thead><tbody>${rows(results[0].data,'backup')}${rows(results[1].data,'lixeira')}</tbody></table></div>`,[{label:'Fechar',cls:'btn-outline',onClick:closeModal}]);
+ document.querySelectorAll('[data-recuperar]').forEach(b=>b.onclick=()=>confirmDialog('Confirmar recuperação',b.dataset.kind==='backup'?'A base atual será substituída pela versão selecionada, e uma cópia da base atual será preservada. Deseja continuar?':'Os registros removidos serão acrescentados à base atual. Identificadores conflitantes bloquearão a recuperação. Deseja continuar?',async()=>{
+ if(LOCAL_DIRTY&&!await sincronizarSupabase())return;
+ const {data,error}=await authClient.rpc('mapa_recuperar',{p_id:Number(b.dataset.recuperar),p_revision:CENTRAL_REVISION,p_kind:b.dataset.kind});
+ if(error){toast(error.message,'err');return;}if(!data?.ok){CONFLITO_CENTRAL=true;mostrarConflitoCentral();return;}
+ if(await carregarBaseCentral()){await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes),idbSet(LS_KEYS.setores,DB.setores),idbSet(LS_KEYS.config,DB.config)]);closeModal();renderAll();toast('Recuperação concluída.','ok');}
+ }));
+}
 function confirmarImportMov(res){
-  const body = `
+  const previewGeneration=DB_GENERATION;const separadasPreview=separarMovimentacoesNovas(res.validos);
+  const body = `${previaImportacaoMov(separadasPreview)}
     <p style="font-size:13px;"><b>${(res.validos.length+res.erros.length).toLocaleString('pt-BR')}</b> movimentações encontradas no arquivo.</p>
     <div class="detail-row"><span>Linhas válidas</span><b style="color:var(--verde-ok);">${res.validos.length}</b></div>
     <div class="detail-row"><span>Linhas bloqueadas</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
@@ -2985,6 +2988,7 @@ function confirmarImportMov(res){
   openModal('Confirmar Importação — Movimentações · ', body, [
     {label:'Cancelar', cls:'btn-outline', onClick:closeModal},
     {label:'Confirmar Importação', cls:'btn-primary', onClick:async ()=>{
+      if(previewGeneration!==DB_GENERATION){toast('A base mudou. Abra novamente a prévia.','err');return;}
       const separadas=separarMovimentacoesNovas(res.validos);
       const movimentacoesNovas=separadas.novas;
       if(!movimentacoesNovas.length){
@@ -3015,7 +3019,7 @@ function confirmarImportMov(res){
       DB.movimentacoes = DB.movimentacoes.concat(movimentacoesNovas);
       const okAnimais=await saveDB('animais');
       const okMov=await saveDB('mov');
-      if(okAnimais===false || okMov===false){
+      if(okAnimais===false || okMov===false || !await sincronizarSupabase()){
         toast('A importação foi processada, mas houve falha ao persistir os dados. Não feche a página; faça backup e tente novamente.','err');
         return;
       }
@@ -3491,12 +3495,13 @@ function abrirEdicaoAnimal(id){
     }}
   ],true);
 }
-function excluirMovimentacao(id){
+async function excluirMovimentacao(id){
   if(!exigirAdmin('excluir movimentações')) return;
   const m=DB.movimentacoes.find(x=>x.id===id); if(!m) return;
-  confirmDialog('Excluir movimentação',`Deseja realmente excluir a movimentação <b>${m.tipo}</b> de ${formatBR(m.data)}? Esta ação não apaga as configurações do sistema.`,()=>{
+  confirmDialog('Excluir movimentação',`Deseja excluir a movimentação <b>${esc(m.tipo)}</b> de ${formatBR(m.data)}? Ela poderá ser recuperada nas Configurações.`,async ()=>{
+    const reason=prompt('Informe o motivo da exclusão:');if(!reason?.trim())return;PENDING_REASON=reason.trim();
     DB.movimentacoes=DB.movimentacoes.filter(x=>x.id!==id);
-    saveDB('mov'); closeModal(); toast('Movimentação excluída.','ok'); renderAll();
+    if(!await saveDB('mov')||!await sincronizarSupabase())return;closeModal(); toast('Movimentação excluída.','ok'); renderAll();
   });
 }
 
@@ -4369,8 +4374,9 @@ async function salvarFormularioMov(m){
   else { d.id=uid('mv'); DB.movimentacoes.push(d); saveDB(); toast('Movimentação cadastrada.','ok'); }
   closeModal(); renderAll();
 }
-function excluirTudoMapaInicial(){
+async function excluirTudoMapaInicial(){
   if(!exigirAdmin('excluir o Mapa Inicial')) return;
+  const reason=prompt('Informe o motivo da exclusão do Mapa Inicial:');if(!reason?.trim())return;PENDING_REASON=reason.trim();
   const removidos=DB.animais.filter(a=>a.origem==='inicial');
   const ids=new Set(removidos.map(a=>a.id));
   const chaves=new Set(removidos.flatMap(a=>[a.sisbov,a.brinco,a.chip].filter(Boolean)));
@@ -4380,7 +4386,7 @@ function excluirTudoMapaInicial(){
     m.origemMapaInicial!==true && !ids.has(m.animalId) &&
     ![m.sisbov,m.brinco,m.chip].some(v=>v && chaves.has(v))
   );
-  saveDB('animais'); saveDB('mov'); closeModal(); toast('Mapa Inicial excluído. Configurações preservadas.','ok'); renderAll();
+  if(!await saveDB()||!await sincronizarSupabase())return;closeModal(); toast('Mapa Inicial excluído. Configurações preservadas.','ok'); renderAll();
 }
 function confirmarExcluirTudo(){
   if(!exigirAdmin('excluir o Mapa Inicial')) return;
@@ -4390,11 +4396,12 @@ function confirmarExcluirTudo(){
   ]);
 }
 
-function excluirTodasMovimentacoes(){
+async function excluirTodasMovimentacoes(){
   if(!exigirAdmin('excluir movimentações')) return;
+  const reason=prompt('Informe o motivo da exclusão de todas as movimentações:');if(!reason?.trim())return;PENDING_REASON=reason.trim();
   const total=DB.movimentacoes.length;
   DB.movimentacoes=[];
-  saveDB('mov');
+  if(!await saveDB('mov')||!await sincronizarSupabase())return;
   paginaMov=1;
   closeModal();
   toast(`${total.toLocaleString('pt-BR')} movimentação(ões) excluída(s). Animais e configurações foram preservados.`, 'ok');
@@ -5066,12 +5073,16 @@ function importarBackup(file){
   reader.onload = e=>{
     try{
       const data = JSON.parse(e.target.result);
-      confirmDialog('Restaurar Backup', 'Isso substituirá TODOS os dados atuais do sistema pelos dados do arquivo de backup. Deseja continuar?', async ()=>{
+      if(!Array.isArray(data.animais)||!Array.isArray(data.movimentacoes))throw Error('Backup inválido');
+      const previewGeneration=DB_GENERATION;
+      confirmDialog('Prévia — Restaurar Backup', `Substituição integral: ${DB.animais.length} → ${data.animais.length} cadastros; ${DB.movimentacoes.length} → ${data.movimentacoes.length} eventos. Saldo hoje: ${saldoPrevia(DB)} → ${saldoPrevia({...DB,...data})}. Seções: ${esc((data.setores||[]).join(', '))}. Deseja continuar?`, async ()=>{
+        if(previewGeneration!==DB_GENERATION){toast('A base mudou. Abra novamente a prévia.','err');return;}
         DB.animais = data.animais||[];
         DB.movimentacoes = data.movimentacoes||[];
         DB.setores = data.setores||DB.setores;
         DB.config = data.config||DB.config;
-        await saveDB();
+        PENDING_REASON='Restauração de backup importado';
+        if(!await saveDB()||!await sincronizarSupabase())return;
         toast('Backup restaurado com sucesso.', 'ok');
         renderAll();
       });
@@ -5573,7 +5584,8 @@ async function confirmarImportacaoReid(){
       idbSet(LS_KEYS.mov,DB.movimentacoes)
     ]);
 
-    agendarSyncCentral();
+    PENDING_REASON='Importação de reidentificações';
+    if(!await saveDB()||!await sincronizarSupabase())return;
     invalidarMapaUICache();
     REID_LOTE_VALIDACAO=null;
     closeModal();
