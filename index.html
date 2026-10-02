@@ -6227,10 +6227,13 @@ init();
 :root{--sidebar-w:248px;--layout-header:76px;--surface:#fff;--canvas:#f5f7f6;--line:#e1e8e4;--ink:#172b23;--muted:#68776f}
 body{background:var(--canvas)!important;color:var(--ink);font-family:Inter,'Segoe UI',Arial,sans-serif!important;-webkit-font-smoothing:antialiased}
 .app-header{position:fixed!important;inset:0 0 auto!important;min-height:var(--layout-header)!important;height:var(--layout-header)!important;padding:0 24px 0 0!important;background:#fff!important;color:var(--ink)!important;border-bottom:1px solid var(--line)!important;box-shadow:none!important;gap:18px!important;z-index:1200!important}
-.app-header .brand{width:var(--sidebar-w)!important;min-width:var(--sidebar-w)!important;height:100%;box-sizing:border-box;padding:14px 18px!important;background:#143e32!important;gap:11px!important}
+.app-header .brand{width:var(--sidebar-w)!important;min-width:var(--sidebar-w)!important;height:100%;box-sizing:border-box;padding:14px 18px!important;background:transparent!important;gap:11px!important}
 .app-header .brand-mark{width:42px!important;height:42px!important;border-radius:9px!important;flex-shrink:0;box-shadow:none!important}
 .app-header h1{font-size:17px!important;line-height:1.2!important;font-weight:750!important;color:#fff!important;letter-spacing:-.25px!important;text-shadow:none!important;margin:0!important}
 .app-header #brandSubtitle{font-size:10px!important;color:#b8d2c5!important;letter-spacing:.2px!important}
+header.app-header .brand-text #brandTitle{color:#213c30!important;font-size:15px!important;font-weight:650!important;line-height:1.3!important;letter-spacing:.15px!important;text-shadow:none!important;background:transparent!important}
+header.app-header .brand-mark{background:transparent!important;border:0!important;padding:0!important;box-shadow:none!important}
+header.app-header .brand-mark img{object-fit:contain!important}
 .header-actions{gap:12px!important;margin-left:auto!important;min-width:0}
 .app-header .pill{background:#f1f6f3!important;color:#27523f!important;border:1px solid #e1ebe5!important;border-radius:7px!important;box-shadow:none!important;backdrop-filter:none!important;font-size:11px!important;padding:7px 10px!important;white-space:nowrap}
 .user-identity{background:transparent!important;border:0!important;box-shadow:none!important;color:var(--ink)!important;gap:9px!important}
