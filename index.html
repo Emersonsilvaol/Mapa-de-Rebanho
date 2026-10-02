@@ -1726,7 +1726,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-02-protecao-dados-v1';
+  window.__MAPA_BUILD__='2026-10-02-alertas-conferencia-v2';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -2307,6 +2307,7 @@ async function idbSet(chave,valor){
     tx.onerror = ()=>reject(tx.error);
   });
 }
+let BASE_CONFIRMADA=null, CONFIRMACAO_GRANDE='';
 let CENTRAL_REVISION=null, LOCAL_DIRTY=false, DB_GENERATION=0, CONFLITO_CENTRAL=false, PENDING_REASON="";
 async function carregarBaseCentral(){
   if(!authClient || !AUTH_USER) return false;
@@ -2320,7 +2321,7 @@ async function carregarBaseCentral(){
       DB.setores=p.setores||[];
       DB.config=p.config||{dataMapaInicial:todayISO()};
       DB.config._centralUpdatedAt=data.updated_at||p.geradoEm||'';
-      CENTRAL_REVISION=data.revision;LOCAL_DIRTY=false;CONFLITO_CENTRAL=false;atualizarEstadoProtecao();
+      CENTRAL_REVISION=data.revision;BASE_CONFIRMADA=structuredClone(DB);LOCAL_DIRTY=false;CONFLITO_CENTRAL=false;atualizarEstadoProtecao();
       return true;
     }
   }catch(e){
@@ -2338,12 +2339,13 @@ async function sincronizarSupabase(){
   if(CONFLITO_CENTRAL||CENTRAL_REVISION==null){mostrarConflitoCentral();return false;}
   if(_syncEmAndamento){_syncPendente=true;return false;}
   if(!await verificarAcessoAtual()||!AUTH_ADMIN)return false;
-  _syncEmAndamento=true;const generation=DB_GENERATION;
+  if(!confirmarGrandeAntesSalvar()){toast('Alteração não enviada. O rascunho local foi preservado.','err');return false;}
+  _syncEmAndamento=true;const generation=DB_GENERATION;const snapshot=JSON.parse(JSON.stringify(payloadCentral()));
   try{
-    const {data,error}=await authClient.rpc('mapa_salvar',{p_payload:JSON.parse(JSON.stringify(payloadCentral())),p_revision:CENTRAL_REVISION,p_reason:PENDING_REASON});
+    const {data,error}=await authClient.rpc('mapa_salvar',{p_payload:snapshot,p_revision:CENTRAL_REVISION,p_reason:PENDING_REASON});
     if(error)throw error;
     if(!data?.ok){CONFLITO_CENTRAL=true;mostrarConflitoCentral();return false;}
-    CENTRAL_REVISION=data.revision;
+    CENTRAL_REVISION=data.revision;BASE_CONFIRMADA=snapshot;
     if(generation===DB_GENERATION){LOCAL_DIRTY=false;PENDING_REASON='';await idbSet('mapa_pending_draft',null);}
     else _syncPendente=true;
     atualizarEstadoProtecao();return !LOCAL_DIRTY;
@@ -2489,6 +2491,7 @@ function processarImportInicial(rows){
     const sisbov = normalizarSisbov(r.sisbov);
     const nascISO = toISODate(r.nascimento);
     const linhaNum = idx+2;
+    if(erroFormatoSisbov(sisbov)){erros.push({linha:linhaNum,motivo:erroFormatoSisbov(sisbov)});return;}
     if(!r.setor){ erros.push({linha:linhaNum, motivo:'Setor ausente'}); return; }
     if(sisbov){
       if(sisbovsVistos.has(sisbov)){ duplicados.push({linha:linhaNum, sisbov}); return; }
@@ -2804,6 +2807,7 @@ function processarImportMov(rows){
       else if(tipoRaw.includes('terceir')) tipo='Venda Terceiro';
     }
 
+    if(erroFormatoSisbov(sis)){erros.push({linha:linhaNum,motivo:erroFormatoSisbov(sis)});return;}
     if(!dataISO){erros.push({linha:linhaNum,motivo:'Data inválida'});return;}
     if(!tipo){erros.push({linha:linhaNum,motivo:'Tipo de movimentação não reconhecido'});return;}
     if(dataISO>todayISO()){erros.push({linha:linhaNum,motivo:'Data de movimentação futura'});return;}
@@ -2941,6 +2945,50 @@ function separarMovimentacoesNovas(lista){
   return {novas,duplicadas};
 }
 
+function erroFormatoSisbov(value){const s=normalizarSisbov(value);return s&&!/^(105|076)\d{12}$/.test(s)?'SISBOV deve ter 15 dígitos numéricos e começar com 105 ou 076.':'';}
+function prepararLoteMov(lista){
+ const original=DB,candidate=structuredClone(DB);DB=candidate;
+ try{lista.forEach(raw=>{const m={...raw};if(['Nascimento','Compra','Animais sem auditar'].includes(m.tipo)&&m.sisbov&&m.quantidade===1&&!DB.animais.some(a=>a.sisbov===m.sisbov))DB.animais.push({id:uid('an'),sisbov:m.sisbov,brinco:m.brinco,chip:'',sexo:m.sexo,raca:m.raca,nascimento:m.nascimento,setorInicial:m.setorDestino||m.setorOrigem,origem:m.tipo==='Nascimento'?'nascimento':'compra'});if(String(m.animalId||'').startsWith('pend_'))delete m.animalId;vincularMovimentacaoAoAnimal(m);delete m._animalIdPendente;delete m.animalLocalizadoNoLote;DB.movimentacoes.push(m);});return candidate;}finally{DB=original;}
+}
+function analisarLoteMov(lista,ignorarId=''){
+ const erros=[],avisos=[],staged=[],births=new Set(),states=new Map();
+ const base={...DB,movimentacoes:DB.movimentacoes.filter(m=>m.id!==ignorarId)};
+ base.movimentacoes.filter(m=>m.tipo==='Nascimento').forEach(m=>births.add(m.animalId||normalizarSisbov(m.sisbov)||m.id));
+ for(const m of [...lista].sort((a,b)=>String(a.data).localeCompare(String(b.data)))){
+  const sis=normalizarSisbov(m.sisbov),label=`${sis||m.brinco||'Agregado'} · ${formatBR(m.data)} · ${m.tipo}`;
+  const fmt=erroFormatoSisbov(m.sisbovNovo||sis);if(fmt){erros.push(label+': '+fmt);continue;}
+  if(!m.data||m.data>todayISO()){erros.push(label+': data ausente ou futura.');continue;}
+  if(m.tipo==='Transferência entre Seções'&&m.setorOrigem===m.setorDestino){erros.push(label+': origem e destino são iguais.');continue;}
+  const animal=resolverAnimalHistorico(m),id=animal?.id||m.animalId||sis;
+  if(m.tipo==='Nascimento'&&id&&births.has(id)){erros.push(label+': nascimento já registrado para este animal.');continue;}
+  if(['Transferência entre Seções','Movimentação entre Locais','Reidentificação',...TIPOS_BAIXA_DEFINITIVA].includes(m.tipo)&&id){
+   if(!states.has(m.data)){const original=DB;try{DB={...base,movimentacoes:base.movimentacoes.concat(staged)};states.set(m.data,new Map(buildMapaNaData(m.data).animais.map(a=>[a.id,{...a}])));}finally{DB=original;}}
+   const map=states.get(m.data),a=map.get(id)||[...map.values()].find(a=>normalizarSisbov(a.sisbov)===sis&&sis);
+   if(a&&a.status!=='ATIVO'){erros.push(label+': animal já morto ou vendido nesta data.');continue;}
+   if(a&&m.setorOrigem&&a.setorAtual&&normalizarCabecalho(m.setorOrigem)!==normalizarCabecalho(a.setorAtual))avisos.push(label+`: origem informada ${m.setorOrigem}; seção reconstruída ${a.setorAtual}. Confira a ordem dos manejos dessa data.`);
+   if(a&&TIPOS_BAIXA_DEFINITIVA.includes(m.tipo))a.status='BAIXADO';
+   if(a&&m.tipo==='Transferência entre Seções')a.setorAtual=m.setorDestino;
+  }
+  if(m.tipo==='Nascimento'&&id)births.add(id);staged.push(m);
+ }
+ return {erros,avisos};
+}
+function mapaParaPrevia(base){const original=DB;try{DB=base;return buildMapaNaData(todayISO()).animais.filter(a=>a.status==='ATIVO');}finally{DB=original;}}
+function comparacaoAntesConfirmar(candidate,lista=[]){
+ const before=mapaParaPrevia(DB),after=mapaParaPrevia(candidate),count=items=>items.reduce((out,a)=>(out[a.setorAtual||'Sem seção']=(out[a.setorAtual||'Sem seção']||0)+1,out),{}),b=count(before),a=count(after),sections=[...new Set([...Object.keys(b),...Object.keys(a)])].sort();
+ return `<h4>Comparação por seção · ${formatBR(todayISO())}</h4><div class="table-wrap"><table><thead><tr><th>Seção</th><th>Antes</th><th>Depois</th><th>Diferença</th></tr></thead><tbody>${sections.map(s=>`<tr><td>${esc(s)}</td><td>${b[s]||0}</td><td>${a[s]||0}</td><td>${(a[s]||0)-(b[s]||0)}</td></tr>`).join('')}</tbody></table></div><details><summary>Ver todos os ${lista.length} registros que serão incluídos ou alterados</summary><div class="table-wrap" style="max-height:300px"><table><thead><tr><th>SISBOV</th><th>Data</th><th>Evento</th><th>Origem</th><th>Destino</th></tr></thead><tbody>${lista.map(m=>`<tr><td>${esc(m.sisbovNovo?`${m.sisbovAnterior||m.sisbov} → ${m.sisbovNovo}`:m.sisbov||'Sem SISBOV')}</td><td>${esc(formatBR(m.data)||'—')}</td><td>${esc(m.tipo||'Cadastro inicial')}</td><td>${esc(m.setorOrigem||'—')}</td><td>${esc(m.setorDestino||m.setorInicial||m.destinoExterno||'—')}</td></tr>`).join('')}</tbody></table></div></details>`;
+}
+function tamanhoAlteracao(candidate,lista=[]){const current=new Map(DB.animais.map(a=>[a.id,a])),next=new Map(candidate.animais.map(a=>[a.id,a])),ids=new Set();for(const [id,a]of current)if(!next.has(id)||JSON.stringify(a)!==JSON.stringify(next.get(id)))ids.add(id);for(const[id]of next)if(!current.has(id))ids.add(id);let agregados=0;lista.forEach(m=>{if(m.animalId||m.sisbov)ids.add(m.animalId||candidate.animais.find(a=>normalizarSisbov(a.sisbov)===normalizarSisbov(m.sisbov))?.id||normalizarSisbov(m.sisbov));else agregados+=Number(m.quantidade)||1;});const total=ids.size+agregados,base=mapaParaPrevia(DB).length;return{total,pct:base?total/base*100:0,grande:total>=100||(base>0&&total/base>=.05)};}
+function alertaAlteracaoGrande(candidate,lista=[]){const x=tamanhoAlteracao(candidate,lista);return x.grande?`<div class="alert alert-gold"><b>Alteração grande: aproximadamente ${x.total} animais afetados (${x.pct.toFixed(1)}% do rebanho ativo). Será exigida uma confirmação extra.</b></div>`:'';}
+function assinaturaAlteracao(candidate){return JSON.stringify([candidate.animais,candidate.movimentacoes,candidate.setores]);}
+function confirmarAlteracaoGrande(candidate,lista=[]){const signature=assinaturaAlteracao(candidate);if(CONFIRMACAO_GRANDE===signature)return true;const x=tamanhoAlteracao(candidate,lista);const ok=!x.grande||confirm(`ALTERAÇÃO GRANDE: aproximadamente ${x.total} animais afetados (${x.pct.toFixed(1)}%). Você conferiu os SISBOVs, as seções e o saldo previsto e deseja continuar?`);if(ok)CONFIRMACAO_GRANDE=signature;return ok;}
+function confirmarGrandeAntesSalvar(){if(!BASE_CONFIRMADA)return true;const candidate=DB,oldMov=new Map(BASE_CONFIRMADA.movimentacoes.map(m=>[m.id,m])),nextMov=new Map(candidate.movimentacoes.map(m=>[m.id,m])),diff=[];for(const[id,m]of nextMov)if(!oldMov.has(id)||JSON.stringify(oldMov.get(id))!==JSON.stringify(m))diff.push(m);for(const[id,m]of oldMov)if(!nextMov.has(id))diff.push(m);try{DB=BASE_CONFIRMADA;return confirmarAlteracaoGrande(candidate,diff);}finally{DB=candidate;}}
+function pendenciasCadastro(){return DB.animais.flatMap(a=>{const campos=[];if(!['Macho','Fêmea'].includes(normSexo(a.sexo||''))||!a.sexo)campos.push('sexo');if(!a.nascimento||!toISODate(a.nascimento))campos.push('nascimento');if(!a.setorInicial)campos.push('seção');const sis=erroFormatoSisbov(a.sisbov);if(sis)campos.push('formato do SISBOV');return campos.length?[{a,campos}]:[];});}
+function renderAlertaCadastro(){
+ const view=document.getElementById('view-dashboard');if(!view)return;let e=document.getElementById('alertaCadastro');if(!e){e=document.createElement('div');e.id='alertaCadastro';e.className='alert alert-gold';view.querySelector('.view-title')?.after(e);}
+ e.hidden=!AUTH_ADMIN;if(!AUTH_ADMIN)return;const list=pendenciasCadastro();e.hidden=!list.length;e.innerHTML=`<span>${list.length} cadastros com pendências de sexo, nascimento, seção ou formato do SISBOV.</span><button class="btn btn-outline btn-sm" onclick="abrirPendenciasCadastro()">Conferir cadastros</button>`;
+}
+function abrirPendenciasCadastro(){if(!exigirAdmin('conferir cadastros'))return;const list=pendenciasCadastro();openModal('Cadastros para conferir',`<p>${list.length} cadastros. Nenhum dado será preenchido automaticamente.</p><div class="table-wrap" style="max-height:450px"><table><thead><tr><th>SISBOV</th><th>Brinco</th><th>Seção</th><th>Pendência</th></tr></thead><tbody>${list.map(({a,campos})=>`<tr><td>${esc(a.sisbov||'Sem SISBOV')}</td><td>${esc(a.brinco||'—')}</td><td>${esc(a.setorInicial||'—')}</td><td>${esc(campos.join(', '))}</td></tr>`).join('')}</tbody></table></div>`,[{label:'Fechar',cls:'btn-outline',onClick:closeModal}]);}
 function saldoPrevia(base){const original=DB;try{DB=base;return buildMapaNaData(todayISO()).animais.filter(a=>a.status==='ATIVO').length;}finally{DB=original;}}
 function previaImportacaoMov(separadas){
  const animais=DB.animais.map(a=>({...a})),movs=separadas.novas.map(m=>({...m}));
@@ -2952,11 +3000,12 @@ function previaImportacaoMov(separadas){
 function confirmarImportInicial(res){
  if(!exigirAdmin('importar Mapa Inicial'))return;
  const generation=DB_GENERATION;
- const candidate={...DB,animais:DB.animais.concat(res.validos)};
- const body=`<p>Prévia: ${res.validos.length} animais novos, ${(res.duplicados||[]).length} duplicados ignorados, ${res.erros.length} linhas bloqueadas.</p><p>Saldo atual: ${saldoPrevia(DB)} → saldo previsto hoje: ${saldoPrevia(candidate)}.</p><p>Seções do arquivo: ${esc([...new Set(res.validos.map(a=>a.setorInicial).filter(Boolean))].join(', '))}.</p>${res.erros.length?'<p>'+res.erros.slice(0,50).map(e=>esc(e.motivo||e.erro||JSON.stringify(e))).join('<br>')+'</p>':''}<p>Os registros atuais serão preservados.</p>`;
+ const candidate={...DB,animais:DB.animais.concat(res.validos),setores:[...new Set([...DB.setores,...res.validos.map(a=>a.setorInicial).filter(Boolean)])]};
+ const body=`${alertaAlteracaoGrande(candidate,res.validos)}${comparacaoAntesConfirmar(candidate,res.validos)}<p>Prévia: ${res.validos.length} animais novos, ${(res.duplicados||[]).length} duplicados ignorados, ${res.erros.length} linhas bloqueadas.</p><p>Saldo atual: ${saldoPrevia(DB)} → saldo previsto hoje: ${saldoPrevia(candidate)}.</p><p>Seções do arquivo: ${esc([...new Set(res.validos.map(a=>a.setorInicial).filter(Boolean))].join(', '))}.</p>${res.erros.length?'<p>'+res.erros.slice(0,50).map(e=>esc(e.motivo||e.erro||JSON.stringify(e))).join('<br>')+'</p>':''}<p>Os registros atuais serão preservados.</p>`;
  openModal('Prévia — Mapa Inicial',body,[{label:'Cancelar',cls:'btn-outline',onClick:closeModal},{label:'Confirmar importação',cls:'btn-primary',onClick:async()=>{
  if(generation!==DB_GENERATION){toast('A base mudou. Abra novamente a prévia.','err');return;}
  if(!res.validos.length){toast('Nenhum registro novo para importar.','err');return;}
+ if(!confirmarAlteracaoGrande(candidate,res.validos))return;
  DB.animais=candidate.animais;DB.setores=[...new Set([...DB.setores,...res.validos.map(a=>a.setorInicial).filter(Boolean)])];PENDING_REASON='Importação do Mapa Inicial';
  if(!await saveDB()||!await sincronizarSupabase())return;closeModal();renderAll();toast('Importação sincronizada.','ok');
  }}]);
@@ -2965,18 +3014,21 @@ async function abrirHistoricoProtecao(){
  if(!await verificarAcessoAtual()||!AUTH_ADMIN)return;
  const results=await Promise.all([authClient.from('mapa_backups').select('id,revision,tipo,motivo,created_at,created_by,animais_count,mov_count').order('id',{ascending:false}).limit(100),authClient.from('mapa_lixeira').select('id,revision,motivo,deleted_at,deleted_by,restored_at,animais_count,mov_count').order('id',{ascending:false}).limit(100)]);
  if(results.some(r=>r.error)){toast(results.find(r=>r.error).error.message,'err');return;}
- const rows=(items,kind)=>items.map(x=>`<tr><td>${dataHoraBR(x.created_at||x.deleted_at)}</td><td>${esc(x.tipo||'Exclusão')}</td><td>${x.animais_count} animais / ${x.mov_count} eventos</td><td>${esc(x.motivo)}</td><td>${esc(x.created_by||x.deleted_by||'Automático')}</td><td>${x.restored_at?'Recuperado':`<button class="btn btn-outline btn-sm" data-recuperar="${x.id}" data-kind="${kind}">Recuperar</button>`}</td></tr>`).join('');
+ const rows=(items,kind)=>items.map(x=>`<tr><td>${dataHoraBR(x.created_at||x.deleted_at)}</td><td>${esc(x.tipo||'Exclusão')}</td><td>${x.animais_count} animais / ${x.mov_count} eventos</td><td>${esc(x.motivo)}</td><td>${esc(x.created_by||x.deleted_by||'Automático')}</td><td>${x.restored_at?'Recuperado':`<button class="btn btn-outline btn-sm" data-recuperar="${x.id}" data-kind="${kind}" data-count="${x.animais_count+x.mov_count}">Recuperar</button>`}</td></tr>`).join('');
  openModal('Backups e exclusões recuperáveis',`<p>Versão atual: ${CENTRAL_REVISION}. Restauração de backup substitui a base inteira. Recuperar exclusão acrescenta somente os registros removidos.</p><div class="table-wrap" style="max-height:480px"><table><thead><tr><th>Data</th><th>Tipo</th><th>Conteúdo</th><th>Motivo</th><th>Responsável</th><th>Ação</th></tr></thead><tbody>${rows(results[0].data,'backup')}${rows(results[1].data,'lixeira')}</tbody></table></div>`,[{label:'Fechar',cls:'btn-outline',onClick:closeModal}]);
  document.querySelectorAll('[data-recuperar]').forEach(b=>b.onclick=()=>confirmDialog('Confirmar recuperação',b.dataset.kind==='backup'?'A base atual será substituída pela versão selecionada, e uma cópia da base atual será preservada. Deseja continuar?':'Os registros removidos serão acrescentados à base atual. Identificadores conflitantes bloquearão a recuperação. Deseja continuar?',async()=>{
  if(LOCAL_DIRTY&&!await sincronizarSupabase())return;
+ const n=Number(b.dataset.count),saldo=saldoPrevia(DB);if((n>=100||(saldo>0&&n/saldo>=.05))&&!confirm('Recuperação de grande volume: '+n+' registros no conteúdo selecionado. Deseja continuar?'))return;
  const {data,error}=await authClient.rpc('mapa_recuperar',{p_id:Number(b.dataset.recuperar),p_revision:CENTRAL_REVISION,p_kind:b.dataset.kind});
  if(error){toast(error.message,'err');return;}if(!data?.ok){CONFLITO_CENTRAL=true;mostrarConflitoCentral();return;}
  if(await carregarBaseCentral()){await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes),idbSet(LS_KEYS.setores,DB.setores),idbSet(LS_KEYS.config,DB.config)]);closeModal();renderAll();toast('Recuperação concluída.','ok');}
  }));
 }
 function confirmarImportMov(res){
-  const previewGeneration=DB_GENERATION;const separadasPreview=separarMovimentacoesNovas(res.validos);
-  const body = `${previaImportacaoMov(separadasPreview)}
+  const previewGeneration=DB_GENERATION;let separadasPreview=separarMovimentacoesNovas(res.validos);
+  const controle=analisarLoteMov(separadasPreview.novas);if(controle.erros.length){openModal('Movimentações bloqueadas','<p>Corrija o arquivo antes de confirmar.</p><div class="table-wrap" style="max-height:350px">'+controle.erros.map(e=>'<p>'+esc(e)+'</p>').join('')+'</div>',[{label:'Fechar',cls:'btn-outline',onClick:closeModal}]);return;}
+  const candidate=prepararLoteMov(separadasPreview.novas);
+  const body = `${alertaAlteracaoGrande(candidate,separadasPreview.novas)}${comparacaoAntesConfirmar(candidate,separadasPreview.novas)}${controle.avisos.length?'<div class="alert alert-gold">'+controle.avisos.map(esc).join('<br>')+'</div>':''}${previaImportacaoMov(separadasPreview)}
     <p style="font-size:13px;"><b>${(res.validos.length+res.erros.length).toLocaleString('pt-BR')}</b> movimentações encontradas no arquivo.</p>
     <div class="detail-row"><span>Linhas válidas</span><b style="color:var(--verde-ok);">${res.validos.length}</b></div>
     <div class="detail-row"><span>Linhas bloqueadas</span><b style="color:var(--vermelho);">${res.erros.length}</b></div>
@@ -2997,26 +3049,8 @@ function confirmarImportMov(res){
         renderAll();
         return;
       }
-      // registra animais individuais criados por nascimento/compra com SISBOV
-      movimentacoesNovas.forEach(m=>{
-        if((m.tipo==='Nascimento'||m.tipo==='Compra'||m.tipo==='Animais sem auditar') && m.sisbov && m.quantidade===1){
-          if(!DB.animais.some(a=>a.sisbov===m.sisbov)){
-            DB.animais.push({
-              id: uid('an'), sisbov:m.sisbov, brinco:m.brinco, chip:'', sexo:m.sexo, raca:m.raca,
-              nascimento:m.nascimento, setorInicial:m.setorDestino||m.setorOrigem, origem: m.tipo==='Nascimento'?'nascimento':'compra'
-            });
-          }
-        }
-      });
-      // Substitui qualquer vínculo temporário usado na pré-validação pelo animalId real
-      // criado para o nascimento do mesmo arquivo.
-      movimentacoesNovas.forEach(m=>{
-        if(String(m.animalId||'').startsWith('pend_')) delete m.animalId;
-        vincularMovimentacaoAoAnimal(m);
-        delete m._animalIdPendente;
-        delete m.animalLocalizadoNoLote;
-      });
-      DB.movimentacoes = DB.movimentacoes.concat(movimentacoesNovas);
+      if(!confirmarAlteracaoGrande(candidate,separadasPreview.novas))return;
+      DB=candidate;PENDING_REASON='Importação de movimentações conferida';
       const okAnimais=await saveDB('animais');
       const okMov=await saveDB('mov');
       if(okAnimais===false || okMov===false || !await sincronizarSupabase()){
@@ -3846,6 +3880,7 @@ function buildMapaUICached(ref){
 function invalidarMapaUICache(){ __MAPA_UI_CACHE={key:'',value:null}; }
 
 function renderDashboard(){
+  renderAlertaCadastro();
   const ref=todayISO();
   const {animais}=buildMapaUICached(ref);
   const ativos=animais.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
@@ -4257,6 +4292,7 @@ function abrirFormularioMov(m){
 async function salvarFormularioMov(m){
   if(!exigirAdmin('salvar movimentações')) return;
   const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,local:(document.getElementById('formMovLocal')?.value||'').trim(),destinoExterno:(document.getElementById('formMovDestinoExterno')?.value||'').trim(),causaMorte:(document.getElementById('formMovCausaMorte')?.value||'').trim(),quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
+  if(erroFormatoSisbov(d.sisbov)){toast(erroFormatoSisbov(d.sisbov),'err');return;}
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
   if(['Nascimento','Compra'].includes(d.tipo) && !d.setorDestino){toast('Informe o setor destino.','err');return;}
   if(d.tipo==='Transferência entre Seções' && (!d.setorOrigem||!d.setorDestino)){toast('Na transferência, informe setor de origem e setor de destino.','err');return;}
@@ -4288,6 +4324,7 @@ async function salvarFormularioMov(m){
     if((TIPOS_BAIXA_DEFINITIVA.includes(d.tipo)||d.tipo==='Movimentação entre Locais') && !d.animalId){
       toast(`Movimentação bloqueada: SISBOV ${d.sisbov||'não informado'} não foi localizado no cadastro/histórico.`, 'err'); return;
     }
+    const controle=analisarLoteMov([d],m?.id||'');if(controle.erros.length){toast(controle.erros[0],'err');return;}if(controle.avisos.length&&!confirm(controle.avisos.join('\n')+'\nDeseja continuar mesmo assim?'))return;
     const motivo=motivoBloqueioMovimentacao(d,m?.id||'');
     if(motivo){ toast(motivo,'err'); return; }
   }
@@ -4297,7 +4334,7 @@ async function salvarFormularioMov(m){
     const sisbovNovo=String(document.getElementById('formMovBrincoNovo').value||'').replace(/\D/g,'').trim();
     const animal=animalPorIdentificacaoAtualOuHistorico(anterior,d.data);
     if(!anterior||!sisbovNovo){toast('Informe a identificação anterior e o novo SISBOV.','err');return;}
-    if(sisbovNovo.length!==15){toast('O novo SISBOV deve conter 15 dígitos.','err');return;}
+    if(erroFormatoSisbov(sisbovNovo)){toast('O novo SISBOV deve conter 15 dígitos.','err');return;}
     if(!animal){toast('Identificação anterior não encontrada. A reidentificação não cria um novo animal.','err');return;}
     const baseAtual=dadosAnimalParaMov(animal,d.data);
     const baixaAnterior=baixaDefinitivaExistente({animalId:animal.id,sisbov:animal.sisbov,data:d.data},m?.id||'');
@@ -5077,6 +5114,7 @@ function importarBackup(file){
       const previewGeneration=DB_GENERATION;
       confirmDialog('Prévia — Restaurar Backup', `Substituição integral: ${DB.animais.length} → ${data.animais.length} cadastros; ${DB.movimentacoes.length} → ${data.movimentacoes.length} eventos. Saldo hoje: ${saldoPrevia(DB)} → ${saldoPrevia({...DB,...data})}. Seções: ${esc((data.setores||[]).join(', '))}. Deseja continuar?`, async ()=>{
         if(previewGeneration!==DB_GENERATION){toast('A base mudou. Abra novamente a prévia.','err');return;}
+        if(!confirmarAlteracaoGrande({...DB,...data},data.movimentacoes))return;
         DB.animais = data.animais||[];
         DB.movimentacoes = data.movimentacoes||[];
         DB.setores = data.setores||DB.setores;
@@ -5179,7 +5217,7 @@ function abrirNovoNascimento(){
 function salvarNovoNascimento(){
  if(!exigirAdmin('alterar a base'))return;
   const data=document.getElementById('nnData').value,sis=normalizarSisbov(document.getElementById('nnSisbov').value),sexo=document.getElementById('nnSexo').value,setor=document.getElementById('nnSetor').value;
-  if(!data||!sis||sis.length!==15||!sexo||!setor){toast('Preencha data, SISBOV com 15 dígitos, sexo e seção.','err');return}
+  if(!data||data>todayISO()||!sis||erroFormatoSisbov(sis)||!sexo||!setor){toast('Preencha data, SISBOV com 15 dígitos, sexo e seção.','err');return}
   if((DB.animais||[]).some(a=>normalizarSisbov(a.sisbov)===sis)||(DB.movimentacoes||[]).some(m=>m.tipo==='Nascimento'&&normalizarSisbov(m.sisbov)===sis)){toast('Nascimento bloqueado: este SISBOV já está cadastrado.','err');return}
   const aid=uid('an'),mov={id:uid('mv'),animalId:aid,data,tipo:'Nascimento',sisbov:sis,brinco:document.getElementById('nnBrinco').value.trim(),sexo,raca:document.getElementById('nnRaca').value.trim(),nascimento:data,setorOrigem:setor,setorDestino:setor,quantidade:1,observacao:document.getElementById('nnObs').value.trim()};
   DB.animais.push({id:aid,sisbov:sis,brinco:mov.brinco,sexo,raca:mov.raca,nascimento:data,setorInicial:setor,dataEntrada:data});
@@ -5273,7 +5311,7 @@ async function salvarReidPage(){
   try{
     const animal=REID_PAGE_ANIMAL||animalPorIdentificacaoAtualOuHistorico(anterior,data);
     if(!animal) throw new Error('Identificação anterior não encontrada.');
-    if(novo.length!==15) throw new Error('O novo SISBOV deve conter exatamente 15 dígitos.');
+    if(erroFormatoSisbov(novo))throw new Error(erroFormatoSisbov(novo));
     if(anteriorDig.length===15 && anteriorDig===novo) throw new Error('O novo SISBOV deve ser diferente do anterior.');
 
     // Só OUTRO animal pode bloquear o novo SISBOV.
@@ -5384,7 +5422,7 @@ function prepararImportacaoReid(rows){
     const falha=(motivo)=>bloqueados.push({linha,anterior:anterior||'—',novo:novo||'—',motivo});
     if(!data){falha('Data inválida ou não informada.');return}
     if(anterior.length!==15){falha('SISBOV anterior deve conter 15 dígitos.');return}
-    if(novo.length!==15){falha('Novo SISBOV deve conter 15 dígitos.');return}
+    if(erroFormatoSisbov(novo)){falha(erroFormatoSisbov(novo));return}
     if(anterior===novo){falha('Novo SISBOV é igual ao anterior.');return}
     const animalId=virtuais.get(anterior);
     if(!animalId){falha('SISBOV anterior não localizado na base nem no histórico.');return}
