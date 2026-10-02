@@ -6378,6 +6378,17 @@ html[data-theme="dark"] body table.grid thead th,html[data-theme="dark"] body ta
 @media(max-width:900px){html body #view-dashboard .exec-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}html body #view-dashboard .exec-row-main,html body #view-dashboard .exec-row-3,html body #view-dashboard .executive-details{grid-template-columns:1fr!important}html body #view-dashboard .exec-row-main .panel:last-child{grid-column:auto!important}html body .theme-toggle{font-size:10px;padding:7px}html body #dashTransfer{min-height:190px!important}html body .balance-trend{height:200px}}
 html body [hidden][hidden][hidden][hidden]{display:none!important}
 </style>
+<style>
+html body nav.tabs.premium-sidebar{scrollbar-color:#becdc3 var(--surface)!important;scrollbar-width:thin!important}
+html body nav.tabs.premium-sidebar::-webkit-scrollbar{width:5px!important;background:var(--surface)!important}html body nav.tabs.premium-sidebar::-webkit-scrollbar-track{background:var(--surface)!important}html body nav.tabs.premium-sidebar::-webkit-scrollbar-thumb{background:#becdc3!important;border-radius:6px}
+html body nav.tabs.premium-sidebar button.active{border-color:transparent!important;outline:0!important}
+html[data-theme="dark"] body #view-dashboard{background:transparent!important;border:0!important;box-shadow:none!important}
+html[data-theme="dark"] body #view-dashboard .kpi-card,html[data-theme="dark"] body #view-dashboard .exec-sync{background:var(--surface)!important;border-color:var(--line)!important}
+html[data-theme="dark"] body #view-dashboard .kpi-card.current{background:#263f30!important;border-color:var(--chart-green)!important}
+html[data-theme="dark"] body #view-dashboard .kpi-val,html[data-theme="dark"] body #view-dashboard .kpi-lbl,html[data-theme="dark"] body #view-dashboard .view-title,html[data-theme="dark"] body #view-dashboard .bar-label,html[data-theme="dark"] body #view-dashboard .bar-val,html[data-theme="dark"] body #view-dashboard .exec-sync{color:var(--ink)!important}
+html[data-theme="dark"] body #view-dashboard .kpi-sub,html[data-theme="dark"] body #view-dashboard .view-sub{color:var(--muted)!important}
+html[data-theme="dark"] body #view-dashboard .bar-track,html[data-theme="dark"] body .table-wrap{background:var(--canvas)!important;border-color:var(--line)!important}
+</style>
 <script>
 (function(){const btn=document.getElementById('themeToggle');function sync(){const dark=document.documentElement.dataset.theme==='dark';btn.textContent=dark?'Modo claro':'Modo escuro';btn.setAttribute('aria-pressed',String(dark));btn.setAttribute('aria-label',dark?'Ativar modo claro':'Ativar modo escuro');}btn.addEventListener('click',function(){const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';try{localStorage.setItem('mapa-display-theme',dark?'dark':'light');}catch(e){}sync();});sync();})();
 </script>
