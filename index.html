@@ -1743,7 +1743,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-02-sessao-persistente-v5';
+  window.__MAPA_BUILD__='2026-10-02-correcao-movimentacao-v6';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -3650,7 +3650,7 @@ function abrirEdicaoAnimal(id){
 async function excluirMovimentacao(id){
   if(!exigirAdmin('excluir movimentações')) return;
   const m=DB.movimentacoes.find(x=>x.id===id); if(!m) return;
-  confirmDialog('Excluir movimentação',`Deseja excluir a movimentação <b>${esc(m.tipo)}</b> de ${formatBR(m.data)}? Ela poderá ser recuperada nas Configurações.`,async ()=>{
+  confirmDialog('Excluir movimentação',`Deseja excluir a movimentação <b>${esc(m.tipo)}</b> de ${formatBR(m.data)}, SISBOV <b>${esc(m.sisbov||'não informado')}</b>? O animal permanece cadastrado e o mapa será recalculado sem este lançamento. Ela poderá ser recuperada nas Configurações.`,async ()=>{
     const reason=prompt('Informe o motivo da exclusão:');if(!reason?.trim())return;PENDING_REASON=reason.trim();
     DB.movimentacoes=DB.movimentacoes.filter(x=>x.id!==id);
     if(!await saveDB('mov')||!await sincronizarSupabase())return;closeModal(); toast('Movimentação excluída.','ok'); renderAll();
@@ -4222,14 +4222,16 @@ function localizarPorIdentificador(valor){
   const q=String(valor||'').trim();
   return DB.animais.find(a=>a.sisbov===q || a.brinco===q || a.chip===q) || null;
 }
-function dadosAnimalParaMov(a, refISO){
+function dadosAnimalParaMov(a, refISO, ignorarMovId=''){
   if(!a) return {};
   const ref = refISO || todayISO();
   let atual = null;
+  const original=DB;
   try{
+    if(ignorarMovId)DB={...original,movimentacoes:original.movimentacoes.filter(m=>m.id!==ignorarMovId)};
     const mapa = buildMapaNaData(ref);
     atual = mapa?.animais?.find(x=>x.id===a.id) || null;
-  }catch(e){}
+  }catch(e){}finally{DB=original;}
   return {
     sisbov:(atual?.sisbov||a.sisbov||''),
     brinco:(atual?.brinco||a.brinco||''),
@@ -4285,7 +4287,7 @@ function brincoJaPertenceOutroAnimal(brinco, animalId, movId){
 }
 function formularioMov(m){
   const a = m ? (DB.animais.find(x=>x.id===m.animalId)||localizarPorIdentificador(m.sisbov||m.brinco||m.chip)) : null;
-  const d = m ? {...m, ...dadosAnimalParaMov(a,m.data||todayISO())} : dadosAnimalParaMov(a,todayISO());
+  const d = m ? {...dadosAnimalParaMov(a,m.data||todayISO(),m.id), ...m} : dadosAnimalParaMov(a,todayISO());
   const opts=TIPOS_MOV.map(t=>`<option value="${t}" ${d.tipo===t?'selected':''}>${rotuloTipoMov(t)}</option>`).join('');
   const setores=DB.setores.map(x=>`<option ${d.setorOrigem===x?'selected':''}>${x}</option>`).join('');
   return `<div class="grid2 mov-top-grid">
@@ -4349,6 +4351,7 @@ function abrirFormularioMov(m){
   if(!exigirAdmin('criar ou editar movimentações')) return;
   openModal(m?'Editar Movimentação':'Nova Movimentação', formularioMov(m), [
     {label:'Cancelar',cls:'btn-outline',onClick:closeModal},
+    ...(m?.id?[{label:'Excluir movimentação',cls:'btn-danger',onClick:()=>excluirMovimentacao(m.id)}]:[]),
     {label:'Salvar',cls:'btn-primary',onClick:()=>salvarFormularioMov(m)}
   ], true);
 
@@ -4392,11 +4395,14 @@ function abrirFormularioMov(m){
     msgReid.className='alert alert-green';
     msgReid.innerHTML='<b>Animal localizado.</b> Os dados foram carregados automaticamente. Agora informe o novo SISBOV.';
   };
-  const preencherNormal=()=>{
+  let ultimaBuscaNormal=String(buscaNormal.value||'').trim();
+  const preencherNormal=(forcar=false)=>{
     const q=String(buscaNormal.value||'').trim();
+    if(forcar!==true&&q===ultimaBuscaNormal)return;
+    ultimaBuscaNormal=q;
     const a=localizarPorIdentificador(q);
     if(a){
-      const d=dadosAnimalParaMov(a,document.getElementById('formMovData').value||todayISO());
+      const d=dadosAnimalParaMov(a,document.getElementById('formMovData').value||todayISO(),m?.id||'');
       document.getElementById('formMovSisbov').value=d.sisbov||'';
       document.getElementById('formMovBrinco').value=d.brinco||'';
       document.getElementById('formMovChip').value=d.chip||'';
@@ -4404,7 +4410,7 @@ function abrirFormularioMov(m){
       document.getElementById('formMovRaca').value=d.raca||'';
       document.getElementById('formMovNasc').value=d.nascimento||'';
       document.getElementById('formMovOrigem').value=d.setorOrigem||'';
-      document.getElementById('formMovDestino').value=d.setorOrigem||'';
+      if(['Nascimento','Compra'].includes(tipoEl.value)&&!document.getElementById('formMovDestino').value)document.getElementById('formMovDestino').value=d.setorOrigem||'';
       const localEl=document.getElementById('formMovLocal'); if(localEl) localEl.value=d.local||'';
       document.getElementById('formMovCategoria').value=d.categoria||calcCategoria(d.nascimento||'',document.getElementById('formMovData').value||todayISO());
       msgNormal.style.display='block'; msgNormal.className='alert alert-green'; msgNormal.innerHTML='<b>Animal encontrado.</b> Os dados foram puxados automaticamente da base.';
@@ -4423,15 +4429,15 @@ function abrirFormularioMov(m){
     if(t==='Nascimento'||t==='Compra'){ const o=document.getElementById('formMovOrigem'); if(o)o.value=''; }
     if(['Morte','Venda Frigorífico','Venda Terceiro','Reidentificação'].includes(t)){ const d=document.getElementById('formMovDestino'); if(d)d.value=''; }
   };
-  const ajustarFluxo=()=>{
+  const ajustarFluxo=(preencher=true)=>{
     const reid=tipoEl.value==='Reidentificação';
     document.getElementById('reidFlow').style.display=reid?'block':'none';
     document.getElementById('normalMovFlow').style.display=reid?'none':'block';
     ajustarCamposPorTipo();
     if(reid){ preencherReid(); setTimeout(()=>buscaReid.focus(),30); }
-    else preencherNormal();
+    else if(preencher)preencherNormal(true);
   };
-  tipoEl.addEventListener('change',ajustarFluxo);
+  tipoEl.addEventListener('change',()=>ajustarFluxo(true));
   // Reidentificação: localização automática, sem botão.
   // Enquanto a pessoa digita, só abre o animal quando encontra uma correspondência exata;
   // assim não exibe erro a cada dígito parcial.
@@ -4475,7 +4481,7 @@ function abrirFormularioMov(m){
     }
   });
   document.getElementById('formMovNasc').addEventListener('change',()=>{const el=document.getElementById('formMovCategoria');if(el)el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO());});
-  ajustarFluxo();
+  ajustarFluxo(false);
 }
 async function salvarFormularioMov(m){
   if(!exigirAdmin('salvar movimentações')) return;
@@ -4494,7 +4500,7 @@ async function salvarFormularioMov(m){
     const hist=resolverAnimalHistorico(d);
     if(hist){
       d.animalId=hist.id;
-      const baseHist=dadosAnimalParaMov(hist,d.data);
+      const baseHist=dadosAnimalParaMov(hist,d.data,m?.id||'');
       ['sisbov','brinco','chip','sexo','raca','nascimento'].forEach(k=>{ if(baseHist[k]) d[k]=baseHist[k]; });
       if(!d.setorOrigem && baseHist.setorOrigem) d.setorOrigem=baseHist.setorOrigem;
       if(d.tipo==='Movimentação entre Locais'){
@@ -4585,7 +4591,7 @@ async function salvarFormularioMov(m){
   }
   const encontrado=resolverAnimalHistorico(d) || localizarPorIdentificador(d.sisbov||d.brinco||d.chip);
   if(encontrado){
-    const base=dadosAnimalParaMov(encontrado,d.data);
+    const base=dadosAnimalParaMov(encontrado,d.data,m?.id||'');
     d.animalId=encontrado.id;
     ['sisbov','brinco','chip','sexo','raca','nascimento'].forEach(k=>{ if(base[k]) d[k]=base[k]; });
     if(!d.setorOrigem && base.setorOrigem) d.setorOrigem=base.setorOrigem;
@@ -4595,9 +4601,10 @@ async function salvarFormularioMov(m){
   if(!d.sisbov&&!d.brinco&&!d.chip && d.quantidade<=1){toast('Informe SISBOV, brinco ou chip, ou use quantidade maior que 1 para um lançamento agregado.','err');return;}
   const a=salvarDadosAnimal(d); d.animalId=a.id;
   if(!d.setorOrigem) d.setorOrigem=a.setorInicial||'';
-  if(m){ Object.assign(m,d); saveDB(); toast('Movimentação e cadastro do animal atualizados.','ok'); }
-  else { d.id=uid('mv'); DB.movimentacoes.push(d); saveDB(); toast('Movimentação cadastrada.','ok'); }
-  closeModal(); renderAll();
+  if(m){ Object.assign(m,d); }
+  else { d.id=uid('mv'); DB.movimentacoes.push(d); }
+  if(!await saveDB()||!await sincronizarSupabase())return;
+  closeModal();renderAll();toast(m?'Movimentação corrigida e sincronizada.':'Movimentação cadastrada e sincronizada.','ok');
 }
 async function excluirTudoMapaInicial(){
   if(!exigirAdmin('excluir o Mapa Inicial')) return;
