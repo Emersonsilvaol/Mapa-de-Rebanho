@@ -1678,7 +1678,7 @@ thead th{
           </div>
           <div class="table-wrap">
             <table class="exec">
-              <thead><tr><th>Módulo</th><th>Ver</th><th>Editar / Lançar</th><th>Excluir</th><th>Exportar</th></tr></thead>
+              <thead><tr><th>Módulo</th><th>Ver</th><th>Editar / Lançar¹</th><th>Excluir¹</th><th>Exportar</th></tr></thead>
               <tbody id="usrPermissoesBody"></tbody>
             </table>
           </div>
@@ -1726,7 +1726,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-01-permissoes-hidden-fix';
+  window.__MAPA_BUILD__='2026-10-02-seguranca-acessos-servidor';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1857,6 +1857,8 @@ const PERFIS_ACESSO={
  controladoria:{dashboard:['ver'],mapaInicial:['ver','editar','exportar'],mapaAtual:['ver','exportar'],movimentacoes:['ver','editar','exportar'],nascimentos:['ver','editar','exportar'],mortalidade:['ver','editar','exportar'],reidentificacao:['ver','editar','exportar'],fichaAnimal:['ver'],inventario:['ver','editar','exportar'],relatorios:['ver','exportar']}
 };
 let AUTH_PERMISSIONS={}, AUTH_PROFILE={};
+let ACESSO_SUSPENSO=false, ACESSO_VALIDADO_EM=0, PERFIL_CHANNEL=null, PERFIL_POLL=null;
+let MAPA_SERVIDOR=null, MAPA_SERVIDOR_REF=null, CONCILIACAO_SERVIDOR=null;
 function moduloViewAcesso(v){
  const x=String(v||'').toLowerCase();
  if(x.includes('mapa-inicial')||x==='mapainicial')return'mapaInicial';
@@ -1866,8 +1868,13 @@ function moduloViewAcesso(v){
  if(x.includes('relat'))return'relatorios'; if(x.includes('config')||x.includes('backup'))return'configuracoes';
  if(x==='reidentificacao')return'reidentificacao'; if(x.includes('dashboard')||x==='home')return'dashboard'; return x;
 }
-function podeAcesso(mod,acao='ver'){return AUTH_ADMIN || (Array.isArray(AUTH_PERMISSIONS?.[mod])&&AUTH_PERMISSIONS[mod].includes(acao));}
-function exigirAdmin(acao='alterar dados'){if(AUTH_ADMIN)return true;toast(`Você não tem permissão para ${acao}.`,'err');return false;}
+function podeAcesso(mod,acao='ver'){
+ if(!AUTH_USER||AUTH_PROFILE?.ativo!==true||ACESSO_SUSPENSO)return false;
+ if(mod==='configuracoes'&&!AUTH_ADMIN)return false;
+ if(['editar','excluir'].includes(acao))return AUTH_ADMIN;
+ return AUTH_ADMIN || (Array.isArray(AUTH_PERMISSIONS?.[mod])&&AUTH_PERMISSIONS[mod].includes('ver')&&AUTH_PERMISSIONS[mod].includes(acao));
+}
+function exigirAdmin(acao='alterar dados'){if(AUTH_ADMIN&&!ACESSO_SUSPENSO&&AUTH_PROFILE?.ativo===true&&navigator.onLine&&Date.now()-ACESSO_VALIDADO_EM<20000)return true;toast(`Você não tem permissão para ${acao}.`,'err');return false;}
 function aplicarPermissoes(){
   document.querySelectorAll('.admin-only').forEach(el=>{ el.hidden=!AUTH_ADMIN; });
 
@@ -1918,8 +1925,8 @@ function aplicarPermissoes(){
       let acao=null;
       if(t.includes('excluir')||t.includes('apagar'))acao='excluir';
       else if(t.includes('export')||t.includes('pdf')||t.includes('xlsx'))acao='exportar';
-      else if(t.includes('salvar')||t.includes('import')||t.includes('editar')||t.includes('novo')||t.includes('nova')||t.includes('lançar')||t.includes('reprocess')||t.includes('movimentar'))acao='editar';
-      if(acao){ const ok=podeAcesso(mod,acao); el.hidden=!ok; el.disabled=!ok; }
+      else if(t.includes('registrar')||t.includes('salvar')||t.includes('import')||t.includes('editar')||t.includes('novo')||t.includes('nova')||t.includes('lançar')||t.includes('reprocess')||t.includes('movimentar'))acao='editar';
+      if(acao){ const ok=(!el.classList.contains('admin-only')||AUTH_ADMIN)&&podeAcesso(mod,acao); el.hidden=!ok; el.disabled=!ok; }
     });
   });
 }
@@ -1929,41 +1936,66 @@ function aplicarPermissoesUI(){
   return aplicarPermissoes();
 }
 
-async function liberarSessao(user){
-  AUTH_USER=user; AUTH_ADMIN=false; AUTH_PERMISSIONS={}; AUTH_PROFILE={};
-  try{
-    const {data:perfil,error}=await authClient.from('profiles').select('nome,email,role,ativo,permissions').eq('id',user.id).maybeSingle();
-    if(error)throw error;
-    if(!perfil)throw new Error('Perfil de acesso não encontrado.');
-    if(perfil.ativo===false){ await authClient.auth.signOut(); throw new Error('Usuário bloqueado'); }
-    AUTH_PROFILE=perfil||{};
-    AUTH_ADMIN=String(perfil.role||'').toLowerCase()==='admin';
-    AUTH_PERMISSIONS=(perfil.permissions && typeof perfil.permissions==='object')?perfil.permissions:{};
-  }catch(e){
-    console.error('Perfil/permissões:',e);
-    if(!ADMIN_EMAILS.includes((user.email||'').toLowerCase())){
-      AUTH_USER=null; AUTH_PROFILE={}; AUTH_PERMISSIONS={}; AUTH_ADMIN=false;
-      document.getElementById('authGate').hidden=false;
-      const msg=document.getElementById('loginMsg'); if(msg)msg.textContent='Não foi possível carregar suas permissões. Entre novamente ou contate o administrador.';
-      aplicarPermissoes();
-      return false;
-    }
+async function acessoServidor(body){
+ const {data,error}=await authClient.functions.invoke('mapa-acesso',{body});
+ if(error||data?.error){
+   let status=error?.context?.status;
+   if(status===401||status===403)bloquearAcesso(data?.error||'Seu acesso foi bloqueado ou alterado.');
+   throw new Error(data?.error||'Não foi possível validar o acesso no servidor.');
+ }
+ return data;
+}
+function bloquearAcesso(msg){
+ ACESSO_SUSPENSO=true;AUTH_ADMIN=false;AUTH_PERMISSIONS={};MAPA_SERVIDOR=null;
+ if(typeof DB!=='undefined'){DB.animais=[];DB.movimentacoes=[];DB.config={};}
+ document.querySelectorAll('main .view').forEach(s=>s.hidden=true);
+ document.querySelectorAll('.modal-overlay').forEach(s=>s.classList.remove('open'));
+ document.getElementById('authGate').hidden=false;
+ document.getElementById('loginMsg').textContent=msg;
+ aplicarPermissoes();
+}
+function aplicarPerfilServidor(data){
+ AUTH_PROFILE=data.profile;AUTH_ADMIN=data.owner===true;
+ AUTH_PERMISSIONS=AUTH_PROFILE.permissions||{};ACESSO_SUSPENSO=false;ACESSO_VALIDADO_EM=Date.now();
+ aplicarPermissoes();
+}
+async function verificarAcessoAtual(){
+ if(!AUTH_USER||!authClient)return false;
+ try{
+  const anterior=JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS]);
+  const data=await acessoServidor({action:'session'});aplicarPerfilServidor(data);
+  if(anterior!==JSON.stringify([AUTH_ADMIN,AUTH_PERMISSIONS])){
+   DB.animais=[];DB.movimentacoes=[];MAPA_SERVIDOR=null;invalidarMapaUICache();
+   if(!await carregarBaseCentral())throw new Error('Não foi possível carregar os dados autorizados.');renderAll();
   }
-  if(!AUTH_ADMIN)AUTH_ADMIN=ADMIN_EMAILS.includes((user.email||'').toLowerCase());
   document.getElementById('authGate').hidden=true;
-  aplicarPermissoes();
-  requestAnimationFrame(()=>{
-    if(podeAcesso('dashboard','ver'))renderDashboard();
-    renderHeaderCounters();
-    aplicarPermissoes();
-    recuperarBaseCentralAposInicio().then(()=>{
-      if(podeAcesso('dashboard','ver'))renderDashboard();
-      renderHeaderCounters();
-      aplicarPermissoes();
-      window.dispatchEvent(new Event('resize'));
-    });
-  });
   return true;
+ }catch(e){bloquearAcesso('Não foi possível validar seu acesso. Conecte-se e entre novamente.');return false;}
+}
+function acompanharPerfil(){
+ if(PERFIL_CHANNEL)authClient.removeChannel(PERFIL_CHANNEL);
+ clearInterval(PERFIL_POLL);
+ PERFIL_CHANNEL=authClient.channel('mapa-perfil-'+AUTH_USER.id).on('postgres_changes',{event:'*',schema:'public',table:'profiles',filter:'id=eq.'+AUTH_USER.id},()=>{bloquearAcesso('Atualizando permissões...');void verificarAcessoAtual();}).subscribe();
+ PERFIL_POLL=setInterval(()=>{if(document.visibilityState==='visible')void verificarAcessoAtual();},15000);
+}
+async function liberarSessao(user){
+ AUTH_USER=user;AUTH_ADMIN=false;AUTH_PERMISSIONS={};AUTH_PROFILE={};
+ try{
+  aplicarPerfilServidor(await acessoServidor({action:'session'}));
+  document.getElementById('authGate').hidden=true;acompanharPerfil();return true;
+ }catch(e){bloquearAcesso(e.message);return false;}
+}
+window.addEventListener('offline',()=>bloquearAcesso('Conexão perdida. O acesso exige validação no servidor.'));
+window.addEventListener('online',()=>void verificarAcessoAtual());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&AUTH_USER){bloquearAcesso('Validando acesso...');void verificarAcessoAtual();}});
+async function autorizarExportacao(mod,formato){
+ if(!await verificarAcessoAtual()||!podeAcesso(mod,'exportar')||(mod==='configuracoes'&&!AUTH_ADMIN)){toast('Exportação não autorizada.','err');return false;}
+ try{await acessoServidor({action:'export',module:mod,format:formato});return true;}catch(e){toast(e.message,'err');return false;}
+}
+async function buscarBaseAutorizada(ref=todayISO()){
+ const data=await acessoServidor({action:'read',ref});aplicarPerfilServidor(data);
+ MAPA_SERVIDOR=data.mapaCalculado||null;CONCILIACAO_SERVIDOR=data.conciliacao||null;MAPA_SERVIDOR_REF=data.ref||ref;
+ return {payload:data.payload,updated_at:data.updated_at};
 }
 async function chamarAdminUsers(payload){
  if(!AUTH_ADMIN)throw new Error('Acesso exclusivo do administrador.');
@@ -1980,8 +2012,8 @@ async function chamarAdminUsers(payload){
 function dataHoraBR(v){if(!v)return'—';try{return new Date(v).toLocaleString('pt-BR')}catch{return'—'}}
 function renderPermissoesFormulario(perms={}){
  const body=document.getElementById('usrPermissoesBody');if(!body)return;
- const admin=document.getElementById('usrRole')?.value==='admin';
- body.innerHTML=MODULOS_ACESSO.map(([id,nome])=>`<tr><td><b>${nome}</b></td>${['ver','editar','excluir','exportar'].map(a=>`<td style="text-align:center"><input type="checkbox" data-usr-mod="${id}" data-usr-acao="${a}" ${(admin||perms?.[id]?.includes(a))?'checked':''} ${admin?'disabled':''}></td>`).join('')}</tr>`).join('');
+ const admin=document.getElementById('usrEmail')?.value.trim().toLowerCase()===ADMIN_EMAILS[0];
+ body.innerHTML=MODULOS_ACESSO.map(([id,nome])=>`<tr><td><b>${nome}</b></td>${['ver','editar','excluir','exportar'].map(a=>`<td style="text-align:center"><input type="checkbox" data-usr-mod="${id}" data-usr-acao="${a}" ${(admin||(!['editar','excluir'].includes(a)&&perms?.[id]?.includes(a)))?'checked':''} ${admin||['editar','excluir'].includes(a)?'disabled':''}></td>`).join('')}</tr>`).join('');
 }
 function coletarPermissoesFormulario(){
  const p={};document.querySelectorAll('[data-usr-mod]').forEach(c=>{if(c.checked){p[c.dataset.usrMod]=p[c.dataset.usrMod]||[];p[c.dataset.usrMod].push(c.dataset.usrAcao);}});return p;
@@ -2167,7 +2199,7 @@ function confirmDialog(title, msg, onConfirm){
 }
 
 /* ============================== STORAGE ================================== */
-const LS_KEYS = { animais:'mp_animais', mov:'mp_movimentacoes', setores:'mp_setores', config:'mp_config' };
+const LS_KEYS = { animais:'mp_owner_animais', mov:'mp_owner_movimentacoes', setores:'mp_owner_setores', config:'mp_owner_config' };
 let DB = {
   animais: [],        // {id, sisbov, brinco, chip, sexo, raca, nascimento(iso), setorInicial, origem}
   movimentacoes: [],   // {id, data, tipo, sisbov, brinco, setorOrigem, setorDestino, sexo, raca, nascimento, quantidade, observacao}
@@ -2229,7 +2261,7 @@ function salvarVisual(){
   DB.config.visual={titulo:document.getElementById('visualTitle').value.trim()||VISUAL_PADRAO.titulo,subtitulo:document.getElementById('visualSubtitle').value.trim()||VISUAL_PADRAO.subtitulo,rodape:document.getElementById('visualFooter').value.trim()||VISUAL_PADRAO.rodape,icone:document.getElementById('visualIcon').value,logo:atual.logo||'',fonte:document.getElementById('visualFont').value,tamanho:document.getElementById('visualFontSize').value,primaria:document.getElementById('visualPrimary').value,escura:document.getElementById('visualDark').value,media:document.getElementById('visualMid').value,destaque:document.getElementById('visualAccent').value,fundo:document.getElementById('visualBackground').value,texto:document.getElementById('visualText').value};
   saveDB('config'); aplicarVisualConfig(); toast('Personalização aplicada e salva.','ok');
 }
-function restaurarVisual(){ DB.config.visual=Object.assign({},VISUAL_PADRAO); saveDB('config'); aplicarVisualConfig(); renderEditorVisual(); toast('Visual padrão restaurado.','ok'); }
+function restaurarVisual(){if(!exigirAdmin('alterar configurações'))return; DB.config.visual=Object.assign({},VISUAL_PADRAO); saveDB('config'); aplicarVisualConfig(); renderEditorVisual(); toast('Visual padrão restaurado.','ok'); }
 function selecionarLogo(file){
   if(!file) return;
   if(!file.type.startsWith('image/')){ toast('Selecione um arquivo de imagem.','err'); return; }
@@ -2278,7 +2310,7 @@ async function idbSet(chave,valor){
 async function carregarBaseCentral(){
   if(!authClient || !AUTH_USER) return false;
   try{
-    const {data,error}=await authClient.from('mapa_rebanho_estado').select('payload,updated_at').eq('id','principal').maybeSingle();
+    const {data,error}={data:await buscarBaseAutorizada(),error:null};
     if(error) throw error;
     const p=data?.payload;
     if(p && Array.isArray(p.animais) && (p.animais.length || (p.movimentacoes||[]).length)){
@@ -2300,6 +2332,7 @@ function payloadCentral(){
 }
 let _syncTimer=null, _syncEmAndamento=false, _syncPendente=false;
 async function sincronizarSupabase(){
+  if(!await verificarAcessoAtual()||!AUTH_ADMIN)return false;
   if(!AUTH_ADMIN || !authClient || !AUTH_USER) return false;
   if(_syncEmAndamento){ _syncPendente=true; return false; }
   _syncEmAndamento=true;
@@ -2324,11 +2357,11 @@ function agendarSyncCentral(){
 
 let _recuperacaoCentralEmCurso=false;
 async function recuperarBaseCentralAposInicio(){
+  if(!AUTH_ADMIN)return false;
   if(_recuperacaoCentralEmCurso || !authClient || !AUTH_USER) return false;
   _recuperacaoCentralEmCurso=true;
   try{
-    const {data,error}=await authClient.from('mapa_rebanho_estado')
-      .select('payload,updated_at').eq('id','principal').maybeSingle();
+    const {data,error}={data:await buscarBaseAutorizada(),error:null};
     if(error) throw error;
     const p=data?.payload;
     if(p && Array.isArray(p.animais) && p.animais.length){
@@ -2379,6 +2412,10 @@ async function recuperarBaseCentralAposInicio(){
 
 async function loadDB(){
   const central=await carregarBaseCentral();
+  if(!AUTH_ADMIN){
+    if(!central){DB.animais=[];DB.movimentacoes=[];bloquearAcesso('Não foi possível carregar os dados autorizados.');}
+    return;
+  }
   if(!central){
     try{
       const [animais,mov,setores,config] = await Promise.all([
@@ -2417,6 +2454,7 @@ async function loadDB(){
   }
 }
 async function saveDB(part){
+  if(!await verificarAcessoAtual()||!AUTH_ADMIN)return false;
   if(!exigirAdmin('salvar alterações')) return false;
   try{
     const gravacoes=[];
@@ -2999,6 +3037,7 @@ function confirmarImportMov(res){
   números negativos. Se ainda assim faltar saldo, registra-se inconsistência.
 */
 function buildMapaNaData(refISO){
+  if(!AUTH_ADMIN&&MAPA_SERVIDOR&&refISO===MAPA_SERVIDOR_REF)return MAPA_SERVIDOR;
   const state = new Map(); // id -> animal state
   const inconsistencias = [];
 
@@ -3209,6 +3248,8 @@ function buildMapaNaData(refISO){
   return {animais, inconsistencias};
 }
 
+function calcularEstadoAte(ref){const mapa=buildMapaNaData(ref);return {...mapa,ativos:mapa.animais.filter(a=>a.status==='ATIVO')};}
+
 function resumoPorSetorSexoCategoria(animais){
   const ativos = animais.filter(a=>a.status==='ATIVO');
   const setores = ordenarSetores(ativos.map(a=>a.setorAtual));
@@ -3333,7 +3374,9 @@ function abrirDetalheNumeroMapa(key){
   const exp=document.getElementById('drillExportXlsx');
   if(exp) exp.onclick=()=>exportarDrillMapaXlsx(lista,meta);
 }
-function exportarDrillMapaXlsx(lista,meta){
+async function exportarDrillMapaXlsx(lista,meta){
+ const mod=document.querySelector('main .view.active')?.id==='view-mapaInicial'?'mapaInicial':'mapaAtual';
+ if(!await autorizarExportacao(mod,'xlsx'))return;
   if(!garantirBibliotecaExportacao('xlsx')) return;
   const dados=lista.map(a=>({
     'SEÇÃO':a.setorAtual||a.setorInicial||'',
@@ -3771,7 +3814,7 @@ function renderHeaderCounters(){
   const elData=document.getElementById('headerDate');
   if(elData) elData.textContent=new Date().toLocaleDateString('pt-BR');
   try{
-    const mapa=buildMapaNaData(todayISO());
+    const mapa=(!AUTH_ADMIN&&MAPA_SERVIDOR)?MAPA_SERVIDOR:buildMapaNaData(todayISO());
     const lista=Array.isArray(mapa?.animais)?mapa.animais:[];
     const ativos=lista.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
     if(ativos.length || lista.length){
@@ -4400,7 +4443,13 @@ function renderMovimentacoes(){
   document.querySelectorAll('.btnDeleteMov').forEach(b=>b.onclick=()=>excluirMovimentacao(b.dataset.id));
 }
 
-function renderMapaAtual(){
+async function renderMapaAtual(){
+  if(!podeAcesso('mapaAtual','ver'))return;
+  const dataRef=document.getElementById('mapaAtualData').value||todayISO();
+  if(!AUTH_ADMIN && MAPA_SERVIDOR_REF!==dataRef){
+    try{await buscarBaseAutorizada(dataRef);}catch(e){toast(e.message,'err');return;}
+    if(document.getElementById('mapaAtualData').value!==dataRef)return;
+  }
   const dataInput = document.getElementById('mapaAtualData');
   if(!dataInput.value) dataInput.value = todayISO();
   const ref = dataInput.value;
@@ -4773,6 +4822,11 @@ function renderMortalidade(){
   document.getElementById('mortDetalhe').innerHTML=`<div class="panel"><div class="panel-head"><h3>Causas da morte</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Causa</th><th>Quantidade</th><th>%</th></tr></thead><tbody>${Object.entries(causas).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td><td>${qtd?(v/qtd*100).toFixed(1).replace('.',','):0}%</td></tr>`).join('')||'<tr><td colspan="3">Sem mortes no período.</td></tr>'}</tbody></table></div></div></div>`;
 }
 function renderConciliacao(){
+ if(!AUTH_ADMIN&&CONCILIACAO_SERVIDOR){
+   const el=document.getElementById('mapaConciliacao');if(!el)return;
+   const c=CONCILIACAO_SERVIDOR,esperado=c.inicial+c.entradas-c.saidas,dif=c.atual-esperado;
+   el.innerHTML='<div class="panel"><div class="panel-head"><h3>Conciliação automática do saldo</h3><span class="badge">'+(dif===0?'CONCILIADO':'DIFERENÇA '+dif)+'</span></div><div class="panel-body">'+[['Saldo inicial',c.inicial],['Entradas / Nascimentos',c.entradas],['Mortes / Vendas',c.saidas],['Saldo documental esperado',esperado],['Mapa Atual calculado',c.atual]].map(([nome,n])=>'<div class="detail-row"><span>'+nome+'</span><b>'+n.toLocaleString('pt-BR')+'</b></div>').join('')+'</div></div>';return;
+ }
   const el=document.getElementById('mapaConciliacao'); if(!el) return; const ref=document.getElementById('mapaAtualData')?.value||todayISO();
   const inicial=DB.animais.filter(a=>a.origem==='inicial'||a.origem==='cadastro').length; const mov=DB.movimentacoes.filter(m=>m.data<=ref); const q=m=>Number(m.quantidade)||1;
   const entradas=mov.filter(m=>['Nascimento','Compra','Animais sem auditar'].includes(tipoOperacionalMov(m))).reduce((s,m)=>s+q(m),0); const saidas=mov.filter(m=>['Morte','Venda Frigorífico','Venda Terceiro'].includes(tipoOperacionalMov(m))).reduce((s,m)=>s+q(m),0); const esperado=inicial+entradas-saidas; const atual=buildMapaNaData(ref).animais.filter(a=>a.status==='ATIVO').length; const dif=atual-esperado;
@@ -4780,6 +4834,8 @@ function renderConciliacao(){
 }
 
 function renderAll(){
+  aplicarPermissoes();
+  if(ACESSO_SUSPENSO||!AUTH_USER)return;
   // Atualiza somente a tela que está visível. Evita recalcular milhares de
   // animais, tabelas e relatórios escondidos a cada clique.
   invalidarMapaUICache();
@@ -4877,7 +4933,8 @@ function resumoParaAutoTable(resumo){
 }
 function autoTableHead(){ return {fillColor:[15,59,46], textColor:255, fontStyle:'bold'}; }
 
-function exportarMapaInicial(formato){
+async function exportarMapaInicial(formato){
+  if(!await autorizarExportacao('mapaInicial',formato))return;
   const ref = DB.config.dataMapaInicial;
   const base = DB.animais.filter(a=>a.origem==='inicial').map(a=>({...a, setorAtual:a.setorInicial, status:'ATIVO', categoria:calcCategoria(a.nascimento, ref)}));
   if(formato==='xlsx'){
@@ -4898,7 +4955,8 @@ function exportarMapaInicial(formato){
   }
 }
 
-function exportarMovimentacoes(formato){
+async function exportarMovimentacoes(formato){
+  if(!await autorizarExportacao('movimentacoes',formato))return;
   const lista = filtrarMovimentacoes();
   if(formato==='xlsx'){
     exportarXLSXMultiplo([{nome:'Movimentações', json: lista.map(m=>({
@@ -4920,7 +4978,8 @@ function exportarMovimentacoes(formato){
   }
 }
 
-function exportarMapaAtual(formato){
+async function exportarMapaAtual(formato){
+  if(!await autorizarExportacao('mapaAtual',formato))return;
   if(!mapaAtualCache) return;
   const ref = document.getElementById('mapaAtualData').value;
   const ativos = mapaAtualCache.animais.filter(a=>a.status==='ATIVO');
@@ -4942,7 +5001,8 @@ function exportarMapaAtual(formato){
   }
 }
 
-function exportarRelatorio(formato){
+async function exportarRelatorio(formato){
+  if(!await autorizarExportacao('relatorios',formato))return;
   const c = window._relCache;
   if(!c){ toast('Aplique os filtros do relatório antes de exportar.', 'err'); return; }
   if(formato==='xlsx'){
@@ -4989,7 +5049,8 @@ function exportarRelatorio(formato){
 }
 
 /* ============================== BACKUP ===================================== */
-function exportarBackup(){
+async function exportarBackup(){
+ if(!await autorizarExportacao('configuracoes','json'))return;
   const backup = {versao:1, geradoEm:new Date().toISOString(), ...DB};
   const blob = new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
   const a = document.createElement('a');
@@ -4999,8 +5060,8 @@ function exportarBackup(){
   toast('Backup exportado.', 'ok');
 }
 function importarBackup(file){
-  criarPontoRecuperacao('Restauração de backup');
   if(!exigirAdmin('importar backup')) return;
+  criarPontoRecuperacao('Restauração de backup');
   const reader = new FileReader();
   reader.onload = e=>{
     try{
@@ -5100,10 +5161,12 @@ function abrirFichaPorMov(id){
   toast(`SISBOV ${m.sisbov||'—'} · ${m.tipo}`,'ok');
 }
 function abrirNovoNascimento(){
+ if(!exigirAdmin('alterar a base'))return;
   const body=`<div class="grid2"><div class="field"><label>Data do nascimento *</label><input type="date" id="nnData" value="${todayISO()}"></div><div class="field"><label>SISBOV *</label><input id="nnSisbov" inputmode="numeric" maxlength="15"></div><div class="field"><label>Brinco</label><input id="nnBrinco"></div><div class="field"><label>Sexo *</label><select id="nnSexo"><option value="">Selecione</option><option>Fêmea</option><option>Macho</option></select></div><div class="field"><label>Raça</label><input id="nnRaca" value="NE"></div><div class="field"><label>Seção *</label><select id="nnSetor"><option value="">Selecione</option>${[...new Set((DB.setores||[]).map(x=>typeof x==='string'?x:x.nome).filter(Boolean))].map(x=>`<option>${esc(x)}</option>`).join('')}</select></div><div class="field" style="grid-column:1/-1"><label>Observação</label><input id="nnObs"></div></div>`;
   openModal('Novo Nascimento',body,[{label:'CANCELAR',cls:'btn-outline',onClick:closeModal},{label:'SALVAR NASCIMENTO',cls:'btn-primary',onClick:salvarNovoNascimento}],true);
 }
 function salvarNovoNascimento(){
+ if(!exigirAdmin('alterar a base'))return;
   const data=document.getElementById('nnData').value,sis=normalizarSisbov(document.getElementById('nnSisbov').value),sexo=document.getElementById('nnSexo').value,setor=document.getElementById('nnSetor').value;
   if(!data||!sis||sis.length!==15||!sexo||!setor){toast('Preencha data, SISBOV com 15 dígitos, sexo e seção.','err');return}
   if((DB.animais||[]).some(a=>normalizarSisbov(a.sisbov)===sis)||(DB.movimentacoes||[]).some(m=>m.tipo==='Nascimento'&&normalizarSisbov(m.sisbov)===sis)){toast('Nascimento bloqueado: este SISBOV já está cadastrado.','err');return}
@@ -5112,6 +5175,7 @@ function salvarNovoNascimento(){
   DB.movimentacoes.push(mov);saveDB();invalidarMapaUICache();closeModal();renderNascimentos();renderHeaderCounters();toast('Nascimento salvo com sucesso.','ok');
 }
 function abrirNovaMorte(){
+ if(!exigirAdmin('alterar a base'))return;
   const body=`<div class="field"><label>SISBOV, brinco ou chip *</label><input id="nmBusca" placeholder="Digite a identificação"></div><div id="nmAnimal" class="alert alert-gold" style="margin:10px 0">Informe a identificação para localizar o animal.</div><div class="grid2"><div class="field"><label>Data da morte *</label><input type="date" id="nmData" value="${todayISO()}"></div><div class="field"><label>Causa da morte *</label><input id="nmCausa" placeholder="Ex.: acidente, doença..."></div><div class="field" style="grid-column:1/-1"><label>Observação</label><input id="nmObs"></div></div>`;
   openModal('Registrar Morte',body,[{label:'CANCELAR',cls:'btn-outline',onClick:closeModal},{label:'REGISTRAR MORTE',cls:'btn-danger',onClick:salvarNovaMorte}],true);
   const b=document.getElementById('nmBusca'); if(b){b.onchange=localizarAnimalMorte;b.onblur=()=>{if(b.value.trim())localizarAnimalMorte()};setTimeout(()=>b.focus(),50)}
@@ -5125,6 +5189,7 @@ function localizarAnimalMorte(){
   el.className='alert alert-green';el.innerHTML=`<b>Animal localizado:</b> ${esc(__ANIMAL_MORTE.sisbov||'—')} · ${esc(__ANIMAL_MORTE.sexo||'—')} · ${esc(__ANIMAL_MORTE.raca||'—')} · ${esc(__ANIMAL_MORTE.setorAtual||'—')}`;
 }
 function salvarNovaMorte(){
+ if(!exigirAdmin('alterar a base'))return;
   if(!__ANIMAL_MORTE){toast('Localize um animal ativo antes de salvar.','err');return}
   const data=document.getElementById('nmData').value,causa=document.getElementById('nmCausa').value.trim();
   if(!data||!causa){toast('Informe a data e a causa da morte.','err');return}
@@ -5133,7 +5198,8 @@ function salvarNovaMorte(){
   DB.movimentacoes.push({id:uid('mv'),animalId:__ANIMAL_MORTE.id,data,tipo:'Morte',sisbov:__ANIMAL_MORTE.sisbov,brinco:__ANIMAL_MORTE.brinco,chip:__ANIMAL_MORTE.chip,sexo:__ANIMAL_MORTE.sexo,raca:__ANIMAL_MORTE.raca,nascimento:__ANIMAL_MORTE.nascimento,setorOrigem:__ANIMAL_MORTE.setorAtual,causaMorte:causa,quantidade:1,observacao:document.getElementById('nmObs').value.trim()});
   saveDB();invalidarMapaUICache();__ANIMAL_MORTE=null;closeModal();renderMortalidadeModulo();renderHeaderCounters();toast('Morte registrada com sucesso.','ok');
 }
-function exportarModulo(tipo){
+async function exportarModulo(tipo){
+ if(!await autorizarExportacao(tipo==='Nascimento'?'nascimentos':'mortalidade','xlsx'))return;
   if(!garantirBibliotecaExportacao('xlsx'))return;
   const l=filtrarModulo(tipo),dados=l.map(m=>({'DATA':formatBR(m.data),'TIPO':tipo,'SISBOV':m.sisbov||'','BRINCO':m.brinco||valorAnimalMov(m,'brinco')||'','SEXO':m.sexo||valorAnimalMov(m,'sexo')||'','RAÇA':m.raca||valorAnimalMov(m,'raca')||'','SEÇÃO':setorMov(m),'CAUSA DA MORTE':m.causaMorte||''}));
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(dados);XLSX.utils.book_append_sheet(wb,ws,tipo);XLSX.writeFile(wb,(tipo==='Nascimento'?'nascimentos':'mortalidade')+'.xlsx');
@@ -5600,6 +5666,7 @@ function obterLocalAtualAnimal(a,dataRef){
   return local;
 }
 function criarPontoRecuperacao(motivo){
+ if(!exigirAdmin('criar backup de recuperação'))return;
   try{localStorage.setItem('mapaPontoRecuperacao',JSON.stringify({criadoEm:new Date().toISOString(),motivo:motivo||'Operação crítica',
     dados:{animais:structuredClone(DB.animais||[]),movimentacoes:structuredClone(DB.movimentacoes||[]),setores:structuredClone(DB.setores||[]),config:structuredClone(DB.config||{})}}));
     atualizarPontoRecuperacaoUI(); return true;}catch(e){console.warn(e);return false;}
@@ -5609,6 +5676,7 @@ function atualizarPontoRecuperacaoUI(){
  try{const x=JSON.parse(localStorage.getItem('mapaPontoRecuperacao')||'null');el.textContent=x?`Último ponto: ${new Date(x.criadoEm).toLocaleString('pt-BR')} — ${x.motivo}`:'Nenhum ponto de recuperação salvo neste navegador.';}catch(e){el.textContent='Nenhum ponto de recuperação salvo.'}
 }
 function desfazerUltimaOperacao(){
+ if(!exigirAdmin('restaurar a base'))return;
  let x=null;try{x=JSON.parse(localStorage.getItem('mapaPontoRecuperacao')||'null')}catch(e){}
  if(!x?.dados){toast('Não existe ponto de recuperação disponível.','err');return;}
  confirmDialog('Desfazer última operação crítica',`Restaurar o estado salvo em <b>${new Date(x.criadoEm).toLocaleString('pt-BR')}</b> antes de <b>${x.motivo}</b>?`,async()=>{
@@ -5698,11 +5766,13 @@ function dadosExportInventario(){
   ...r.naoCadastrados.map(x=>({SITUAÇÃO:x.situacao,SISBOV:x.sisbov,SEXO:x.sexo,RAÇA:x.raca,SETOR:x.setor,LOCAL:x.local,DETALHE:'SISBOV não localizado no rebanho ativo'}))
  ];
 }
-function exportarInventarioXlsx(){
+async function exportarInventarioXlsx(){
+ if(!await autorizarExportacao('inventario','xlsx'))return;
  if(!INV_RESULTADO)return;const ws=XLSX.utils.json_to_sheet(dadosExportInventario());ws['!cols']=[{wch:26},{wch:20},{wch:12},{wch:12},{wch:20},{wch:24},{wch:32}];
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Resultado Auditoria');XLSX.writeFile(wb,'resultado_inventario_auditoria.xlsx');
 }
-function exportarInventarioPdf(){
+async function exportarInventarioPdf(){
+ if(!await autorizarExportacao('inventario','pdf'))return;
  if(!INV_RESULTADO)return;
  const rows=dadosExportInventario();const w=window.open('','_blank');if(!w){toast('Permita pop-ups para exportar PDF.','err');return;}
  w.document.write(`<html><head><title>Resultado Auditoria</title><style>body{font-family:Arial;padding:24px;color:#26332e}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #ccd5d0;padding:6px;text-align:left}th{background:#0f3b2e;color:white}</style>
@@ -5856,17 +5926,28 @@ async function registrarLog(acao,modulo,detalhe=''){
  try{await saveDB('config')}catch(_){}
  renderLogSistema();
 }
-function renderLogSistema(){
+async function renderLogSistema(){
+ if(!AUTH_ADMIN)return;
+ try{
+  const {logs}=await acessoServidor({action:'audit'});
+  const box=document.getElementById('logAlteracoes');if(!box)return;
+  box.innerHTML='<div class="table-wrap"><table class="exec"><thead><tr><th>Data/Hora</th><th>Usuário</th><th>Módulo</th><th>Ação</th><th>Alterações</th></tr></thead><tbody>'+logs.map(l=>'<tr><td>'+esc(new Date(l.created_at).toLocaleString('pt-BR'))+'</td><td>'+esc(l.actor_email||'Serviço')+'</td><td>'+esc(l.module)+'</td><td>'+esc(l.action)+'</td><td><details><summary>Ver registro</summary><pre style="white-space:pre-wrap;max-height:250px;overflow:auto">'+esc(JSON.stringify(l.details,null,2))+'</pre></details></td></tr>').join('')+'</tbody></table></div>';
+ }catch(e){toast('Não foi possível carregar o registro de alterações.','err');}
+}
+function renderLogSistemaLocal(){
  const box=document.getElementById('logAlteracoes');if(!box)return;
  const l=logsSistema();
  box.innerHTML=`<div class="table-wrap"><table class="exec"><thead><tr><th>Data/Hora</th><th>Usuário</th><th>Módulo</th><th>Ação</th><th>Detalhe</th></tr></thead><tbody>${l.slice(0,500).map(x=>`<tr><td>${new Date(x.data).toLocaleString('pt-BR')}</td><td>${esc(x.usuario)}</td><td>${esc(x.modulo)}</td><td>${esc(x.acao)}</td><td>${esc(x.detalhe||'')}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma alteração registrada.</td></tr>'}</tbody></table></div>`;
 }
-function exportarLogSistema(){
- const ws=XLSX.utils.json_to_sheet(logsSistema().map(x=>({DATA:new Date(x.data).toLocaleString('pt-BR'),USUÁRIO:x.usuario,MÓDULO:x.modulo,AÇÃO:x.acao,DETALHE:x.detalhe})));
+async function exportarLogSistema(){
+ if(!await autorizarExportacao('configuracoes','xlsx'))return;
+ const {logs}=await acessoServidor({action:'audit'});
+ const ws=XLSX.utils.json_to_sheet(logs.map(x=>({DATA:new Date(x.created_at).toLocaleString('pt-BR'),USUÁRIO:x.actor_email,MÓDULO:x.module,AÇÃO:x.action,DETALHE:JSON.stringify(x.details)})));
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Log');XLSX.writeFile(wb,'log_alteracoes_mapa_rebanho.xlsx');
 }
 function historicoAuditorias(){DB.config=DB.config||{};DB.config.historicoAuditorias=DB.config.historicoAuditorias||[];return DB.config.historicoAuditorias;}
 async function salvarAuditoriaHistorico(){
+ if(!exigirAdmin('alterar a base'))return;
  if(!INV_RESULTADO)return;
  const r=INV_RESULTADO;
  historicoAuditorias().unshift({id:'aud_'+Date.now(),data:new Date().toISOString(),arquivo:r.nomeArquivo,total:r.importados.length,corretos:r.encontrados.length,faltantes:r.faltantes.length,divergentes:r.divergentes.length,sobras:r.naoCadastrados.length,resultado:r});
@@ -5943,7 +6024,7 @@ function initEvents(){
 
   // Mapa Atual
   document.getElementById('btnHoje').onclick = ()=>{ document.getElementById('mapaAtualData').value = todayISO(); renderMapaAtual(); };
-  document.getElementById('btnAtualizarMapa').onclick = ()=>{renderMapaAtual();renderConciliacao();};
+  document.getElementById('btnAtualizarMapa').onclick = async ()=>{if(!AUTH_ADMIN)MAPA_SERVIDOR_REF=null;await renderMapaAtual();renderConciliacao();};
   document.getElementById('mapaFiltroLocal').onchange=()=>{paginaAnimais=1;renderMapaAtual();};
   document.getElementById('btnVerAnimais').onclick = ()=>{
     const p = document.getElementById('painelAnimais');
@@ -6023,6 +6104,7 @@ let SISTEMA_INICIADO=false;
 async function iniciarSistema(){
   if(SISTEMA_INICIADO) return; SISTEMA_INICIADO=true;
   await loadDB();
+  if(ACESSO_SUSPENSO){SISTEMA_INICIADO=false;return;}
   aplicarVisualConfig();
   document.getElementById('mapaAtualData').value = todayISO();
   document.getElementById('relFim').value = todayISO();
