@@ -1743,7 +1743,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-02-correcao-movimentacao-v6';
+  window.__MAPA_BUILD__='2026-10-02-correcao-movimentacao-v7';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -3648,10 +3648,12 @@ function abrirEdicaoAnimal(id){
   ],true);
 }
 async function excluirMovimentacao(id){
+  if(!await verificarAcessoAtual())return;
   if(!exigirAdmin('excluir movimentações')) return;
   const m=DB.movimentacoes.find(x=>x.id===id); if(!m) return;
   confirmDialog('Excluir movimentação',`Deseja excluir a movimentação <b>${esc(m.tipo)}</b> de ${formatBR(m.data)}, SISBOV <b>${esc(m.sisbov||'não informado')}</b>? O animal permanece cadastrado e o mapa será recalculado sem este lançamento. Ela poderá ser recuperada nas Configurações.`,async ()=>{
-    const reason=prompt('Informe o motivo da exclusão:');if(!reason?.trim())return;PENDING_REASON=reason.trim();
+    const reason=prompt('Informe o motivo da exclusão:');if(!reason?.trim())return;
+    if(!await verificarAcessoAtual()||!exigirAdmin('excluir movimentações'))return;PENDING_REASON=reason.trim();
     DB.movimentacoes=DB.movimentacoes.filter(x=>x.id!==id);
     if(!await saveDB('mov')||!await sincronizarSupabase())return;closeModal(); toast('Movimentação excluída.','ok'); renderAll();
   });
@@ -4484,6 +4486,7 @@ function abrirFormularioMov(m){
   ajustarFluxo(false);
 }
 async function salvarFormularioMov(m){
+  if(!await verificarAcessoAtual())return;
   if(!exigirAdmin('salvar movimentações')) return;
   const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,local:(document.getElementById('formMovLocal')?.value||'').trim(),destinoExterno:(document.getElementById('formMovDestinoExterno')?.value||'').trim(),causaMorte:(document.getElementById('formMovCausaMorte')?.value||'').trim(),quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
   if(erroFormatoSisbov(d.sisbov)){toast(erroFormatoSisbov(d.sisbov),'err');return;}
@@ -4599,7 +4602,8 @@ async function salvarFormularioMov(m){
   // Movimentações individuais precisam de identificador; lançamentos
   // agregados podem ser informados apenas por quantidade/setor/sexo.
   if(!d.sisbov&&!d.brinco&&!d.chip && d.quantidade<=1){toast('Informe SISBOV, brinco ou chip, ou use quantidade maior que 1 para um lançamento agregado.','err');return;}
-  const a=salvarDadosAnimal(d); d.animalId=a.id;
+  if(!await verificarAcessoAtual()||!exigirAdmin('salvar movimentações'))return;
+  const a=salvarDadosAnimal(d);if(!a)return;d.animalId=a.id;
   if(!d.setorOrigem) d.setorOrigem=a.setorInicial||'';
   if(m){ Object.assign(m,d); }
   else { d.id=uid('mv'); DB.movimentacoes.push(d); }
