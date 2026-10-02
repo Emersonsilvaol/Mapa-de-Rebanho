@@ -1743,7 +1743,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-02-correcao-movimentacao-v7';
+  window.__MAPA_BUILD__='2026-10-02-sessao-entre-abas-v8';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1848,6 +1848,7 @@ function aplicarPermissoes(){
 // Persistent auth storage. Never fall back silently to a session held only in memory.
 const AUTH_STORAGE_KEY='sb-ernbxfwhfqsriklqruhn-auth-token';
 let AUTH_STORAGE_DB=null;
+let AUTH_EVENTO_REVISAO=0, SAIDA_EXPLICITA=false;
 function abrirBancoSessao(){
  if(AUTH_STORAGE_DB)return AUTH_STORAGE_DB;
  AUTH_STORAGE_DB=new Promise((resolve,reject)=>{
@@ -1872,7 +1873,9 @@ const AUTH_STORAGE={
   let local=null,localOK=false;
   try{local=localStorage.getItem(key);localOK=true;}catch(_e){}
   if(local==='null')return null;
-  if(local!==null){await itemBancoSessao('set',key,local).catch(()=>{});return local;}
+  // Reading must not rewrite the backup: an older tab can finish that write
+  // after another tab has already saved its newly rotated refresh token.
+  if(local!==null)return local;
   try{const saved=await itemBancoSessao('get',key);if(saved!==null){try{localStorage.setItem(key,saved);}catch(_e){}return saved;}return null;}catch(_e){if(localOK)return null;throw new Error('O navegador não permitiu recuperar a sessão salva.');}
  },
  async setItem(key,value){
@@ -1882,10 +1885,24 @@ const AUTH_STORAGE={
  },
  async removeItem(key){
   let removed=false;try{localStorage.setItem(key,'null');removed=true;}catch(_e){}
-  try{await itemBancoSessao('remove',key);removed=true;}catch(_e){}
+  try{await itemBancoSessao('set',key,'null');removed=true;}catch(_e){}
   if(!removed)throw new Error('O navegador não permitiu encerrar a sessão salva.');
  }
 };
+async function processarSessaoEncerrada(revisao){
+ if(revisao!==AUTH_EVENTO_REVISAO||SAIDA_EXPLICITA)return;
+ try{
+  const {data,error}=await authClient.auth.getSession();
+  if(revisao!==AUTH_EVENTO_REVISAO||SAIDA_EXPLICITA)return;
+  if(error)throw error;
+  // A delayed sign-out notification must not discard a newer valid login.
+  if(data?.session?.user){AUTH_USER=data.session.user;await verificarAcessoAtual();return;}
+  AUTH_USER=null;clearInterval(PERFIL_POLL);
+  bloquearAcesso('Sua sessão não está mais válida. Entre para continuar.');
+ }catch(_e){
+  if(revisao===AUTH_EVENTO_REVISAO&&!SAIDA_EXPLICITA)bloquearAcesso('Não foi possível recuperar a sessão agora. Verifique a conexão e tente novamente.',false);
+ }
+}
 async function restaurarSessaoSalva(){
  mostrarGateAcesso('Recuperando sua sessão...',false);
  try{
@@ -1900,10 +1917,12 @@ async function iniciarAutenticacao(){
   const gate=document.getElementById('authGate'), msg=document.getElementById('loginMsg');
   if(!window.supabase){ msg.textContent='Falha ao carregar o serviço de autenticação.'; return false; }
   if(SUPABASE_PUBLISHABLE_KEY.startsWith('COLE_AQUI')){ msg.textContent='Configuração do Supabase pendente: falta a chave publishable.'; return false; }
-  authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:AUTH_STORAGE_KEY,storage:AUTH_STORAGE}});
+  const travaSessao=navigator.locks&&window.supabase.navigatorLock?{lock:window.supabase.navigatorLock,lockAcquireTimeout:30000}:{};
+  authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:AUTH_STORAGE_KEY,storage:AUTH_STORAGE,...travaSessao}});
   authClient.auth.onAuthStateChange((event,session)=>{
-    if(event==='SIGNED_OUT')setTimeout(()=>{AUTH_USER=null;clearInterval(PERFIL_POLL);bloquearAcesso('Sessão encerrada. Entre para continuar.');},0);
-    else if(event==='TOKEN_REFRESHED'&&session?.user)AUTH_USER=session.user;
+    const revisao=++AUTH_EVENTO_REVISAO;
+    if(event==='SIGNED_OUT')setTimeout(()=>void processarSessaoEncerrada(revisao),0);
+    else if((event==='TOKEN_REFRESHED'||event==='SIGNED_IN')&&session?.user)AUTH_USER=session.user;
   });
   return await restaurarSessaoSalva();
 }
@@ -1913,8 +1932,9 @@ async function efetuarLogin(e){
   catch(err){ msg.textContent='E-mail ou senha inválidos.'; } finally{ btn.disabled=false; btn.textContent='ENTRAR'; }
 }
 async function sairSistema(){
+ SAIDA_EXPLICITA=true;
  try{if(authClient){const {error}=await authClient.auth.signOut({scope:'local'});if(error)throw error;}await AUTH_STORAGE.removeItem(AUTH_STORAGE_KEY);AUTH_USER=null;AUTH_ADMIN=false;aplicarPermissoes();location.reload();}
- catch(_e){toast('Não foi possível encerrar a sessão. Tente novamente.','err');}
+ catch(_e){SAIDA_EXPLICITA=false;toast('Não foi possível encerrar a sessão. Tente novamente.','err');}
 }
 
 
