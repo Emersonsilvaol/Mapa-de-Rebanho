@@ -1268,32 +1268,27 @@ thead th{
 <div id="sidebarBackdrop" aria-hidden="true"></div>
 
 <main>
+  <div id="baseLoading" class="base-loading" role="status" aria-live="polite" hidden><p>Carregando as informações do rebanho…</p><div class="loading-cards" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="loading-panel" aria-hidden="true"></div></div>
   <!-- ================= DASHBOARD EXECUTIVO ================= -->
   <section id="view-dashboard" class="view active exec-dashboard">
-    <h2 class="view-title">Visão Geral</h2><p class="view-sub">Posição do rebanho, movimentações e indicadores por seção.</p>
+    <h2 class="view-title">Visão geral do rebanho</h2><p class="view-sub">Posição consolidada da fazenda</p>
     <div class="exec-sync exec-sync-top" id="dashSync"></div>
     <div class="exec-kpis" id="dashKpis"></div>
     <div id="dashDataQuality" class="data-quality" hidden></div>
-    <div class="exec-row exec-row-main">
-      <div class="panel"><div class="panel-head"><h3>Evolução do saldo do rebanho</h3></div><div class="panel-body" id="dashEvolution"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Transferências entre seções</h3></div><div class="panel-body" id="dashTransfer"></div></div>
+    <div class="exec-row dashboard-overview">
+      <div class="panel"><div class="panel-head"><h3>Rebanho por seção</h3></div><div class="panel-body" id="dashSections"></div></div>
+      <div class="panel composition-panel"><div class="panel-head"><h3>Composição do rebanho</h3></div><div class="panel-body"><div id="dashSex"></div><div id="dashSexCat"></div></div></div>
     </div>
-    <div class="exec-row exec-row-3">
-      <div class="panel"><div class="panel-head"><h3>Comparação por seção</h3></div><div class="panel-body" id="dashSections"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Composição do rebanho</h3></div><div class="panel-body" id="dashCatChart"></div></div>
+    <div class="exec-row dashboard-activity">
+      <div class="panel"><div class="panel-head"><h3>Saldo no período</h3></div><div class="panel-body" id="dashEvolution"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Movimentações recentes</h3></div><div class="panel-body" id="dashRecent"></div></div>
     </div>
-    <div class="exec-row executive-details">
+    <div class="exec-row dashboard-support">
       <div class="panel"><div class="panel-head"><h3>Entradas e saídas por mês</h3></div><div class="panel-body" id="dashFlow"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Composição por sexo</h3></div><div class="panel-body" id="dashSex"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Sexo e categoria</h3></div><div class="panel-body" id="dashSexCat"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Transferências entre seções</h3></div><div class="panel-body" id="dashTransfer"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Indicadores do período</h3></div><div class="panel-body" id="dashIndicators"></div></div>
     </div>
-    <div hidden id="dashSetorChart"></div>
-    <div class="exec-row exec-row-bottom">
-      <div class="panel"><div class="panel-head"><h3>Faixa Etária (meses)</h3></div><div class="panel-body" id="dashAge"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Principais Indicadores</h3></div><div class="panel-body" id="dashIndicators"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Movimentações Recentes</h3></div><div class="panel-body" id="dashRecent"></div></div>
-      <div class="panel"><div class="panel-head"><h3>Status da Base</h3></div><div class="panel-body" id="dashStatus"></div></div>
-    </div>
+    <div hidden id="dashCatChart"></div><div hidden id="dashSetorChart"></div><div hidden id="dashAge"></div><div hidden id="dashStatus"></div>
       <div class="panel dashboard-mortality" style="margin-top:16px">
       <div class="panel-head"><div><h3>Mortalidade</h3><span class="sub">Indicador gerencial integrado ao Dashboard</span></div></div>
       <div class="panel-body">
@@ -1743,7 +1738,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-03-carregamento-otimizado-v9';
+  window.__MAPA_BUILD__='2026-10-03-visual-executivo-v10';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -4151,10 +4146,10 @@ function renderDashboard(){
   const pctDelta=inicial?delta/inicial*100:0;
   const card=(lbl,val,sub,icon,tone,cls='')=>`<div class="kpi-card ${tone?'tone-'+tone:''} ${cls}"><div class="kpi-icon">${svgIcon(icon)}</div><div><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
   document.getElementById('dashKpis').innerHTML=[
+    card('SALDO ATUAL',ativos.length.toLocaleString('pt-BR'),'cabeças ativas','stack','', 'current'),
     card('SALDO INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack',''),
     card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus',''),
     card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red'),
-    card('SALDO ATUAL',ativos.length.toLocaleString('pt-BR'),'cabeças ativas','stack','', 'current'),
     card('VARIAÇÃO',`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')}`,`${pctDelta.toFixed(1).replace('.',',')}% em relação à base inicial`,'chart','')
   ].join('');
 
@@ -4164,10 +4159,10 @@ function renderDashboard(){
   const setorCounts={}; ativos.forEach(a=>{const k=a.setorAtual||a.setor||'Sem setor';setorCounts[k]=(setorCounts[k]||0)+1});
   document.getElementById('dashSetorChart').innerHTML=barList(setorCounts);
   const sexCat={}; CATEGORIAS.forEach(c=>sexCat[c]={Macho:0,'Fêmea':0}); ativos.forEach(a=>{if(!sexCat[a.categoria])return; const sx=norm(a.sexo).startsWith('f')?'Fêmea':norm(a.sexo).startsWith('m')?'Macho':''; if(sx)sexCat[a.categoria][sx]++});
-  document.getElementById('dashSexCat').innerHTML=`<div class="table-wrap"><table class="exec" style="min-width:0"><thead><tr><th>Categoria</th><th class="num">Machos</th><th class="num">Fêmeas</th><th class="num">Total</th></tr></thead><tbody>${CATEGORIAS.map(c=>{const m=sexCat[c].Macho,f=sexCat[c]['Fêmea'];return `<tr class="dash-hover-data" data-dash-tip="${c} meses · Machos ${m.toLocaleString('pt-BR')} · Fêmeas ${f.toLocaleString('pt-BR')} · Total ${(m+f).toLocaleString('pt-BR')}"><td>${c} meses</td><td class="num">${m.toLocaleString('pt-BR')}</td><td class="num">${f.toLocaleString('pt-BR')}</td><td class="num"><b>${(m+f).toLocaleString('pt-BR')}</b></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${machos.toLocaleString('pt-BR')}</td><td class="num">${femeas.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td></tr></tbody></table></div>`;
+  document.getElementById('dashSexCat').innerHTML=`<div class="table-wrap"><table class="exec" style="min-width:0"><thead><tr><th>Faixa etária</th><th class="num">Machos</th><th class="num">Fêmeas</th><th class="num">Total</th></tr></thead><tbody>${CATEGORIAS.map(c=>{const m=sexCat[c].Macho,f=sexCat[c]['Fêmea'];return `<tr class="dash-hover-data" data-dash-tip="${c} meses · Machos ${m.toLocaleString('pt-BR')} · Fêmeas ${f.toLocaleString('pt-BR')} · Total ${(m+f).toLocaleString('pt-BR')}"><td>${c} meses</td><td class="num">${m.toLocaleString('pt-BR')}</td><td class="num">${f.toLocaleString('pt-BR')}</td><td class="num"><b>${(m+f).toLocaleString('pt-BR')}</b></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${machos.toLocaleString('pt-BR')}</td><td class="num">${femeas.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td></tr></tbody></table></div>`;
 
   const pf=ativos.length?femeas/ativos.length*100:0;
-  document.getElementById('dashSex').innerHTML=`<div class="dash-donut dash-hover-data" data-dash-tip="Rebanho atual: ${ativos.length.toLocaleString('pt-BR')} cabeças · Machos ${machos.toLocaleString('pt-BR')} · Fêmeas ${femeas.toLocaleString('pt-BR')}" style="background:conic-gradient(#3d7560 0 ${100-pf}%,#a4bdaf ${100-pf}% 100%)"><div class="dash-donut-center">${ativos.length.toLocaleString('pt-BR')}<small>cabeças</small></div></div><div class="dash-legend"><span class="dash-hover-data" data-dash-tip="Machos: ${machos.toLocaleString('pt-BR')} cabeças · ${ativos.length?(machos/ativos.length*100).toFixed(1).replace('.',','):0}%"><i class="dash-dot" style="background:#3d7560"></i>Machos ${machos.toLocaleString('pt-BR')} (${ativos.length?(machos/ativos.length*100).toFixed(1).replace('.',','):0}%)</span><span class="dash-hover-data" data-dash-tip="Fêmeas: ${femeas.toLocaleString('pt-BR')} cabeças · ${ativos.length?(femeas/ativos.length*100).toFixed(1).replace('.',','):0}%"><i class="dash-dot" style="background:#a4bdaf"></i>Fêmeas ${femeas.toLocaleString('pt-BR')} (${ativos.length?(femeas/ativos.length*100).toFixed(1).replace('.',','):0}%)</span></div>`;
+  document.getElementById('dashSex').innerHTML=[['Fêmeas',femeas],['Machos',machos]].map(([label,total])=>{const pct=ativos.length?total/ativos.length*100:0;return `<div class="composition-sex"><span>${label}</span><div><b>${total.toLocaleString('pt-BR')}</b> <small>(${pct.toFixed(1).replace('.',',')}%)</small></div><div class="composition-track" aria-hidden="true"><i style="width:${pct}%"></i></div></div>`;}).join('');
 
   const monthly={}; DB.movimentacoes.forEach(m=>{const d=String(m.data||'');if(!/^\d{4}-\d{2}/.test(d))return;const k=d.slice(0,7);monthly[k]??={in:0,out:0};if(isNasc(m)||isCompra(m))monthly[k].in+=qtd(m);if(isMorte(m)||isVenda(m))monthly[k].out+=qtd(m)});
   const months=Object.keys(monthly).sort().slice(-9), maxFlow=Math.max(1,...months.flatMap(k=>[monthly[k].in,monthly[k].out]));
@@ -4184,7 +4179,7 @@ function renderDashboard(){
   document.getElementById('dashTransfer').innerHTML=`<div class="transfer-symbol">⇄</div><div class="transfer-value">${transf.toLocaleString('pt-BR')}</div><p>Transferências entre seções</p><span>Não alteram o saldo total da fazenda</span>`;
   const byInitial={};DB.animais.filter(a=>a.origem==='inicial').forEach(a=>{const k=a.setorInicial||'Sem seção';byInitial[k]=(byInitial[k]||0)+1});
   const sections=[...new Set([...DB.setores,...Object.keys(byInitial),...Object.keys(setorCounts)])];
-  document.getElementById('dashSections').innerHTML=`<div class="table-wrap"><table class="exec section-comparison"><thead><tr><th>Seção</th><th class="num">Saldo inicial</th><th class="num">Saldo atual</th><th class="num">Variação</th><th>Participação atual</th></tr></thead><tbody>${sections.map(k=>{const a=byInitial[k]||0,b=setorCounts[k]||0,d=b-a;return `<tr><td>${k==='Sem setor'?'<button type="button" class="btn btn-outline btn-sm" data-quality-filter="Sem setor">Sem setor · conferir</button>':esc(k)}</td><td class="num">${a.toLocaleString('pt-BR')}</td><td class="num"><b>${b.toLocaleString('pt-BR')}</b></td><td class="num">${d>0?'+':''}${d.toLocaleString('pt-BR')}</td><td><div class="section-share"><i style="width:${ativos.length?b/ativos.length*100:0}%"></i></div></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${inicial.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td><td class="num">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</td><td>100%</td></tr></tbody></table></div>`;
+  document.getElementById('dashSections').innerHTML=`<div class="table-wrap"><table class="exec section-comparison"><thead><tr><th>Seção</th><th class="num">Saldo inicial</th><th class="num">Saldo atual</th><th class="num">Variação</th><th>Participação atual</th></tr></thead><tbody>${sections.map(k=>{const a=byInitial[k]||0,b=setorCounts[k]||0,d=b-a;return `<tr><td>${k==='Sem setor'?'<button type="button" class="btn btn-outline btn-sm" data-quality-filter="Sem setor">Sem setor · conferir</button>':esc(k)}</td><td class="num">${a.toLocaleString('pt-BR')}</td><td class="num"><b>${b.toLocaleString('pt-BR')}</b></td><td class="num">${d>0?'+':''}${d.toLocaleString('pt-BR')}</td><td><div class="section-participation"><span>${(ativos.length?b/ativos.length*100:0).toFixed(1).replace('.',',')}%</span><div class="section-share"><i style="width:${ativos.length?b/ativos.length*100:0}%"></i></div></div></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${inicial.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td><td class="num">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</td><td>100%</td></tr></tbody></table></div>`;
 
   const ageCounts={}; CATEGORIAS.forEach(c=>ageCounts[c]=0); ativos.forEach(a=>{if(ageCounts[a.categoria]!==undefined)ageCounts[a.categoria]++});
   const ageEl=document.getElementById('dashAge'); if(ageEl) ageEl.innerHTML=barList(ageCounts,c=>c+' meses');
@@ -6227,6 +6222,60 @@ nav.tabs.premium-sidebar::after{display:none!important}
  </div>
 </div>
 
+<style id="approved-executive-design-v10">
+:root{--canvas:#f5f6f3;--surface:#fff;--line:#e0e5df;--ink:#20362b;--muted:#69766e;--chart-green:#39765b;--chart-area:#eaf3eb}
+html body main{background:var(--canvas)!important}
+html body .view-title{font-size:30px!important;letter-spacing:-.7px;line-height:1.2;color:var(--ink)!important;margin-bottom:6px!important}
+html body .view-sub{color:var(--muted)!important;font-size:13px!important;line-height:1.6}
+html body nav.tabs.premium-sidebar button{color:var(--muted)!important;font-weight:500!important;min-height:39px!important;padding:10px 12px!important;font-size:12px!important}
+html body nav.tabs.premium-sidebar button svg{color:currentColor!important;opacity:.85!important;width:17px!important;height:17px!important}
+html body nav.tabs.premium-sidebar button.active{background:var(--chart-area)!important;color:var(--ink)!important;font-weight:650!important}
+html body .panel{border:1px solid var(--line)!important;border-radius:7px!important;box-shadow:none!important;background:var(--surface)!important;overflow:hidden}
+html body .panel-head{padding:17px 18px 9px!important;background:var(--surface)!important;border-bottom:0!important;color:var(--ink)!important}
+html body .panel-head h3{font-size:16px!important;font-weight:650!important;letter-spacing:-.2px;color:var(--ink)!important}
+html body .panel-body{padding:12px 18px 18px!important}
+html body .toolbar{background:var(--surface)!important;border:1px solid var(--line)!important;border-radius:7px!important;padding:14px!important;gap:12px!important;box-shadow:none!important}
+html body .toolbar input,html body .toolbar select{min-height:38px;border-radius:5px}
+html body #view-dashboard{background:transparent!important;border:0!important;padding:0!important;box-shadow:none!important}
+html body #view-dashboard .exec-sync-top{min-width:0!important;width:auto!important;margin:0 0 18px!important;background:transparent!important;padding:0!important;border:0!important;box-shadow:none!important;font-size:11px!important;color:var(--muted)!important}
+html body #view-dashboard .exec-sync-top br{display:none}html body #view-dashboard .exec-sync-top span{margin-left:10px}
+html body #view-dashboard .exec-kpis{grid-template-columns:1.45fr repeat(4,minmax(0,1fr))!important;gap:12px!important;margin-bottom:18px!important}
+html body #view-dashboard .kpi-card{background:var(--surface)!important;border:1px solid var(--line)!important;border-radius:7px!important;box-shadow:none!important;min-height:134px!important;padding:18px 16px!important;position:relative;display:flex!important;flex-direction:row-reverse;justify-content:space-between;gap:6px!important}
+html body #view-dashboard .kpi-card.current{background:#e8f2e9!important;border-color:#e8f2e9!important}
+html body #view-dashboard .kpi-val{color:var(--ink)!important;font-size:29px!important;letter-spacing:-.7px!important;font-variant-numeric:tabular-nums}
+html body #view-dashboard .kpi-card.current .kpi-val{font-size:44px!important;color:#123e2c!important}
+html body #view-dashboard .kpi-lbl{color:var(--muted)!important;font-size:10px!important;letter-spacing:.6px!important}
+html body #view-dashboard .kpi-card.current .kpi-lbl{color:#23563f!important}
+html body #view-dashboard .kpi-sub{color:var(--muted)!important;font-size:10px!important;line-height:1.5!important}
+html body #view-dashboard .kpi-icon{background:var(--canvas)!important;color:var(--chart-green)!important;width:34px!important;height:34px!important;flex:0 0 34px;border-radius:50%!important}
+html body #view-dashboard .tone-red .kpi-icon{color:#b64b4b!important;background:#fbeded!important}
+html body #view-dashboard .tone-red .kpi-val{color:#ae4444!important}
+html body #view-dashboard .exec-row{gap:16px!important;margin-bottom:16px!important}
+html body #view-dashboard .dashboard-overview,html body #view-dashboard .dashboard-activity{display:grid!important;grid-template-columns:minmax(0,1.5fr) minmax(365px,1fr)!important}
+html body #view-dashboard .dashboard-support{grid-template-columns:1.25fr .75fr 1fr!important}
+html body #view-dashboard .panel-body{min-height:0!important}
+html body #view-dashboard .section-comparison{min-width:500px!important;font-size:12px!important}
+html body #view-dashboard table th,html body #view-dashboard table td{padding:9px 8px!important;font-variant-numeric:tabular-nums;border-color:var(--line)!important}
+html body #view-dashboard table thead th{background:var(--chart-area)!important;color:var(--ink)!important;font-size:11px!important;font-weight:650!important}
+html body #view-dashboard table tr.total td{background:var(--chart-area)!important;color:var(--ink)!important;font-weight:700!important}
+.section-participation{display:flex;gap:9px;align-items:center}.section-participation>span{width:40px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}.section-participation .section-share{flex:1;min-width:42px}
+.composition-sex{display:grid;grid-template-columns:65px minmax(110px,1fr) minmax(60px,1fr);gap:8px;align-items:center;font-size:12px;margin:8px 0 18px;color:var(--ink);font-variant-numeric:tabular-nums}.composition-sex small{color:var(--muted);font-size:11px}.composition-track{height:8px;background:var(--canvas);border-radius:3px;overflow:hidden}.composition-track i{display:block;height:100%;background:var(--chart-green);border-radius:3px}
+html body #dashSexCat .table-wrap{border:0!important;border-radius:0!important;background:transparent!important;margin-top:22px}
+html body #dashSexCat table{font-size:12px!important;width:100%;min-width:320px!important}html body #dashSexCat table td:first-child{white-space:nowrap}
+html body #dashRecent table{font-size:12px!important}html body #dashRecent table th{white-space:nowrap}html body .balance-trend{height:230px!important}
+html body #dashTransfer{min-height:160px!important}html body .transfer-symbol{font-size:24px}html body .transfer-value{font-size:35px;margin:7px 0}
+html body .exec-metric{padding:10px!important;border-radius:5px!important;background:var(--canvas)!important}
+main.loading-base>.view{display:none!important}
+.base-loading{padding:12px 0 24px;color:var(--muted)}.base-loading p{font-size:13px;margin:12px 0 20px}.loading-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.loading-cards i{display:block;height:132px;border-radius:7px;background:linear-gradient(100deg,var(--line) 25%,var(--surface) 45%,var(--line) 65%);background-size:250% 100%;animation:base-shimmer 1.8s ease infinite}.loading-panel{height:280px;margin-top:18px;border-radius:7px;background:var(--line);opacity:.45}@keyframes base-shimmer{to{background-position:-180% 0}}
+html[data-theme="dark"]{--surface:#1b2622;--canvas:#111918;--line:#31413b;--ink:#eef4ef;--muted:#a8b8af;--chart-green:#82b397;--chart-area:#263d30}
+html[data-theme="dark"] body #view-dashboard .kpi-card.current{background:#203e2d!important;border-color:#335641!important}html[data-theme="dark"] body #view-dashboard .kpi-card.current .kpi-val,html[data-theme="dark"] body #view-dashboard .kpi-card.current .kpi-lbl{color:#e3f2e8!important}
+html[data-theme="dark"] body table.grid thead th{background:#185638!important;color:#fff!important}html[data-theme="dark"] body table.grid .subtotal td,html[data-theme="dark"] body table.grid .total td{background:#254331!important;color:#eef4ef!important}
+@media(max-width:1150px){html body #view-dashboard .dashboard-overview,html body #view-dashboard .dashboard-activity{grid-template-columns:minmax(0,1.2fr) minmax(320px,1fr)!important}html body #view-dashboard .kpi-val{font-size:24px!important}html body #view-dashboard .kpi-card.current .kpi-val{font-size:35px!important}html body #view-dashboard .kpi-icon{display:none!important}}
+@media(max-width:900px){html body #view-dashboard .exec-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}html body #view-dashboard .kpi-card.current{grid-column:1/-1}html body #view-dashboard .dashboard-overview,html body #view-dashboard .dashboard-activity,html body #view-dashboard .dashboard-support{grid-template-columns:1fr!important}.loading-cards{grid-template-columns:repeat(2,1fr)}.loading-cards i:first-child{grid-column:1/-1}html body .view-title{font-size:26px!important}}
+@media(max-width:600px){html body #view-dashboard .kpi-card{min-height:112px!important;padding:15px!important}html body .panel-body{padding:12px!important}html body .panel-head{padding:14px 12px 8px!important}html body #view-dashboard table th,html body #view-dashboard table td{padding:9px 7px!important}.composition-sex{grid-template-columns:60px minmax(110px,1fr) minmax(50px,1fr);font-size:11px}.composition-sex small{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.loading-cards i{animation:none}}
+</style>
+
 </body></html>`);w.document.close();
 }
 
@@ -6418,7 +6467,8 @@ function initEvents(){
 let SISTEMA_INICIADO=false;
 async function iniciarSistema(){
   if(SISTEMA_INICIADO) return; SISTEMA_INICIADO=true;
-  try{await loadDB();}catch(e){bloquearAcesso(e.message,e.status===401||e.status===403);SISTEMA_INICIADO=false;return;}
+  const loading=document.getElementById('baseLoading');loading.hidden=false;loading.closest('main').classList.add('loading-base');
+  try{await loadDB();}catch(e){bloquearAcesso(e.message,e.status===401||e.status===403);SISTEMA_INICIADO=false;return;}finally{loading.hidden=true;loading.closest('main').classList.remove('loading-base');}
   if(ACESSO_SUSPENSO){SISTEMA_INICIADO=false;return;}
   prepararSistemaCarregado();
 }
