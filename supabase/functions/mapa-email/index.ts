@@ -23,10 +23,21 @@ Deno.serve(async req => {
     const [config]=await rest('mapa_email_config?id=eq.1&select=*');
     if(!config || !equal(await hash(token),config.token_hash)) return json({error:'unauthorized'},401);
     const input=await req.json();
-    if(!['preview','scheduled','send'].includes(input.mode)) return json({error:'invalid_mode'},400);
+    if(!['preview','scheduled','send','cancel_scheduled'].includes(input.mode)) return json({error:'invalid_mode'},400);
+    const key=Deno.env.get('RESEND_API_KEY') || await rest('rpc/mapa_email_resend_key','POST',{});
+    if(input.mode==='cancel_scheduled') {
+      if(!key) return json({error:'missing_resend_key'},503);
+      if(!Array.isArray(input.ids) || input.ids.length>10 || input.ids.some(id=>!/^[-a-f0-9]{36}$/.test(id))) return json({error:'invalid_ids'},400);
+      const results=[];
+      for(const id of input.ids) {
+        const response=await fetch(`https://api.resend.com/emails/${id}/cancel`,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(15000)});
+        const result=await response.json();
+        results.push({id,ok:response.ok,status:response.status,message:result.message||null});
+      }
+      return json({results});
+    }
     const date=localDate();
     if(input.mode!=='preview' && (!config.enabled || (input.mode==='scheduled' && config.test_until && date>config.test_until))) return json({status:'paused',date});
-    const key=Deno.env.get('RESEND_API_KEY');
     if(input.mode!=='preview' && !key) return json({error:'missing_RESEND_API_KEY'},503);
     const [row]=await rest('mapa_rebanho_estado?id=eq.principal&select=payload,updated_at,revision');
     if(!row) return json({error:'missing_source'},503);

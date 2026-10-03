@@ -5,7 +5,7 @@ A função `mapa-email` consulta `mapa_rebanho_estado` no momento da execução 
 ## Configuração
 
 - Aplicar o modelo `supabase/email_setup.sql` substituindo os placeholders. Configuração inicia pausada.
-- Adicionar `RESEND_API_KEY` aos secrets das Edge Functions.
+- Adicionar `RESEND_API_KEY` aos secrets das Edge Functions ou salvar a chave no Vault como `mapa_email_resend_api_key`, com o acesso privado descrito em `supabase/email_vault_setup.sql`.
 - Definir remetente, endereço de resposta, proprietário da conta e assinatura na tabela privada `mapa_email_config`.
 - Cadastrar apenas destinatários autorizados na tabela privada `mapa_email_recipients`.
 - Antes de ativar, cancelar agendamentos antigos com anexos fixos no provedor, se existirem.
