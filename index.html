@@ -1738,7 +1738,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-03-visual-executivo-v10';
+  window.__MAPA_BUILD__='2026-10-03-filtros-movimentacoes-v11';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -4260,19 +4260,21 @@ function filtrarMovimentacoes(){
   const raca = document.getElementById('movFiltroRaca').value.trim().toLowerCase();
   const sisbov = document.getElementById('movFiltroSisbov').value.trim();
   return DB.movimentacoes.filter(m=>{
+    if((ini||fim)&&!m.data)return false;
     if(ini && m.data<ini) return false;
     if(fim && m.data>fim) return false;
     if(tipo && tipoOperacionalMov(m)!==tipo) return false;
-    if(setor && m.setorOrigem!==setor && m.setorDestino!==setor) return false;
-    if(local && String(m.local||'')!==local) return false;
-    if(sexo && m.sexo!==sexo) return false;
-    if(raca && !m.raca.toLowerCase().includes(raca)) return false;
+    if(setor && ![m.setorOrigem,m.setorDestino,m.setor].some(v=>chaveSetor(v)===chaveSetor(setor))) return false;
+    if(local && chaveSetor(m.local)!==chaveSetor(local)) return false;
+    const sexoMov=chaveSetor(m.sexo),sexoFiltro=chaveSetor(sexo);
+    if(sexo && sexoMov.charAt(0)!==sexoFiltro.charAt(0)) return false;
+    if(raca && !stripAccents(String(m.raca||'')).toLowerCase().includes(stripAccents(raca))) return false;
     if(sisbov){
-      const termos=[m.sisbov,m.sisbovAnterior,m.sisbovNovo,m.brinco,m.brincoAnterior,m.brincoNovo,m.chip].map(v=>String(v||''));
-      if(!termos.some(v=>v.includes(sisbov))) return false;
+      const termos=[m.sisbov,m.sisbovAnterior,m.sisbovNovo,m.brinco,m.brincoAnterior,m.brincoNovo,m.chip].map(v=>normalizarSisbov(v));
+      if(!termos.some(v=>v.includes(normalizarSisbov(sisbov)))) return false;
     }
     return true;
-  }).sort((a,b)=> b.data.localeCompare(a.data));
+  }).sort((a,b)=> String(b.data||'').localeCompare(String(a.data||'')));
 }
 
 
@@ -4721,7 +4723,10 @@ Deseja realmente continuar?</p>`, [
 function renderMovimentacoes(){
   const tSel = document.getElementById('movFiltroTipo');
   if(tSel.options.length<=1) popularSelect(tSel, TIPOS_MOV, true, false);
-  popularSelect(document.getElementById('movFiltroSetor'), DB.setores, true);
+  const setorSelect=document.getElementById('movFiltroSetor'),setorSelecionado=setorSelect.value;
+  const setores=ordenarSetores([...DB.setores,...DB.movimentacoes.flatMap(m=>[m.setorOrigem,m.setorDestino,m.setor])]);
+  popularSelect(setorSelect,setores,true,false);
+  setorSelect.value=setores.find(s=>chaveSetor(s)===chaveSetor(setorSelecionado))||'';
   popularFiltrosLocal();
 
   const lista = filtrarMovimentacoes();
@@ -6380,9 +6385,12 @@ function initEvents(){
   document.getElementById('btnReprocessarMov').onclick = ()=>confirmDialog('Reprocessar dados dos animais','Este processo irá buscar novamente os dados cadastrais dos animais no Mapa Inicial usando o SISBOV. Deseja continuar?',reprocessarDadosMovimentacoes);
   document.getElementById('btnExcluirTudoMov').onclick = confirmarExcluirTodasMovimentacoes;
   document.getElementById('btnAplicarFiltroMov').onclick = ()=>{ paginaMov=1; renderMovimentacoes(); };
+  ['movFiltroInicio','movFiltroFim','movFiltroTipo','movFiltroSetor','movFiltroLocal','movFiltroSexo','movFiltroRaca','movFiltroSisbov'].forEach(id=>{
+    document.getElementById(id).onchange=()=>{paginaMov=1;renderMovimentacoes();};
+  });
   document.getElementById('btnLimparFiltroMov').onclick = ()=>{
     ['movFiltroInicio','movFiltroFim','movFiltroRaca','movFiltroSisbov'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('movFiltroTipo').value=''; document.getElementById('movFiltroSetor').value=''; document.getElementById('movFiltroSexo').value='';
+    document.getElementById('movFiltroTipo').value=''; document.getElementById('movFiltroSetor').value=''; document.getElementById('movFiltroSexo').value=''; document.getElementById('movFiltroLocal').value='';
     paginaMov=1; renderMovimentacoes();
   };
 
