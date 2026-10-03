@@ -23,7 +23,7 @@ Deno.serve(async req => {
     const [config]=await rest('mapa_email_config?id=eq.1&select=*');
     if(!config || !equal(await hash(token),config.token_hash)) return json({error:'unauthorized'},401);
     const input=await req.json();
-    if(!['preview','scheduled','send','cancel_scheduled'].includes(input.mode)) return json({error:'invalid_mode'},400);
+    if(!['preview','export','scheduled','send','cancel_scheduled'].includes(input.mode)) return json({error:'invalid_mode'},400);
     const key=Deno.env.get('RESEND_API_KEY') || await rest('rpc/mapa_email_resend_key','POST',{});
     if(input.mode==='cancel_scheduled') {
       if(!key) return json({error:'missing_resend_key'},503);
@@ -37,8 +37,9 @@ Deno.serve(async req => {
       return json({results});
     }
     const date=localDate();
-    if(input.mode!=='preview' && (!config.enabled || (input.mode==='scheduled' && config.test_until && date>config.test_until))) return json({status:'paused',date});
-    if(input.mode!=='preview' && !key) return json({error:'missing_RESEND_API_KEY'},503);
+    if(!['preview','export'].includes(input.mode) && (!config.enabled || (input.mode==='scheduled' && config.test_until && date>config.test_until))) return json({status:'paused',date});
+    if(!['preview','export'].includes(input.mode) && !key) return json({error:'missing_RESEND_API_KEY'},503);
+    if(input.mode==='export' && config.test_until && date>config.test_until) return json({error:'test_period_finished'},410);
     const [row]=await rest('mapa_rebanho_estado?id=eq.principal&select=payload,updated_at,revision');
     if(!row) return json({error:'missing_source'},503);
     const data=snapshot(row,date);
@@ -50,6 +51,7 @@ Deno.serve(async req => {
     if(!config.signature_base64) return json({error:'missing_signature'},503);
     const encoded=files.map(f=>({filename:f.filename,content:base64(f.bytes)}));
     encoded.push({filename:'assinatura-emerson.jpeg',content:config.signature_base64,content_id:'assinatura-emerson-branca'});
+    if(input.mode==='export') return json({status:'ready',date,revision:row.revision,updated_at:row.updated_at,mail:{message:{subject:`Mapa de Rebanho — Bodoquena — ${date.split('-').reverse().join('/')}`,body:{contentType:'HTML',content:emailHTML(data)},toRecipients:recipients.map(r=>({emailAddress:{address:r.email}})),attachments:encoded.map(f=>({'@odata.type':'#microsoft.graph.fileAttachment',name:f.filename,contentType:f.filename.endsWith('.pdf')?'application/pdf':f.filename.endsWith('.xlsx')?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'image/jpeg',contentBytes:f.content,...(f.content_id?{isInline:true,contentId:f.content_id}:{})}))},saveToSentItems:true}});
     const results=[];
     for(const recipient of recipients) {
       if(!config.domain_verified && recipient.email.toLowerCase()!==config.owner_email.toLowerCase()) {results.push({email:recipient.email,status:'domain_required'});continue;}
