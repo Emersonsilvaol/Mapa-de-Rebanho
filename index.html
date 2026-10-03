@@ -1743,7 +1743,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-02-sessao-entre-abas-v8';
+  window.__MAPA_BUILD__='2026-10-03-carregamento-otimizado-v9';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -2451,6 +2451,15 @@ async function carregarBaseCentral(){
   try{
     const {data,error}={data:await buscarBaseAutorizada(),error:null};
     if(error) throw error;
+    return aplicarBaseCentralRecebida(data);
+  }catch(e){
+    if(e.status===401||e.status===403)throw e;
+    console.error('Erro ao carregar base central do Supabase',e);
+    toast('Não foi possível carregar a base central. Verifique sua conexão.','err');
+  }
+  return false;
+}
+function aplicarBaseCentralRecebida(data){
     const p=data?.payload;
     if(p && Array.isArray(p.animais)){
       DB.animais=p.animais||[];
@@ -2459,13 +2468,9 @@ async function carregarBaseCentral(){
       DB.config=p.config||{dataMapaInicial:todayISO()};
       DB.config._centralUpdatedAt=data.updated_at||p.geradoEm||'';
       CENTRAL_REVISION=data.revision;BASE_CONFIRMADA=structuredClone(DB);LOCAL_DIRTY=false;CONFLITO_CENTRAL=false;atualizarEstadoProtecao();
+      invalidarMapaUICache();
       return true;
     }
-  }catch(e){
-    if(e.status===401||e.status===403)throw e;
-    console.error('Erro ao carregar base central do Supabase',e);
-    toast('Não foi possível carregar a base central. Verifique sua conexão.','err');
-  }
   return false;
 }
 function payloadCentral(){
@@ -2509,10 +2514,10 @@ function agendarSyncCentral(){
 
 let _recuperacaoCentralEmCurso=false;
 async function recuperarBaseCentralAposInicio(){
- if(!AUTH_ADMIN||LOCAL_DIRTY||_syncEmAndamento||_recuperacaoCentralEmCurso)return false;
+ if(!AUTH_ADMIN||CENTRAL_REVISION!==null||LOCAL_DIRTY||_syncEmAndamento||_recuperacaoCentralEmCurso)return false;
  _recuperacaoCentralEmCurso=true;
  try{const generation=DB_GENERATION;const data=await buscarBaseAutorizada();if(LOCAL_DIRTY||generation!==DB_GENERATION)return false;
- if(data.revision!==CENTRAL_REVISION){if(await carregarBaseCentral()){renderAll();return true;}}return true;
+ if(data.revision!==CENTRAL_REVISION){if(aplicarBaseCentralRecebida(data)){renderAll();return true;}}return true;
  }catch(e){return false;}finally{_recuperacaoCentralEmCurso=false;}
 }
 
@@ -3214,11 +3219,57 @@ function confirmarImportMov(res){
 */
 function buildMapaNaData(refISO){
   if(!AUTH_ADMIN&&MAPA_SERVIDOR&&refISO===MAPA_SERVIDOR_REF)return MAPA_SERVIDOR;
+  return calcularMapaOtimizado(DB,refISO);
+}
+
+function calcularMapaOtimizado(DB, refISO) {
+const CASCATA=['36+','25–36','13–24','00–12'];
+function uid(prefix){return (prefix||'id')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);}
+function tipoOperacionalMov(m){return m && m.tipo==='Compra' && m.eventoAuditoria===true?'Animais sem auditar':(m?.tipo||'');}
+function normalizarCabecalho(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+function calcIdadeMeses(nascISO, refISO){
+  if(!nascISO || !refISO) return null;
+  const n = new Date(nascISO+'T00:00:00');
+  const r = new Date(refISO+'T00:00:00');
+  if(isNaN(n)||isNaN(r)) return null;
+  let meses = (r.getFullYear()-n.getFullYear())*12 + (r.getMonth()-n.getMonth());
+  if(r.getDate() < n.getDate()) meses--;
+  return Math.max(0,meses);
+}
+function calcCategoria(nascISO, refISO){
+  const m = calcIdadeMeses(nascISO, refISO);
+  if(m===null) return '—';
+  if(m<=12) return '00–12';
+  if(m<=24) return '13–24';
+  if(m<=36) return '25–36';
+  return '36+';
+}
+function normalizarSisbov(v){
+  // Mantém zeros à esquerda e remove espaços/caracteres invisíveis.
+  return String(v??'').replace(/[\u0000-\u001F\u007F\u00A0]/g,'').replace(/\s+/g,'').trim();
+}
+// Build identifier indexes once. Keep the original insertion order when identifiers overlap.
+function criarIndice(items){
+ const fields=['sisbov','brinco','chip'],maps=Object.fromEntries(fields.map(k=>[k,new Map()])),rank=new Map(),keys=new Map();
+ const value=(a,k)=>k==='sisbov'?normalizarSisbov(a[k]):String(a[k]||'').trim();
+ function remove(a){const old=keys.get(a);if(old)for(const k of fields){const set=maps[k].get(old[k]);if(set){set.delete(a);if(!set.size)maps[k].delete(old[k]);}}keys.delete(a);}
+ function add(a,position){if(!rank.has(a))rank.set(a,position??rank.size);const old=keys.get(a);if(old)for(const k of fields){const set=maps[k].get(old[k]);if(set){set.delete(a);if(!set.size)maps[k].delete(old[k]);}}const next={};for(const k of fields){const v=value(a,k);next[k]=v;if(v){if(!maps[k].has(v))maps[k].set(v,new Set());maps[k].get(v).add(a);}}keys.set(a,next);}
+ function candidates(m,only){const found=new Set();for(const k of only||fields){const v=value(m,k);if(v)for(const a of maps[k].get(v)||[])found.add(a);}return [...found].sort((a,b)=>rank.get(a)-rank.get(b));}
+ items.forEach(add);return {add,remove,position:a=>rank.get(a),candidates,first:m=>candidates(m)[0]||null};
+}
+const masterIndex=criarIndice(DB.animais),masterIds=new Map();for(const a of DB.animais)if(!masterIds.has(a.id))masterIds.set(a.id,a);
+function buscarAnimalPorSisbov(sisbov){
+ const candidatos=masterIndex.candidates({sisbov},['sisbov']);
+ return candidatos.sort((a,b)=>{const origem=(b.origem==='inicial'?1:0)-(a.origem==='inicial'?1:0);if(origem)return origem;const campos=['brinco','chip','sexo','raca','nascimento','setorInicial'];return campos.filter(k=>b[k]).length-campos.filter(k=>a[k]).length;})[0]||null;
+}
+function buildMapaNaData(refISO){
   const state = new Map(); // id -> animal state
+  let stateIndex=null;
+  const putState=(id,a)=>{const old=state.get(id),position=old&&stateIndex?.position(old);if(old&&stateIndex)stateIndex.remove(old);state.set(id,a);if(stateIndex)stateIndex.add(a,position);};
   const inconsistencias = [];
 
   DB.animais.filter(a=>a.origem==='inicial' || a.origem==='cadastro').forEach(a=>{
-    state.set(a.id, {
+    putState(a.id, {
       id:a.id, sisbov:a.sisbov, brinco:a.brinco, chip:a.chip, sexo:a.sexo, raca:a.raca,
       nascimento:a.nascimento, setorAtual:a.setorInicial, localAtual:a.localInicial||'', status:'ATIVO', sintetico:false,
       historico:[{data:DB.config.dataMapaInicial, tipo:'Mapa Inicial', setor:a.setorInicial}]
@@ -3229,47 +3280,36 @@ function buildMapaNaData(refISO){
   const movs = DB.movimentacoes.filter(m=>m.data<=refISO).slice().sort((a,b)=>
     a.data<b.data?-1:(a.data>b.data?1:ordemMovimentacao(a)-ordemMovimentacao(b))
   );
+  stateIndex=criarIndice([...state.values()]);
+  const purchaseDays=new Map(),transferDays=new Map();
+  for(const m of movs){const group=m.tipo==='Compra'?purchaseDays:m.tipo==='Transferência entre Seções'?transferDays:null;if(group){if(!group.has(m.data))group.set(m.data,[]);group.get(m.data).push(m);}}
+  for(const [day,list]of purchaseDays)purchaseDays.set(day,criarIndice(list));
+  for(const [day,list]of transferDays)transferDays.set(day,criarIndice(list));
   function compraComTransferenciaCorrespondente(m){
-    const compra = m.tipo==='Compra' ? m : movs.find(c=>
-      c.tipo==='Compra' && c.data===m.data &&
-      ((m.sisbov && c.sisbov && normalizarSisbov(m.sisbov)===normalizarSisbov(c.sisbov)) ||
-       (m.brinco && c.brinco && String(m.brinco).trim()===String(c.brinco).trim()) ||
-       (m.chip && c.chip && String(m.chip).trim()===String(c.chip).trim()))
-    );
-    if(!compra) return false;
-    return movs.some(t=>
-      t!==compra && t.tipo==='Transferência entre Seções' && t.data===compra.data &&
-      ((compra.sisbov && t.sisbov && normalizarSisbov(compra.sisbov)===normalizarSisbov(t.sisbov)) ||
-       (compra.brinco && t.brinco && String(compra.brinco).trim()===String(t.brinco).trim()) ||
-       (compra.chip && t.chip && String(compra.chip).trim()===String(t.chip).trim()))
-    );
+   const compra=m.tipo==='Compra'?m:purchaseDays.get(m.data)?.first(m);
+   return !!compra&&!!transferDays.get(compra.data)?.candidates(compra).some(t=>t!==compra);
   }
 
   function acharAnimalMovimentacao(m){
     if(m.animalId && state.has(m.animalId)) return state.get(m.animalId);
     const sisbov=normalizarSisbov(m.sisbov), brinco=String(m.brinco||'').trim(), chip=String(m.chip||'').trim();
-    for(const v of state.values()){
-      if((sisbov && normalizarSisbov(v.sisbov)===sisbov) || (brinco && String(v.brinco||'').trim()===brinco) || (chip && String(v.chip||'').trim()===chip)) return v;
-    }
+    const indexed=stateIndex.first(m);if(indexed)return indexed;
     // Recuperação de segurança: entradas de auditoria podem estar cadastradas
     // em DB.animais com origem "compra", embora ainda não tenham sido criadas
     // no estado por uma importação/ordem histórica inconsistente.
-    const cadastrado = (m.animalId && DB.animais.find(a=>a.id===m.animalId)) ||
-      DB.animais.find(a=>(sisbov && normalizarSisbov(a.sisbov)===sisbov) ||
-        (brinco && String(a.brinco||'').trim()===brinco) ||
-        (chip && String(a.chip||'').trim()===chip));
+    const cadastrado=(m.animalId&&masterIds.get(m.animalId))||masterIndex.first(m);
     if(cadastrado){
       const recuperado={id:cadastrado.id, sisbov:cadastrado.sisbov, brinco:cadastrado.brinco,
         chip:cadastrado.chip, sexo:cadastrado.sexo, raca:cadastrado.raca,
         nascimento:cadastrado.nascimento, setorAtual:m.setorOrigem||cadastrado.setorInicial, localAtual:m.local||'',
         status:'ATIVO', sintetico:false, historico:[{data:m.data, tipo:'Cadastro recuperado', setor:m.setorOrigem||cadastrado.setorInicial}]};
-      state.set(recuperado.id, recuperado);
+      putState(recuperado.id, recuperado);
       return recuperado;
     }
     return null;
   }
   function criarAnimal(m, index){
-    const master = buscarAnimalPorSisbov(m.sisbov) || DB.animais.find(a=>(m.brinco && String(a.brinco||'').trim()===String(m.brinco).trim()) || (m.chip && String(a.chip||'').trim()===String(m.chip).trim())) || null;
+    const master=buscarAnimalPorSisbov(m.sisbov)||masterIndex.candidates(m,['brinco','chip'])[0]||null;
     const idBase = master ? master.id : uid('agg');
     const novo = {
       id: m.quantidade>1 ? `${idBase}_${index}` : idBase,
@@ -3280,7 +3320,7 @@ function buildMapaNaData(refISO){
       setorAtual: m.setorDestino || m.setorOrigem, localAtual:m.local||'', status:'ATIVO', sintetico: m.quantidade>1,
       historico:[{data:m.data, tipo:m.tipo, setor:m.setorDestino||m.setorOrigem}]
     };
-    state.set(novo.id, novo);
+    putState(novo.id, novo);
     return novo;
   }
 
@@ -3379,6 +3419,7 @@ function buildMapaNaData(refISO){
       const brincoAnterior=alvo.brinco;
       alvo.sisbov=sisbovNovo;
       alvo.brinco=brincoNovo;
+      stateIndex.add(alvo);
       alvo.historico.push({data:m.data,tipo:'Reidentificação',setor:alvo.setorAtual,sisbovAnterior,sisbovNovo,brincoAnterior,brincoNovo,sisbov:sisbovNovo});
       return;
     }
@@ -3422,6 +3463,10 @@ function buildMapaNaData(refISO){
   }));
 
   return {animais, inconsistencias};
+}
+
+
+return buildMapaNaData(refISO);
 }
 
 function calcularEstadoAte(ref){const mapa=buildMapaNaData(ref);return {...mapa,ativos:mapa.animais.filter(a=>a.status==='ATIVO')};}
@@ -3993,7 +4038,7 @@ function renderHeaderCounters(){
   const elData=document.getElementById('headerDate');
   if(elData) elData.textContent=new Date().toLocaleDateString('pt-BR');
   try{
-    const mapa=(!AUTH_ADMIN&&MAPA_SERVIDOR)?MAPA_SERVIDOR:buildMapaNaData(todayISO());
+    const mapa=(!AUTH_ADMIN&&MAPA_SERVIDOR)?MAPA_SERVIDOR:buildMapaUICached(todayISO());
     const lista=Array.isArray(mapa?.animais)?mapa.animais:[];
     const ativos=lista.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
     if(ativos.length || lista.length){
@@ -4009,15 +4054,16 @@ function renderHeaderCounters(){
 }
 
 
-let __MAPA_UI_CACHE = { key:'', value:null };
+let __MAPA_UI_CACHE = new Map();
 function buildMapaUICached(ref){
-  const key = String(ref||'')+'|'+(DB.animais?.length||0)+'|'+(DB.movimentacoes?.length||0);
-  if(__MAPA_UI_CACHE.key===key && __MAPA_UI_CACHE.value) return __MAPA_UI_CACHE.value;
+  const key = String(ref||'')+'|'+DB_GENERATION+'|'+(DB.animais?.length||0)+'|'+(DB.movimentacoes?.length||0)+'|'+(DB.config?.dataMapaInicial||'');
+  if(__MAPA_UI_CACHE.has(key))return __MAPA_UI_CACHE.get(key);
   const value=buildMapaNaData(ref);
-  __MAPA_UI_CACHE={key,value};
+  if(__MAPA_UI_CACHE.size>=10)__MAPA_UI_CACHE.delete(__MAPA_UI_CACHE.keys().next().value);
+  __MAPA_UI_CACHE.set(key,value);
   return value;
 }
-function invalidarMapaUICache(){ __MAPA_UI_CACHE={key:'',value:null}; }
+function invalidarMapaUICache(){ __MAPA_UI_CACHE.clear(); }
 
 function campoDadosValido(v){const x=String(v??'').trim();return !!x&&!['—','-','pendente','n/a','na','sem setor','sem seção'].includes(x.toLowerCase());}
 function problemasQualidadeDados(ativos){
@@ -6382,11 +6428,9 @@ function prepararSistemaCarregado(){
   document.getElementById('relFim').value = todayISO();
   initEvents(); aplicarPermissoes(); renderAll();
   requestAnimationFrame(()=>{
-    if(podeAcesso('dashboard','ver'))renderDashboard();
-    renderHeaderCounters();
     window.dispatchEvent(new Event('resize'));
   });
-  setTimeout(()=>{renderHeaderCounters();aplicarPermissoes();},350);
+  setTimeout(()=>aplicarPermissoes(),350);
   setTimeout(()=>recuperarBaseCentralAposInicio(),700);
   setTimeout(()=>recuperarBaseCentralAposInicio(),2200);
 }
