@@ -1744,7 +1744,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-04-session-background-v14';
+  window.__MAPA_BUILD__='2026-10-04-dashboard-compras-v15';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -4168,7 +4168,8 @@ function renderDashboard(){
   const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   const tipo=m=>norm(tipoOperacionalMov(m)||m.tipo);
   const qtd=m=>Number(m.quantidade)||1;
-  const isCompra=m=>norm(m.tipo).includes('compra') || norm(m.observacao).includes('compra');
+  // Observations describe a movement; they must not classify it as a second type.
+  const isCompra=m=>norm(m.tipo)==='compra';
   const isNasc=m=>tipo(m).includes('nascimento');
   const isMorte=m=>tipo(m).includes('morte');
   const isVenda=m=>tipo(m).includes('venda');
@@ -4184,11 +4185,11 @@ function renderDashboard(){
   const pctDelta=inicial?delta/inicial*100:0;
   const card=(lbl,val,sub,icon,tone,cls='')=>`<div class="kpi-card ${tone?'tone-'+tone:''} ${cls}"><div class="kpi-icon">${svgIcon(icon)}</div><div><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
   document.getElementById('dashKpis').innerHTML=[
-    card('SALDO ATUAL',ativos.length.toLocaleString('pt-BR'),'cabeças ativas','stack','', 'current'),
     card('SALDO INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack',''),
     card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus',''),
     card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red'),
-    card('VARIAÇÃO',`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')}`,`${pctDelta.toFixed(1).replace('.',',')}% em relação à base inicial`,'chart','')
+    card('VARIAÇÃO',`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')}`,`${pctDelta.toFixed(1).replace('.',',')}% em relação à base inicial`,'chart',''),
+    card('SALDO ATUAL',ativos.length.toLocaleString('pt-BR'),'cabeças ativas','stack','', 'current')
   ].join('');
 
   const catCounts={}; CATEGORIAS.forEach(c=>catCounts[c]=0); ativos.forEach(a=>{if(catCounts[a.categoria]!==undefined)catCounts[a.categoria]++});
@@ -6282,7 +6283,7 @@ html body .toolbar input,html body .toolbar select{min-height:38px;border-radius
 html body #view-dashboard{background:transparent!important;border:0!important;padding:0!important;box-shadow:none!important}
 html body #view-dashboard .exec-sync-top{min-width:0!important;width:auto!important;margin:0 0 18px!important;background:transparent!important;padding:0!important;border:0!important;box-shadow:none!important;font-size:11px!important;color:var(--muted)!important}
 html body #view-dashboard .exec-sync-top br{display:none}html body #view-dashboard .exec-sync-top span{margin-left:10px}
-html body #view-dashboard .exec-kpis{grid-template-columns:1.45fr repeat(4,minmax(0,1fr))!important;gap:12px!important;margin-bottom:18px!important}
+html body #view-dashboard .exec-kpis{grid-template-columns:repeat(4,minmax(0,1fr)) 1.45fr!important;gap:12px!important;margin-bottom:18px!important}
 html body #view-dashboard .kpi-card{background:var(--surface)!important;border:1px solid var(--line)!important;border-radius:7px!important;box-shadow:none!important;min-height:134px!important;padding:18px 16px!important;position:relative;display:flex!important;flex-direction:row-reverse;justify-content:space-between;gap:6px!important}
 html body #view-dashboard .kpi-card.current{background:#e8f2e9!important;border-color:#e8f2e9!important}
 html body #view-dashboard .kpi-val{color:var(--ink)!important;font-size:29px!important;letter-spacing:-.7px!important;font-variant-numeric:tabular-nums}
