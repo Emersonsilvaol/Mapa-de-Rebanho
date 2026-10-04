@@ -1279,10 +1279,18 @@ thead th{
   <section id="view-dashboard" class="view active exec-dashboard">
     <h2 class="view-title">Visão geral do rebanho</h2><p class="view-sub">Posição consolidada da fazenda</p>
     <div class="exec-sync exec-sync-top" id="dashSync"></div>
+    <form id="dashFilterForm" class="toolbar dashboard-filters">
+      <div class="field"><label for="dashIni">Data inicial</label><input type="date" id="dashIni"></div>
+      <div class="field"><label for="dashFim">Data final</label><input type="date" id="dashFim"></div>
+      <div class="field"><label for="dashSecao">Seção</label><select id="dashSecao"><option value="">Todas as seções</option></select></div>
+      <div class="field"><label for="dashSexo">Sexo</label><select id="dashSexo"><option value="">Todos</option><option value="Macho">Machos</option><option value="Fêmea">Fêmeas</option></select></div>
+      <button type="submit" class="btn btn-primary">Aplicar filtros</button><button type="button" class="btn btn-outline" id="dashLimpar">Limpar</button>
+      <p id="dashFilterStatus" role="status" aria-live="polite" style="flex-basis:100%;margin:0;font-size:12px;color:var(--muted)"></p>
+    </form>
     <div class="exec-kpis" id="dashKpis"></div>
     <div id="dashDataQuality" class="data-quality" hidden></div>
     <div class="exec-row dashboard-overview">
-      <div class="panel"><div class="panel-head"><h3>Rebanho por seção</h3></div><div class="panel-body" id="dashSections"></div></div>
+      <div class="panel"><div class="panel-head"><h3>Resumo por seção</h3></div><div class="panel-body" id="dashSections"></div></div>
       <div class="panel composition-panel"><div class="panel-head"><h3>Composição do rebanho</h3></div><div class="panel-body"><div id="dashSex"></div><div id="dashSexCat"></div></div></div>
     </div>
     <div class="exec-row dashboard-activity">
@@ -1298,7 +1306,7 @@ thead th{
       <div class="panel dashboard-mortality" style="margin-top:16px">
       <div class="panel-head"><div><h3>Mortalidade</h3><span class="sub">Indicador gerencial integrado ao Dashboard</span></div></div>
       <div class="panel-body">
-        <div class="toolbar" style="padding:0 0 12px">
+        <div class="toolbar" hidden style="padding:0 0 12px">
           <div class="field"><label>Data inicial</label><input type="date" id="mortIni"></div>
           <div class="field"><label>Data final</label><input type="date" id="mortFim"></div>
           <div class="field"><label>Setor</label><select id="mortSetor"><option value="">Todos</option></select></div>
@@ -1744,7 +1752,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-04-dashboard-compras-v15';
+  window.__MAPA_BUILD__='2026-10-04-dashboard-filtros-v16';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -4157,29 +4165,47 @@ function abrirQualidadeDados(filtro=''){
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-quality-filter]');if(b)abrirQualidadeDados(b.dataset.qualityFilter);});
 
+let DASH_FILTROS={ini:'',fim:'',setor:'',sexo:''};
+function normalizarDashboard(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
+function dataAnteriorDashboard(d){const date=new Date(d+'T12:00:00Z');date.setUTCDate(date.getUTCDate()-1);return date.toISOString().slice(0,10);}
+function contextoDashboard(){
+ const f={...DASH_FILTROS,fim:DASH_FILTROS.fim||todayISO()};
+ const norm=normalizarDashboard,qtd=m=>Number(m.quantidade)||1;
+ const secao=v=>String(v||'').trim()||'Sem setor';
+ const sexo=v=>norm(v).startsWith('f')?'Fêmea':norm(v).startsWith('m')?'Macho':'';
+ const animalOK=a=>(!f.setor||norm(secao(a.setorAtual||a.setor||a.setorInicial))===norm(f.setor))&&(!f.sexo||sexo(a.sexo)===f.sexo);
+ const mapa=d=>buildMapaUICached(d).animais.filter(a=>String(a.status||'').toUpperCase()==='ATIVO'&&animalOK(a));
+ const abertura=f.ini&&f.ini>String(DB.config.dataMapaInicial||'')?mapa(dataAnteriorDashboard(f.ini)):DB.animais.filter(a=>a.origem==='inicial').map(a=>({...a,setorAtual:a.setorInicial})).filter(animalOK);
+ const ativos=mapa(f.fim),masters=new Map();
+ DB.animais.forEach(a=>{masters.set(a.id,a);if(a.sisbov)masters.set('sis:'+a.sisbov,a);});
+ const tipo=m=>norm(m.tipo),isNasc=m=>tipo(m)==='nascimento',isCompra=m=>tipo(m)==='compra',isAuditoria=m=>tipo(m)==='animais sem auditar',isMorte=m=>tipo(m)==='morte',isVenda=m=>tipo(m).startsWith('venda'),isTransf=m=>tipo(m)==='transferencia entre secoes';
+ const entrada=m=>isNasc(m)||isCompra(m)||isAuditoria(m),saida=m=>isMorte(m)||isVenda(m);
+ const origem=m=>secao(m.setorOrigem||m.setor),destino=m=>secao(m.setorDestino||m.setor||m.setorOrigem);
+ const movs=DB.movimentacoes.filter(m=>m.data&&(!f.ini||m.data>=f.ini)&&m.data<=f.fim&&(!f.sexo||sexo(m.sexo||masters.get(m.animalId)?.sexo||masters.get('sis:'+m.sisbov)?.sexo)===f.sexo)&&(!f.setor||(entrada(m)?norm(destino(m))===norm(f.setor):saida(m)?norm(origem(m))===norm(f.setor):norm(origem(m))===norm(f.setor)||norm(destino(m))===norm(f.setor))));
+ const entra=m=>entrada(m)||(!!f.setor&&isTransf(m)&&norm(destino(m))===norm(f.setor)&&norm(origem(m))!==norm(f.setor));
+ const sai=m=>saida(m)||(!!f.setor&&isTransf(m)&&norm(origem(m))===norm(f.setor)&&norm(destino(m))!==norm(f.setor));
+ return {f,norm,qtd,secao,sexo,animalOK,mapa,abertura,ativos,movs,isNasc,isCompra,isAuditoria,isMorte,isVenda,isTransf,entrada,saida,origem,destino,entra,sai};
+}
+function prepararFiltrosDashboard(){
+ const form=document.getElementById('dashFilterForm');if(!form)return;
+ const setores=[...new Set([...DB.setores.map(s=>typeof s==='string'?s:s.nome),...DB.animais.map(a=>a.setorInicial),...DB.movimentacoes.flatMap(m=>[m.setorOrigem,m.setorDestino])].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+ const select=document.getElementById('dashSecao');select.innerHTML='<option value="">Todas as seções</option>'+setores.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')+'<option value="Sem setor">Sem setor</option>';
+ document.getElementById('dashIni').value=DASH_FILTROS.ini;document.getElementById('dashFim').value=DASH_FILTROS.fim||todayISO();select.value=DASH_FILTROS.setor;document.getElementById('dashSexo').value=DASH_FILTROS.sexo;
+ form.onsubmit=e=>{e.preventDefault();const ini=document.getElementById('dashIni').value,fim=document.getElementById('dashFim').value||todayISO();if(ini&&ini>fim){document.getElementById('dashFilterStatus').textContent='A data inicial deve ser anterior ou igual à data final.';return;}DASH_FILTROS={ini,fim,setor:select.value,sexo:document.getElementById('dashSexo').value};renderDashboard();};
+ document.getElementById('dashLimpar').onclick=()=>{DASH_FILTROS={ini:'',fim:'',setor:'',sexo:''};renderDashboard();};
+}
 function renderDashboard(){
   document.getElementById('alertaCadastro')?.remove();
-  const ref=todayISO();
-  const {animais}=buildMapaUICached(ref);
-  const ativos=animais.filter(a=>String(a.status||'').trim().toUpperCase()==='ATIVO');
-  setHeaderHerdCount(ativos.length);
+  prepararFiltrosDashboard();
+  const ctx=contextoDashboard();
+  const {f,ativos,abertura,movs,norm,qtd,isCompra,isNasc,isMorte,isVenda,isTransf,entra,sai}=ctx;
+  const ref=f.fim,inicial=abertura.length;
+  setHeaderHerdCount(buildMapaUICached(todayISO()).animais.filter(a=>String(a.status||'').toUpperCase()==='ATIVO').length);
   renderQualidadeDados(ativos);
-  const inicial=DB.animais.filter(a=>a.origem==='inicial').length;
-  const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  const tipo=m=>norm(tipoOperacionalMov(m)||m.tipo);
-  const qtd=m=>Number(m.quantidade)||1;
-  // Observations describe a movement; they must not classify it as a second type.
-  const isCompra=m=>norm(m.tipo)==='compra';
-  const isNasc=m=>tipo(m).includes('nascimento');
-  const isMorte=m=>tipo(m).includes('morte');
-  const isVenda=m=>tipo(m).includes('venda');
-  const isTransf=m=>tipo(m).includes('transfer');
-  const nasc=DB.movimentacoes.filter(isNasc).reduce((s,m)=>s+qtd(m),0);
-  const compras=DB.movimentacoes.filter(isCompra).reduce((s,m)=>s+qtd(m),0);
-  const mortes=DB.movimentacoes.filter(isMorte).reduce((s,m)=>s+qtd(m),0);
-  const vendas=DB.movimentacoes.filter(isVenda).reduce((s,m)=>s+qtd(m),0);
-  const transf=DB.movimentacoes.filter(isTransf).reduce((s,m)=>s+qtd(m),0);
-  const entradas=nasc+compras, saidas=mortes+vendas;
+  const soma=fn=>movs.filter(fn).reduce((s,m)=>s+qtd(m),0);
+  const nasc=soma(isNasc),compras=soma(isCompra),mortes=soma(isMorte),vendas=soma(isVenda),transf=soma(isTransf);
+  const entradas=soma(entra),saidas=soma(sai);
+  document.getElementById('dashFilterStatus').textContent=`${f.ini?formatBR(f.ini):'Desde a base inicial'} até ${formatBR(ref)} · ${f.setor||'Todas as seções'} · ${f.sexo||'Todos os sexos'}. Saldo inicial: abertura do período; saldo atual: data final.`;
   const femeas=ativos.filter(a=>norm(a.sexo).startsWith('f')).length, machos=ativos.filter(a=>norm(a.sexo).startsWith('m')).length;
   const delta=ativos.length-inicial;
   const pctDelta=inicial?delta/inicial*100:0;
@@ -4188,7 +4214,7 @@ function renderDashboard(){
     card('SALDO INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack',''),
     card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus',''),
     card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red'),
-    card('VARIAÇÃO',`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')}`,`${pctDelta.toFixed(1).replace('.',',')}% em relação à base inicial`,'chart',''),
+    card('VARIAÇÃO',`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')}`,`${pctDelta.toFixed(1).replace('.',',')}% em relação ao saldo inicial`,'chart',''),
     card('SALDO ATUAL',ativos.length.toLocaleString('pt-BR'),'cabeças ativas','stack','', 'current')
   ].join('');
 
@@ -4203,32 +4229,39 @@ function renderDashboard(){
   const pf=ativos.length?femeas/ativos.length*100:0;
   document.getElementById('dashSex').innerHTML=[['Fêmeas',femeas],['Machos',machos]].map(([label,total])=>{const pct=ativos.length?total/ativos.length*100:0;return `<div class="composition-sex"><span>${label}</span><div><b>${total.toLocaleString('pt-BR')}</b> <small>(${pct.toFixed(1).replace('.',',')}%)</small></div><div class="composition-track" aria-hidden="true"><i style="width:${pct}%"></i></div></div>`;}).join('');
 
-  const monthly={}; DB.movimentacoes.forEach(m=>{const d=String(m.data||'');if(!/^\d{4}-\d{2}/.test(d))return;const k=d.slice(0,7);monthly[k]??={in:0,out:0};if(isNasc(m)||isCompra(m))monthly[k].in+=qtd(m);if(isMorte(m)||isVenda(m))monthly[k].out+=qtd(m)});
+  const monthly={}; movs.forEach(m=>{const d=String(m.data||'');if(!/^\d{4}-\d{2}/.test(d))return;const k=d.slice(0,7);monthly[k]??={in:0,out:0};if(entra(m))monthly[k].in+=qtd(m);if(sai(m))monthly[k].out+=qtd(m)});
   const months=Object.keys(monthly).sort().slice(-9), maxFlow=Math.max(1,...months.flatMap(k=>[monthly[k].in,monthly[k].out]));
   document.getElementById('dashFlow').innerHTML=`<div style="font-size:10px;margin-bottom:4px"><span style="color:#2e9b59">■ Entradas</span> &nbsp; <span style="color:#9f8047">■ Saídas</span></div><div class="mini-bars">${months.map(k=>`<div class="mini-month"><div class="mini-pair"><div class="mini-bar mini-in dash-hover-data" style="height:${monthly[k].in/maxFlow*110}px" data-dash-tip="${k.slice(5)}/${k.slice(0,4)} · Entradas: ${monthly[k].in.toLocaleString('pt-BR')} cabeças"></div><div class="mini-bar mini-out dash-hover-data" style="height:${monthly[k].out/maxFlow*110}px" data-dash-tip="${k.slice(5)}/${k.slice(0,4)} · Saídas: ${monthly[k].out.toLocaleString('pt-BR')} cabeças"></div></div>${k.slice(5)}</div>`).join('')}</div>`;
 
   const evolutionMonths=Object.keys(monthly).filter(k=>k<=ref.slice(0,7)).sort().slice(-8);
-  const points=evolutionMonths.map(k=>{const [year,month]=k.split('-').map(Number);const end=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);const day=end>ref?ref:end;return {day,value:buildMapaUICached(day).animais.filter(a=>String(a.status||'').toUpperCase()==='ATIVO').length};});
+  const points=evolutionMonths.map(k=>{const [year,month]=k.split('-').map(Number);const end=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);const day=end>ref?ref:end;return {day,value:ctx.mapa(day).length};});
   if(!points.length||points[points.length-1].day!==ref)points.push({day:ref,value:ativos.length});
   const low=Math.min(...points.map(p=>p.value)),high=Math.max(...points.map(p=>p.value)),pad=Math.max(5,Math.ceil((high-low)*.18));
   const bottom=Math.max(0,low-pad),top=high+pad;
   const xy=points.map((p,i)=>({x:60+i*700/Math.max(1,points.length-1),y:210-(p.value-bottom)/(top-bottom)*170,...p}));
   const path=xy.map((p,i)=>`${i?'L':'M'}${p.x},${p.y}`).join(' ');
-  document.getElementById('dashEvolution').innerHTML=`<div class="trend-heading"><span>Saldo em cada fechamento mensal</span><strong>${ativos.length.toLocaleString('pt-BR')} <small>cabeças hoje</small></strong></div><svg class="balance-trend" viewBox="0 0 810 260" role="img" aria-label="Evolução do saldo ativo, calculado pelo mapa em cada data">${[0,1,2,3].map(i=>{const y=40+i*170/3,v=top-i*(top-bottom)/3;return `<line x1="60" x2="760" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="3 5"/><text x="50" y="${y+4}" text-anchor="end">${Math.round(v).toLocaleString('pt-BR')}</text>`}).join('')}<path d="${path} L${xy[xy.length-1].x},210 L${xy[0].x},210 Z" fill="var(--chart-area)"/><path d="${path}" fill="none" stroke="var(--chart-green)" stroke-width="3" stroke-linejoin="round"/>${xy.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="5" fill="var(--chart-green)"><title>${formatBR(p.day)}: ${p.value.toLocaleString('pt-BR')} cabeças</title></circle><text x="${p.x}" y="240" text-anchor="middle">${p.day.slice(5,7)}/${p.day.slice(0,4)}</text>`).join('')}</svg><div class="chart-note">Saldo ativo por data • mês atual até ${formatBR(ref)}</div>`;
+  document.getElementById('dashEvolution').innerHTML=`<div class="trend-heading"><span>Saldo em cada fechamento mensal</span><strong>${ativos.length.toLocaleString('pt-BR')} <small>cabeças em ${formatBR(ref)}</small></strong></div><svg class="balance-trend" viewBox="0 0 810 260" role="img" aria-label="Evolução do saldo ativo, calculado pelo mapa em cada data">${[0,1,2,3].map(i=>{const y=40+i*170/3,v=top-i*(top-bottom)/3;return `<line x1="60" x2="760" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="3 5"/><text x="50" y="${y+4}" text-anchor="end">${Math.round(v).toLocaleString('pt-BR')}</text>`}).join('')}<path d="${path} L${xy[xy.length-1].x},210 L${xy[0].x},210 Z" fill="var(--chart-area)"/><path d="${path}" fill="none" stroke="var(--chart-green)" stroke-width="3" stroke-linejoin="round"/>${xy.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="5" fill="var(--chart-green)"><title>${formatBR(p.day)}: ${p.value.toLocaleString('pt-BR')} cabeças</title></circle><text x="${p.x}" y="240" text-anchor="middle">${p.day.slice(5,7)}/${p.day.slice(0,4)}</text>`).join('')}</svg><div class="chart-note">Saldo ativo por data • período até ${formatBR(ref)}</div>`;
   document.getElementById('dashTransfer').innerHTML=`<div class="transfer-symbol">⇄</div><div class="transfer-value">${transf.toLocaleString('pt-BR')}</div><p>Transferências entre seções</p><span>Não alteram o saldo total da fazenda</span>`;
-  const byInitial={};DB.animais.filter(a=>a.origem==='inicial').forEach(a=>{const k=a.setorInicial||'Sem seção';byInitial[k]=(byInitial[k]||0)+1});
-  const sections=[...new Set([...DB.setores,...Object.keys(byInitial),...Object.keys(setorCounts)])];
-  document.getElementById('dashSections').innerHTML=`<div class="table-wrap"><table class="exec section-comparison"><thead><tr><th>Seção</th><th class="num">Saldo inicial</th><th class="num">Saldo atual</th><th class="num">Variação</th><th>Participação atual</th></tr></thead><tbody>${sections.map(k=>{const a=byInitial[k]||0,b=setorCounts[k]||0,d=b-a;return `<tr><td>${k==='Sem setor'?'<button type="button" class="btn btn-outline btn-sm" data-quality-filter="Sem setor">Sem setor · conferir</button>':esc(k)}</td><td class="num">${a.toLocaleString('pt-BR')}</td><td class="num"><b>${b.toLocaleString('pt-BR')}</b></td><td class="num">${d>0?'+':''}${d.toLocaleString('pt-BR')}</td><td><div class="section-participation"><span>${(ativos.length?b/ativos.length*100:0).toFixed(1).replace('.',',')}%</span><div class="section-share"><i style="width:${ativos.length?b/ativos.length*100:0}%"></i></div></div></td></tr>`}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${inicial.toLocaleString('pt-BR')}</td><td class="num">${ativos.length.toLocaleString('pt-BR')}</td><td class="num">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</td><td>100%</td></tr></tbody></table></div>`;
+  const rows=new Map();
+  const row=k=>{k=ctx.secao(k);if(!rows.has(k))rows.set(k,{initial:0,in:0,out:0,current:0});return rows.get(k);};
+  abertura.forEach(a=>row(a.setorAtual||a.setor||a.setorInicial).initial++);
+  ativos.forEach(a=>row(a.setorAtual||a.setor||a.setorInicial).current++);
+  DB.setores.forEach(s=>row(typeof s==='string'?s:s.nome));
+  movs.forEach(m=>{const o=ctx.origem(m),d=ctx.destino(m),n=qtd(m);if(ctx.entrada(m))row(d).in+=n;if(ctx.saida(m))row(o).out+=n;if(isTransf(m)&&norm(o)!==norm(d)){row(o).out+=n;row(d).in+=n;}});
+  const sections=[...rows.keys()].filter(k=>!f.setor||norm(k)===norm(f.setor)).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const numero=n=>n.toLocaleString('pt-BR');
+  document.getElementById('dashSections').innerHTML=`<div class="table-wrap"><table class="exec section-comparison"><thead><tr><th>Seção</th><th class="num">Saldo inicial</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Saldo atual</th><th class="num">Variação</th></tr></thead><tbody>${sections.map(k=>{const v=rows.get(k),d=v.current-v.initial;return `<tr><td>${esc(k)}</td><td class="num">${numero(v.initial)}</td><td class="num">${numero(v.in)}</td><td class="num">${numero(v.out)}</td><td class="num"><b>${numero(v.current)}</b></td><td class="num">${d>0?'+':''}${numero(d)}</td></tr>`;}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${numero(inicial)}</td><td class="num">${numero(entradas)}</td><td class="num">${numero(saidas)}</td><td class="num">${numero(ativos.length)}</td><td class="num">${delta>0?'+':''}${numero(delta)}</td></tr></tbody></table></div><p class="chart-note">As seções incluem transferências nas entradas e saídas. No total da fazenda, transferências internas se anulam.</p>`;
 
   const ageCounts={}; CATEGORIAS.forEach(c=>ageCounts[c]=0); ativos.forEach(a=>{if(ageCounts[a.categoria]!==undefined)ageCounts[a.categoria]++});
   const ageEl=document.getElementById('dashAge'); if(ageEl) ageEl.innerHTML=barList(ageCounts,c=>c+' meses');
 
   const mortRate=inicial?mortes/inicial*100:0, nascRate=inicial?nasc/inicial*100:0;
-  document.getElementById('dashIndicators').innerHTML=`<div class="exec-metric-grid"><div class="exec-metric"><b>${nascRate.toFixed(1).replace('.',',')}%</b><span>Nascimentos / mapa inicial</span></div><div class="exec-metric"><b>${mortRate.toFixed(1).replace('.',',')}%</b><span>Mortes / mapa inicial</span></div><div class="exec-metric"><b>${pf.toFixed(1).replace('.',',')}%</b><span>Fêmeas no rebanho atual</span></div><div class="exec-metric"><b>${(100-pf).toFixed(1).replace('.',',')}%</b><span>Machos no rebanho atual</span></div></div>`;
+  document.getElementById('dashIndicators').innerHTML=`<div class="exec-metric-grid"><div class="exec-metric"><b>${nascRate.toFixed(1).replace('.',',')}%</b><span>Nascimentos / saldo inicial</span></div><div class="exec-metric"><b>${mortRate.toFixed(1).replace('.',',')}%</b><span>Mortes / saldo inicial</span></div><div class="exec-metric"><b>${pf.toFixed(1).replace('.',',')}%</b><span>Fêmeas no rebanho atual</span></div><div class="exec-metric"><b>${(ativos.length?machos/ativos.length*100:0).toFixed(1).replace('.',',')}%</b><span>Machos no rebanho atual</span></div></div>`;
 
-  const recent=[...DB.movimentacoes].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).slice(0,6);
+  const recent=[...movs].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).slice(0,6);
   document.getElementById('dashRecent').innerHTML=`<table class="recent-table"><thead><tr><th>Data</th><th>Tipo</th><th>Qtde</th><th>Setor / Destino</th></tr></thead><tbody>${recent.map(m=>`<tr><td>${formatBR(m.data)||'-'}</td><td>${tipoOperacionalMov(m)||m.tipo||'-'}</td><td>${qtd(m)}</td><td>${m.setorDestino||m.setor||m.setorOrigem||'-'}</td></tr>`).join('')}</tbody></table>`;
 
+  renderMortalidade(ctx);
   const upd=DB.config?._centralUpdatedAt; let updTxt='Sincronizada'; try{if(upd)updTxt=new Date(upd).toLocaleString('pt-BR')}catch(e){}
   document.getElementById('dashSync').innerHTML=`<b>● Base sincronizada</b><br><span>Última atualização: ${updTxt}</span>`;
   document.getElementById('dashStatus').innerHTML=`<div class="status-line"><i class="status-ok"></i><div><b>Dados sincronizados</b><br>Origem: Supabase (nuvem)</div></div><div class="status-line"><i class="status-ok"></i><div><b>${ativos.length.toLocaleString('pt-BR')} animais ativos</b><br>${DB.movimentacoes.length.toLocaleString('pt-BR')} movimentações registradas</div></div><div class="status-line"><i class="status-ok"></i><div><b>${AUTH_ADMIN?'Modo Administrador':'Modo Consulta'}</b><br>${AUTH_ADMIN?'Edição e importação liberadas.':'Somente consulta. Alertas operacionais ocultos.'}</div></div>`;
@@ -5161,12 +5194,11 @@ function renderFichaAnimal(){
   out.innerHTML=`<div class="panel"><div class="panel-head"><h3>${a.sisbov||'Sem SISBOV'}</h3><span class="badge ${a.status==='ATIVO'?'badge-green':'badge-gold'}">${status}</span></div><div class="panel-body"><div class="grid2"><div class="detail-row"><span>Brinco</span><b>${a.brinco||'—'}</b></div><div class="detail-row"><span>Chip</span><b>${a.chip||'—'}</b></div><div class="detail-row"><span>Sexo</span><b>${a.sexo||'—'}</b></div><div class="detail-row"><span>Raça</span><b>${a.raca||'—'}</b></div><div class="detail-row"><span>Setor atual</span><b>${a.setorAtual||'—'}</b></div><div class="detail-row"><span>Local atual</span><b>${a.localAtual||'—'}</b></div><div class="detail-row"><span>Lote atual</span><b>${(DB.animais.find(v=>v.id===a.id)?.loteAtual)||a.loteAtual||'—'}</b></div><div class="detail-row"><span>Categoria</span><b>${a.categoria||'—'}</b></div></div></div></div><div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Linha do tempo</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Data</th><th>Evento</th><th>Identificação</th><th>Origem</th><th>Destino</th><th>Detalhe</th></tr></thead><tbody>${movs.map(m=>`<tr><td>${formatBR(m.data)}</td><td>${m.tipo}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td><td>${m.causaMorte||m.observacao||'—'}</td></tr>`).join('')||'<tr><td colspan="6">Sem movimentações.</td></tr>'}</tbody></table></div></div></div>`;
 }
 const BASE_DOCUMENTAL_MORTALIDADE=14951;
-function renderMortalidade(){
-  const ini=document.getElementById('mortIni')?.value||'', fim=document.getElementById('mortFim')?.value||todayISO(), setor=document.getElementById('mortSetor')?.value||'';
-  const lista=DB.movimentacoes.filter(m=>tipoOperacionalMov(m)==='Morte' && (!ini||m.data>=ini) && (!fim||m.data<=fim) && (!setor||m.setorOrigem===setor));
-  const qtd=lista.reduce((s,m)=>s+(Number(m.quantidade)||1),0); const base=buildMapaNaData(ini||DB.config.dataMapaInicial).animais.filter(a=>a.status==='ATIVO'&&(!setor||a.setorAtual===setor)).length; const taxa=base?qtd/base*100:0;
+function renderMortalidade(ctx=contextoDashboard()){
+  const lista=ctx.movs.filter(ctx.isMorte);
+  const qtd=lista.reduce((s,m)=>s+ctx.qtd(m),0),base=ctx.abertura.length,taxa=base?qtd/base*100:0;
   const causas={}; lista.forEach(m=>{const k=m.causaMorte||'Não informada';causas[k]=(causas[k]||0)+(Number(m.quantidade)||1)});
-  document.getElementById('mortResumo').innerHTML=`<div class="exec-kpis"><div class="kpi-card"><div><div class="kpi-lbl">MORTES</div><div class="kpi-val">${qtd.toLocaleString('pt-BR')}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">BASE NO INÍCIO</div><div class="kpi-val">${Number(BASE_DOCUMENTAL_MORTALIDADE).toLocaleString('pt-BR')}</div></div></div><div class="kpi-card tone-red"><div><div class="kpi-lbl">MORTALIDADE</div><div class="kpi-val">${taxa.toFixed(2).replace('.',',')}%</div></div></div></div>`;
+  document.getElementById('mortResumo').innerHTML=`<div class="exec-kpis"><div class="kpi-card"><div><div class="kpi-lbl">MORTES</div><div class="kpi-val">${qtd.toLocaleString('pt-BR')}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">BASE NO INÍCIO</div><div class="kpi-val">${base.toLocaleString('pt-BR')}</div></div></div><div class="kpi-card tone-red"><div><div class="kpi-lbl">MORTALIDADE</div><div class="kpi-val">${taxa.toFixed(2).replace('.',',')}%</div></div></div></div>`;
   document.getElementById('mortDetalhe').innerHTML=`<div class="panel"><div class="panel-head"><h3>Causas da morte</h3></div><div class="panel-body"><div class="table-wrap"><table class="exec"><thead><tr><th>Causa</th><th>Quantidade</th><th>%</th></tr></thead><tbody>${Object.entries(causas).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td><td>${qtd?(v/qtd*100).toFixed(1).replace('.',','):0}%</td></tr>`).join('')||'<tr><td colspan="3">Sem mortes no período.</td></tr>'}</tbody></table></div></div></div>`;
 }
 function renderConciliacao(){
@@ -6295,7 +6327,7 @@ html body #view-dashboard .kpi-icon{background:var(--canvas)!important;color:var
 html body #view-dashboard .tone-red .kpi-icon{color:#b64b4b!important;background:#fbeded!important}
 html body #view-dashboard .tone-red .kpi-val{color:#ae4444!important}
 html body #view-dashboard .exec-row{gap:16px!important;margin-bottom:16px!important}
-html body #view-dashboard .dashboard-overview,html body #view-dashboard .dashboard-activity{display:grid!important;grid-template-columns:minmax(0,1.5fr) minmax(365px,1fr)!important}
+html body #view-dashboard .dashboard-filters{margin-bottom:18px;align-items:flex-end}html body #view-dashboard .dashboard-overview,html body #view-dashboard .dashboard-activity{display:grid!important;grid-template-columns:minmax(0,1.5fr) minmax(365px,1fr)!important}
 html body #view-dashboard .dashboard-support{grid-template-columns:1.25fr .75fr 1fr!important}
 html body #view-dashboard .panel-body{min-height:0!important}
 html body #view-dashboard .section-comparison{min-width:500px!important;font-size:12px!important}
