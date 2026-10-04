@@ -7,8 +7,14 @@
 <meta name="mapa-build" content="2026-10-01-locais-lotes-conciliacao">
 
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Mapa Pecuário</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app-icon-192.png">
+<meta name="theme-color" content="#0F3B2E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mapa de Rebanho">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -1738,7 +1744,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-03-filtros-movimentacoes-v11';
+  window.__MAPA_BUILD__='2026-10-04-mobile-dark-v12';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -6697,5 +6703,130 @@ html[data-theme="dark"] body #view-dashboard .bar-track,html[data-theme="dark"] 
 <script>
 (function(){const btn=document.getElementById('themeToggle');function sync(){const dark=document.documentElement.dataset.theme==='dark';btn.textContent=dark?'Modo claro':'Modo escuro';btn.setAttribute('aria-pressed',String(dark));btn.setAttribute('aria-label',dark?'Ativar modo claro':'Ativar modo escuro');}btn.addEventListener('click',function(){const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';try{localStorage.setItem('mapa-display-theme',dark?'dark':'light');}catch(e){}sync();});sync();})();
 </script>
+<style id="mobile-dark-v12">
+/* Estados do tema escuro: a mesma paleta em controles, modais e detalhes. */
+html[data-theme="dark"]{
+ --ui-bg:var(--canvas);--ui-surface:var(--surface);--ui-surface-2:#22352b;
+ --ui-text:var(--ink);--ui-muted:var(--muted);--ui-line:var(--line);
+ --ui-soft:#243d2e;--green-50:#243d2e;--green-100:#243d2e;
+ --cinza-800:var(--ink);--verde-claro:#243d2e;--vermelho:#ffb1ac;--vermelho-bg:#452b2b;
+ --hover-surface:#293d31;--danger-bg:#67342f;--danger-hover:#80413a;
+ --verde-ok:#a8d9ba;--verde-ok-bg:#243d2e;
+}
+html[data-theme="dark"] body :is(h1,h2,h3,h4,h5,label,.field label,.module-kpi .value,.reid-animal-banner strong){color:var(--ink)!important}
+html[data-theme="dark"] body :is(.auth-card,.module-kpi,.reid-animal-banner,.reid-new-box,.section-chip,.dropzone,.card,.box,.section-card,.filter-card){background:var(--surface)!important;border-color:var(--line)!important;color:var(--ink)!important}
+html[data-theme="dark"] body :is(.module-kpi .label,.module-kpi .sub,.reid-animal-banner span,.auth-sub,.auth-field label,.modal-body p,.module-list .sub){color:var(--muted)!important}
+html[data-theme="dark"] body #authGate{background:var(--canvas)!important}
+html[data-theme="dark"] body #authGate .auth-card{background:var(--surface)!important;border-color:var(--line)!important}
+html[data-theme="dark"] body #modalOverlay #modalBox.modal-box{background:var(--surface)!important;border-color:var(--line)!important;color:var(--ink)!important}
+html[data-theme="dark"] body #modalOverlay :is(.modal-header,.modal-footer){background:var(--surface)!important;border-color:var(--line)!important;color:var(--ink)!important}
+html[data-theme="dark"] body :is(input,select,textarea){background:var(--canvas)!important;border-color:var(--line)!important;color:var(--ink)!important}
+html[data-theme="dark"] body :is(input,textarea)::placeholder{color:var(--muted)!important;opacity:1}
+html[data-theme="dark"] body select option{background:var(--surface);color:var(--ink)}
+html[data-theme="dark"] body :is(input,select,textarea):is(:hover,:focus-visible){background:#18271f!important;border-color:var(--chart-green)!important}
+html[data-theme="dark"] body :is(input,select,textarea):disabled{background:var(--surface)!important;color:var(--muted)!important;opacity:.65}
+html[data-theme="dark"] body :is(.btn-outline,.btn-secondary,.btn-logout,.row-action,#sidebarToggle){background:var(--surface)!important;border-color:var(--line)!important;color:var(--ink)!important}
+html[data-theme="dark"] body :is(.btn-outline,.btn-secondary,.btn-logout,.row-action,#sidebarToggle,.theme-toggle):is(:hover,:focus-visible,:active){background:var(--hover-surface)!important;color:var(--ink)!important;border-color:var(--chart-green)!important}
+html[data-theme="dark"] body .btn-danger{background:var(--danger-bg)!important;color:#fff!important;border-color:#b26860!important}
+html[data-theme="dark"] body .btn-danger:is(:hover,:focus-visible,:active){background:var(--danger-hover)!important;color:#fff!important;border-color:#d0877e!important}
+html[data-theme="dark"] body .btn-gold{background:#423b29!important;color:#f1d69a!important;border-color:#73623d!important}
+html[data-theme="dark"] body .btn-gold:is(:hover,:focus-visible,:active){background:#544931!important;color:#ffe4ac!important}
+html[data-theme="dark"] body button:disabled{cursor:not-allowed;opacity:.5}
+html[data-theme="dark"] body table.exec:not(.grid) tbody tr:is(:hover,:focus-within) td,
+html[data-theme="dark"] body table.exec tr.dash-hover-data:hover td,
+html[data-theme="dark"] body table.grid tbody tr:hover td{background:var(--hover-surface)!important;color:var(--ink)!important}
+html[data-theme="dark"] body tbody tr:hover{background:var(--hover-surface)!important}
+html[data-theme="dark"] body table.exec tr.total td,
+html[data-theme="dark"] body table.grid tr.total-geral td{background:#24513a!important;color:#e9f5ed!important}
+html[data-theme="dark"] body :is(#view-mapaInicial,#view-mapaAtual) table.grid td.local-label{background:#243d2e!important;color:var(--ink)!important}
+html[data-theme="dark"] body .mapa-drill-btn:is(:hover,:focus-visible){background:#36523f!important;color:#fff!important;box-shadow:inset 0 0 0 1px #83bb99!important}
+html[data-theme="dark"] body :is(.alert-red,.badge-red,.badge-morto){background:#452b2b!important;color:#ffb1ac!important;border-color:#75433f!important}
+html[data-theme="dark"] body :is(.alert-gold,.badge-gold,.pending){background:#423b29!important;color:#f1d69a!important;border-color:#73623d!important}
+html[data-theme="dark"] body :is(.alert-green,.badge-green,.badge-ativo,.reid-status-ok){background:#243d2e!important;color:#b8e0c4!important;border-color:#426e51!important}
+html[data-theme="dark"] body :is(.mini-bar-track,.section-share){background:var(--canvas)!important}
+html[data-theme="dark"] body .dropzone:is(:hover,.drag){background:var(--hover-surface)!important;color:var(--ink)!important}
+html[data-theme="dark"] body .user-avatar{background:var(--hover-surface)!important;color:var(--ink)!important}
+/* Contêineres podem encolher; apenas as tabelas rolam horizontalmente. */
+.view,.panel,.panel-body,.module-grid>*,.exec-row>*,.toolbar .field{min-width:0}
+.table-wrap{max-width:100%;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.table-wrap:focus-visible{outline:2px solid var(--chart-green);outline-offset:2px}
+@media(max-width:900px){
+ html body{--layout-header:calc(64px + env(safe-area-inset-top,0px));overflow-x:clip}
+ html body .app-header{height:var(--layout-header)!important;min-height:var(--layout-header)!important;padding:env(safe-area-inset-top,0px) 10px 0!important;gap:8px!important}
+ html body .app-header .brand{padding:0!important;flex:1 1 auto!important;min-width:0!important;gap:7px!important}
+ html body .app-header .brand-text{min-width:0;overflow:hidden}
+ html body .app-header #brandTitle{font-size:12px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ html body .app-header #brandSubtitle{display:none!important}
+ html body .header-actions{gap:6px!important;flex:0 0 auto!important}
+ html body .header-actions .user-identity{display:none!important}
+ html body #sidebarToggle{min-width:44px;min-height:44px;justify-content:center;padding:8px!important;background:var(--surface)!important;color:var(--ink)!important}
+ html body nav.tabs.premium-sidebar{top:var(--layout-header)!important;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))!important;max-width:calc(100vw - 48px)!important;overflow-y:auto!important}
+ html body.sidebar-open #sidebarBackdrop{top:var(--layout-header)!important}
+ html body main{padding:calc(var(--layout-header) + 18px) 12px calc(24px + env(safe-area-inset-bottom,0px))!important;margin:0!important}
+ html body .view-title{font-size:23px!important}
+ html body .module-filters .panel-body{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ html body .module-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ html body .module-grid{grid-template-columns:minmax(0,1fr)!important}
+ html body .reid-workspace{grid-template-columns:minmax(0,1fr)!important}
+ html body .module-page-head,html body .reid-page-head{flex-direction:column!important}
+ html body .module-actions{width:100%;gap:8px!important}
+ html body .module-actions .btn{flex:1 1 130px}
+ html body .module-kpi .value{font-size:24px!important;color:var(--ink)}
+ html body .module-list .panel-head{flex-wrap:wrap!important}
+ html body .module-search{max-width:none!important;width:100%!important}
+ html body .toolbar{flex-wrap:wrap!important;align-items:stretch!important}
+ html body .toolbar .field{flex:1 1 140px!important;min-width:0!important;max-width:100%!important}
+ html body .field :is(input,select,textarea){width:100%!important;min-width:0!important;max-width:100%!important;font-size:16px!important;min-height:44px!important}
+ html body .btn{min-height:44px!important;white-space:normal!important;text-align:center;line-height:1.35}
+ html body .btn-sm,html body .row-action{min-height:40px!important}
+ html body .theme-toggle{min-height:44px;max-width:100px;white-space:normal;line-height:1.2}
+ html body .exec-sync-top{width:100%!important;min-width:0!important;white-space:normal!important}
+ html body .section-comparison{min-width:520px!important}
+ html body .panel-head{flex-wrap:wrap!important}
+ html body #modalOverlay #modalBox.modal-box{padding-top:env(safe-area-inset-top,0px)!important;padding-bottom:env(safe-area-inset-bottom,0px)!important}
+ html body #modalOverlay .modal-footer{display:flex!important;flex-wrap:wrap!important;gap:8px!important}
+ html body #modalOverlay .modal-footer .btn{flex:1 1 120px}
+ html body #view-config .panel-body>div[style*="grid-template-columns"]:not(.grid2){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ html body .quality-filters .field{min-width:0!important;flex-basis:140px}
+ html body .grid2{grid-template-columns:minmax(0,1fr)!important}
+}
+@media(max-width:420px){
+ html body #view-dashboard .kpi-val{font-size:24px!important}
+ html body #view-dashboard .current .kpi-val{font-size:28px!important}
+ html body #view-dashboard .exec-kpis .kpi-card:last-child{grid-column:1/-1}
+ html body .module-filters .panel-body{grid-template-columns:minmax(0,1fr)!important}
+ html body #view-config .panel-body>div[style*="grid-template-columns"]:not(.grid2){grid-template-columns:minmax(0,1fr)!important}
+ html body .app-header .brand-mark{width:28px!important;height:28px!important}
+}
+@media(display-mode:standalone){html,body{overscroll-behavior-y:none}html body main{min-height:100dvh}}
+
+#mobileAppActions{display:none!important}#mobileLogout{display:none!important}@media(max-width:900px){html body #mobileLogout{display:flex!important;color:var(--vermelho)!important}html body.sidebar-open{overflow:hidden}html body.sidebar-open #mobileAppActions{display:flex!important;flex-direction:column;gap:8px;position:fixed;bottom:0;left:0;width:var(--sidebar-w);max-width:calc(100vw - 48px);padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line);z-index:1160}html body #mobileAppActions button{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:10px;min-height:44px}html body nav.tabs.premium-sidebar{padding-bottom:calc(142px + env(safe-area-inset-bottom,0px))!important}html body nav.tabs.premium-sidebar #installMapaApp{margin-top:14px!important;border-top:1px solid var(--line)!important}}html body [hidden][hidden][hidden][hidden][hidden]{display:none!important}
+</style>
+<script id="app-install-ui">/* Instalação é uma escolha do usuário; não altera sessão ou permissões. */
+(()=>{
+ const nav=document.getElementById('mainTabs');
+ const actions=document.createElement('div');actions.id='mobileAppActions';nav.after(actions);
+ const install=document.createElement('button');install.type='button';install.id='installMapaApp';install.hidden=true;install.textContent='Adicionar à tela inicial';actions.append(install);
+ const mobileExit=document.createElement('button');mobileExit.type='button';mobileExit.id='mobileLogout';mobileExit.hidden=true;mobileExit.textContent='Sair da conta';actions.append(mobileExit);
+ const exit=document.getElementById('btnLogout');
+ const standalone=()=>window.matchMedia?.('(display-mode: standalone)')?.matches||navigator.standalone===true;
+ const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ let prompt=null;
+ const update=()=>{
+  install.hidden=standalone()||!(prompt||ios);
+  mobileExit.hidden=exit.style.display==='none'||exit.hidden;
+ };
+ window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();prompt=event;update();});
+ window.addEventListener('appinstalled',()=>{prompt=null;install.hidden=true;});
+ install.addEventListener('click',async()=>{
+  if(prompt){const p=prompt;prompt=null;await p.prompt();await p.userChoice;update();return;}
+  if(ios)openModal('Abrir como aplicativo','<p>No Safari, toque em <b>Compartilhar</b>, depois em <b>Adicionar à Tela de Início</b>.</p><p>Se aparecer a opção <b>Abrir como App da Web</b>, deixe ativada. Depois abra pelo ícone Mapa de Rebanho.</p>','<button type="button" class="btn btn-primary" onclick="closeModal()">Entendi</button>');
+ });
+ mobileExit.addEventListener('click',()=>exit.click());
+ new MutationObserver(update).observe(exit,{attributes:true,attributeFilter:['style','hidden']});update();
+ document.querySelectorAll('.table-wrap').forEach(w=>{w.tabIndex=0;if(!w.hasAttribute('aria-label'))w.setAttribute('aria-label','Tabela com rolagem horizontal');});
+})();
+</script>
 </body>
 </html>
+
