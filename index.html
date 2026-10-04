@@ -1285,6 +1285,7 @@ thead th{
       <div class="field"><label for="dashSecao">Seção</label><select id="dashSecao"><option value="">Todas as seções</option></select></div>
       <div class="field"><label for="dashSexo">Sexo</label><select id="dashSexo"><option value="">Todos</option><option value="Macho">Machos</option><option value="Fêmea">Fêmeas</option></select></div>
       <button type="submit" class="btn btn-primary">Aplicar filtros</button><button type="button" class="btn btn-outline" id="dashLimpar">Limpar</button>
+      <button type="button" class="btn btn-outline" data-dash-export="pdf">Exportar PDF</button><button type="button" class="btn btn-outline" data-dash-export="xlsx">Exportar Excel</button>
       <p id="dashFilterStatus" role="status" aria-live="polite" style="flex-basis:100%;margin:0;font-size:12px;color:var(--muted)"></p>
     </form>
     <div class="exec-kpis" id="dashKpis"></div>
@@ -1752,7 +1753,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-04-dashboard-filtros-v16';
+  window.__MAPA_BUILD__='2026-10-04-dashboard-detalhes-v17';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -4168,8 +4169,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-quality-fi
 let DASH_FILTROS={ini:'',fim:'',setor:'',sexo:''};
 function normalizarDashboard(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
 function dataAnteriorDashboard(d){const date=new Date(d+'T12:00:00Z');date.setUTCDate(date.getUTCDate()-1);return date.toISOString().slice(0,10);}
-function contextoDashboard(){
- const f={...DASH_FILTROS,fim:DASH_FILTROS.fim||todayISO()};
+function contextoDashboard(filtros=DASH_FILTROS){
+ const f={...filtros,fim:filtros.fim||todayISO()};
  const norm=normalizarDashboard,qtd=m=>Number(m.quantidade)||1;
  const secao=v=>String(v||'').trim()||'Sem setor';
  const sexo=v=>norm(v).startsWith('f')?'Fêmea':norm(v).startsWith('m')?'Macho':'';
@@ -4194,6 +4195,79 @@ function prepararFiltrosDashboard(){
  form.onsubmit=e=>{e.preventDefault();const ini=document.getElementById('dashIni').value,fim=document.getElementById('dashFim').value||todayISO();if(ini&&ini>fim){document.getElementById('dashFilterStatus').textContent='A data inicial deve ser anterior ou igual à data final.';return;}DASH_FILTROS={ini,fim,setor:select.value,sexo:document.getElementById('dashSexo').value};renderDashboard();};
  document.getElementById('dashLimpar').onclick=()=>{DASH_FILTROS={ini:'',fim:'',setor:'',sexo:''};renderDashboard();};
 }
+function linhasSecoesDashboard(ctx){
+ const rows=new Map(),row=k=>{k=ctx.secao(k);if(!rows.has(k))rows.set(k,{initial:0,in:0,out:0,current:0});return rows.get(k);};
+ ctx.abertura.forEach(a=>row(a.setorAtual||a.setor||a.setorInicial).initial++);
+ ctx.ativos.forEach(a=>row(a.setorAtual||a.setor||a.setorInicial).current++);
+ DB.setores.forEach(s=>row(typeof s==='string'?s:s.nome));
+ ctx.movs.forEach(m=>{const o=ctx.origem(m),d=ctx.destino(m),n=ctx.qtd(m);if(ctx.entrada(m))row(d).in+=n;if(ctx.saida(m))row(o).out+=n;if(ctx.isTransf(m)&&ctx.norm(o)!==ctx.norm(d)){row(o).out+=n;row(d).in+=n;}});
+ return [...rows].filter(([k])=>!ctx.f.setor||ctx.norm(k)===ctx.norm(ctx.f.setor)).sort(([a],[b])=>a.localeCompare(b,'pt-BR')).map(([secao,v])=>({secao,...v,variation:v.current-v.initial}));
+}
+function botaoNumeroDashboard(el,tipo,extra={}){
+ if(!el||el.querySelector('button'))return;
+ const b=document.createElement('button');b.type='button';b.className='dash-number';b.textContent=el.textContent;b.dataset.dashDetalhe=tipo;
+ for(const [k,v] of Object.entries(extra))b.dataset[k]=v;
+ b.setAttribute('aria-label',`Ver SISBOV: ${el.textContent} — ${tipo}`);el.replaceChildren(b);
+}
+function ativarDetalhesDashboard(){
+ const view=document.getElementById('view-dashboard');
+ const tipos=['initial','in','out','variation','current'],ledger=linhasSecoesDashboard(contextoDashboard());
+ view.querySelectorAll('#dashKpis .kpi-val').forEach((el,i)=>botaoNumeroDashboard(el,tipos[i]));
+ view.querySelectorAll('#dashSections tbody tr').forEach((tr,i)=>{const item=ledger[i];[...tr.cells].slice(1).forEach((el,j)=>botaoNumeroDashboard(el,['initial','in','out','current','variation'][j],item?{secao:item.secao}:{}));if(item){const b=document.createElement('button');b.type='button';b.className='dash-number dash-section-link';b.textContent=item.secao;b.dataset.dashSecao=item.secao;tr.cells[0].replaceChildren(b);}});
+ view.querySelectorAll('#dashSexCat tbody tr').forEach((tr,i)=>{[...tr.cells].slice(1).forEach((el,j)=>botaoNumeroDashboard(el,'current',{...(i<CATEGORIAS.length?{categoria:CATEGORIAS[i]}:{}),...(j<2?{sexo:j===0?'Macho':'Fêmea'}:{})}));});
+ view.querySelectorAll('#dashSex .composition-sex b').forEach((el,i)=>botaoNumeroDashboard(el,'current',{sexo:i===0?'Fêmea':'Macho'}));
+ botaoNumeroDashboard(document.getElementById('dashTransfer')?.querySelector('.transfer-value'),'transfer');
+ view.querySelectorAll('#dashRecent tbody tr').forEach((tr,i)=>botaoNumeroDashboard(tr.cells[2],'movement:'+i));
+ view.querySelectorAll('#dashIndicators .exec-metric b').forEach((el,i)=>botaoNumeroDashboard(el,['birth','death','current','current'][i],i>1?{sexo:i===2?'Fêmea':'Macho'}:{}));
+ const mort=view.querySelectorAll('#mortResumo .kpi-val');botaoNumeroDashboard(mort[0],'death');botaoNumeroDashboard(mort[1],'initial');botaoNumeroDashboard(mort[2],'death');
+ view.onclick=e=>{const b=e.target.closest('[data-dash-detalhe],[data-dash-secao]');if(!b)return;if(!podeAcesso('dashboard')){toast('Consulta não autorizada.','err');return;}abrirDetalheDashboard(b.dataset.dashDetalhe||'current',b.dataset.dashSecao||b.dataset.secao||'',b.dataset.sexo||'',b.dataset.categoria||'',b.hasAttribute('data-dash-secao'));};
+ view.querySelectorAll('[data-dash-export]').forEach(b=>{b.hidden=!podeAcesso('dashboard','exportar');b.onclick=()=>exportarDashboard(b.dataset.dashExport);});
+}
+function abrirDetalheDashboard(tipo='current',secao='',sexo='',categoria='',painel=false){
+ if(!podeAcesso('dashboard'))return;
+ const ctx=contextoDashboard({...DASH_FILTROS,...(secao?{setor:secao}:{}),...(sexo&&!DASH_FILTROS.sexo?{sexo}:{})});
+ const nomes={initial:'Saldo inicial',in:'Entradas',out:'Saídas',current:'Saldo atual',variation:'Variação do saldo',transfer:'Transferências',death:'Mortes',birth:'Nascimentos',purchase:'Compras',sale:'Vendas'};
+ if(tipo.startsWith('movement:'))nomes[tipo]='Movimentação';
+ const linhaAnimal=(a,modo)=>({sisbov:String(a.sisbov||''),brinco:String(a.brinco||''),sexo:a.sexo||'',secao:ctx.secao(a.setorAtual||a.setor||a.setorInicial),categoria:a.categoria||calcCategoria(a.nascimento,modo==='initial'?(ctx.f.ini?dataAnteriorDashboard(ctx.f.ini):DB.config.dataMapaInicial):ctx.f.fim),data:'',tipo:'Animal ativo',quantidade:1});
+ const master=new Map();DB.animais.forEach(a=>{master.set(a.id,a);if(a.sisbov)master.set('sis:'+a.sisbov,a);});
+ const lista=modo=>{
+  if(['initial','current'].includes(modo))return (modo==='initial'?ctx.abertura:ctx.ativos).map(a=>linhaAnimal(a,modo)).filter(a=>(!categoria||a.categoria===categoria)&&(!sexo||ctx.sexo(a.sexo)===sexo));
+  const fn=modo==='in'?ctx.entra:modo==='out'?ctx.sai:modo==='death'?ctx.isMorte:modo==='birth'?ctx.isNasc:modo==='purchase'?ctx.isCompra:modo==='sale'?ctx.isVenda:ctx.isTransf;
+  const movimentos=modo.startsWith('movement:')?[...ctx.movs].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).slice(Number(modo.split(':')[1]),Number(modo.split(':')[1])+1):ctx.movs.filter(fn);
+  return movimentos.map(m=>{const a=master.get(m.animalId)||master.get('sis:'+m.sisbov)||{};return {sisbov:String(m.sisbov||a.sisbov||''),brinco:String(m.brinco||a.brinco||''),sexo:m.sexo||a.sexo||'',secao:`${ctx.origem(m)} → ${ctx.destino(m)}`,categoria:'',data:formatBR(m.data),tipo:m.tipo||'',quantidade:ctx.qtd(m)};});
+ };
+ let modo=tipo==='variation'?'current':tipo,pagina=0,busca='';
+ const ini=ctx.abertura.length,atual=ctx.ativos.length;
+ const texto=`${ctx.f.ini?formatBR(ctx.f.ini):'Base inicial'} até ${formatBR(ctx.f.fim)} · ${ctx.f.setor||'Todas as seções'} · ${ctx.f.sexo||'Todos os sexos'}${categoria?' · '+categoria+' meses':''}`;
+ let resumo='';
+ if(painel){const tipos=['initial','in','out','current'];const vals=[ini,ctx.movs.filter(ctx.entra).reduce((s,m)=>s+ctx.qtd(m),0),ctx.movs.filter(ctx.sai).reduce((s,m)=>s+ctx.qtd(m),0),atual];resumo=`<div class="dash-detail-metrics">${tipos.map((t,i)=>`<button class="btn btn-outline" data-detail-mode="${t}">${nomes[t]} <b>${vals[i].toLocaleString('pt-BR')}</b></button>`).join('')}</div><p>Variação: <b>${atual-ini>0?'+':''}${(atual-ini).toLocaleString('pt-BR')}</b> cabeças.</p><div class="table-wrap"><table class="exec"><thead><tr><th>Faixa etária</th><th>Machos</th><th>Fêmeas</th><th>Total</th></tr></thead><tbody>${CATEGORIAS.map(c=>{const animais=ctx.ativos.filter(a=>a.categoria===c),m=animais.filter(a=>ctx.sexo(a.sexo)==='Macho').length,f=animais.filter(a=>ctx.sexo(a.sexo)==='Fêmea').length;return `<tr><td>${esc(c)} meses</td><td>${m}</td><td>${f}</td><td>${animais.length}</td></tr>`;}).join('')}</tbody></table></div>`;}
+ else if(tipo==='variation')resumo=`<p>A variação é a diferença entre os dois saldos: <b>${atual.toLocaleString('pt-BR')} − ${ini.toLocaleString('pt-BR')} = ${(atual-ini).toLocaleString('pt-BR')}</b>.</p><div class="dash-detail-metrics"><button class="btn btn-outline" data-detail-mode="initial">Ver saldo inicial</button><button class="btn btn-outline" data-detail-mode="current">Ver saldo atual</button></div>`;
+ openModal(painel?'Detalhamento da seção — '+secao:nomes[tipo]+' — SISBOV',`<p>${esc(texto)}</p>${resumo}<div class="field"><label for="dashDetailBusca">Buscar SISBOV ou brinco</label><input id="dashDetailBusca" type="search" inputmode="numeric" placeholder="Digite para localizar"></div><p id="dashDetailInfo" aria-live="polite"></p><div class="table-wrap" id="dashDetailRows"></div><div class="dash-detail-metrics"><button type="button" class="btn btn-outline" id="dashDetailPrev">Anterior</button><span id="dashDetailPage"></span><button type="button" class="btn btn-outline" id="dashDetailNext">Próxima</button></div>`,[{label:'Fechar',onClick:closeModal}],true);
+ const render=()=>{const all=lista(modo),filtrada=all.filter(a=>!busca||a.sisbov.includes(busca)||a.brinco.includes(busca)),pages=Math.max(1,Math.ceil(filtrada.length/100));pagina=Math.min(pagina,pages-1);const slice=filtrada.slice(pagina*100,pagina*100+100),total=all.reduce((s,a)=>s+a.quantidade,0),agrupadas=all.filter(a=>!a.sisbov||a.quantidade>1).reduce((s,a)=>s+a.quantidade,0);
+ document.getElementById('dashDetailInfo').textContent=`${nomes[modo]}: ${total.toLocaleString('pt-BR')} cabeças · ${filtrada.length.toLocaleString('pt-BR')} registros${agrupadas?' · '+agrupadas.toLocaleString('pt-BR')+' cabeças em registros agrupados ou sem SISBOV individual':''}.`;
+ document.getElementById('dashDetailRows').innerHTML=`<table class="exec"><thead><tr><th>SISBOV</th><th>Brinco</th><th>Sexo</th><th>Seção / Origem → Destino</th><th>Data</th><th>Tipo / Faixa</th><th>Quantidade</th></tr></thead><tbody>${slice.map(a=>`<tr><td>${esc(a.sisbov||'Não informado')}</td><td>${esc(a.brinco||'—')}</td><td>${esc(a.sexo||'—')}</td><td>${esc(a.secao)}</td><td>${esc(a.data||'—')}</td><td>${esc(a.categoria?a.categoria+' meses':a.tipo)}</td><td>${a.quantidade}</td></tr>`).join('')||'<tr><td colspan="7">Nenhum registro encontrado para esta seleção.</td></tr>'}</tbody></table>`;
+ document.getElementById('dashDetailPage').textContent=`${pagina+1} / ${pages}`;document.getElementById('dashDetailPrev').disabled=pagina===0;document.getElementById('dashDetailNext').disabled=pagina>=pages-1;};
+ document.getElementById('dashDetailBusca').oninput=e=>{busca=e.target.value.trim();pagina=0;render();};document.getElementById('dashDetailPrev').onclick=()=>{pagina--;render();};document.getElementById('dashDetailNext').onclick=()=>{pagina++;render();};document.querySelectorAll('[data-detail-mode]').forEach(b=>b.onclick=()=>{modo=b.dataset.detailMode;pagina=0;render();});render();
+}
+function dadosExportacaoDashboard(){
+ const ctx=contextoDashboard(),sum=fn=>ctx.movs.filter(fn).reduce((s,m)=>s+ctx.qtd(m),0);
+ const filtros=`${ctx.f.ini?formatBR(ctx.f.ini):'Base inicial'} até ${formatBR(ctx.f.fim)} | ${ctx.f.setor||'Todas as seções'} | ${ctx.f.sexo||'Todos os sexos'}`;
+ const saldo=[['Saldo inicial',ctx.abertura.length],['Entradas',sum(ctx.entra)],['Saídas',sum(ctx.sai)],['Saldo atual',ctx.ativos.length],['Variação',ctx.ativos.length-ctx.abertura.length]];
+ const secoes=linhasSecoesDashboard(ctx).map(v=>[v.secao,v.initial,v.in,v.out,v.current,v.variation]);
+ const animais=ctx.ativos.map(a=>[String(a.sisbov||''),String(a.brinco||''),a.sexo||'',ctx.secao(a.setorAtual||a.setor||a.setorInicial),a.categoria||'']);
+ const movs=ctx.movs.map(m=>[formatBR(m.data),m.tipo||'',String(m.sisbov||''),ctx.origem(m),ctx.destino(m),m.sexo||'',ctx.qtd(m)]);
+ return {ctx,filtros,saldo,secoes,animais,movs};
+}
+async function exportarDashboard(formato){
+ if(!['xlsx','pdf'].includes(formato)||!await autorizarExportacao('dashboard',formato)||!podeAcesso('dashboard','exportar'))return;
+ if(!garantirBibliotecaExportacao(formato))return;
+ const d=dadosExportacaoDashboard(),heads=['Seção','Saldo inicial','Entradas','Saídas','Saldo atual','Variação'];
+ const nota='Seções incluem transferências; no total da fazenda, transferências internas se anulam.';
+ if(formato==='xlsx'){exportarXLSXMultiplo([{nome:'Indicadores',aoa:[['Dashboard — '+d.filtros],['Indicador','Cabeças'],...d.saldo,[nota]]},{nome:'Seções',aoa:[[d.filtros],heads,...d.secoes,['TOTAL',d.ctx.abertura.length,d.saldo[1][1],d.saldo[2][1],d.ctx.ativos.length,d.saldo[4][1]]]},{nome:'Animais',aoa:[[d.filtros],['SISBOV','Brinco','Sexo','Seção','Faixa etária'],...d.animais]},{nome:'Movimentações',aoa:[[d.filtros],['Data','Tipo','SISBOV','Origem','Destino','Sexo','Quantidade'],...d.movs]}],'dashboard-filtrado.xlsx');return;}
+ const doc=novoPDF('Dashboard filtrado','');if(!doc)return;
+ doc.setFontSize(9);doc.text(d.filtros,10,23);doc.autoTable({startY:28,head:[['Indicador','Cabeças']],body:d.saldo,headStyles:autoTableHead()});doc.autoTable({startY:doc.lastAutoTable.finalY+8,head:[heads],body:[...d.secoes,['TOTAL',d.ctx.abertura.length,d.saldo[1][1],d.saldo[2][1],d.ctx.ativos.length,d.saldo[4][1]]],headStyles:autoTableHead()});doc.addPage();doc.text('Composição por faixa etária — '+d.filtros,10,14);doc.autoTable({startY:20,head:[['Faixa etária','Machos','Fêmeas','Total']],body:CATEGORIAS.map(c=>{const a=d.ctx.ativos.filter(a=>a.categoria===c);return [c,a.filter(a=>d.ctx.sexo(a.sexo)==='Macho').length,a.filter(a=>d.ctx.sexo(a.sexo)==='Fêmea').length,a.length];}),headStyles:autoTableHead()});doc.text(nota,10,doc.lastAutoTable.finalY+10);doc.addPage();doc.text('Movimentações — '+d.filtros,10,14);doc.autoTable({startY:20,head:[['Data','Tipo','SISBOV','Origem','Destino','Sexo','Quantidade']],body:d.movs,styles:{fontSize:7},headStyles:autoTableHead()});finalizarPDF(doc,'dashboard-filtrado.pdf');
+}
+
 function renderDashboard(){
   document.getElementById('alertaCadastro')?.remove();
   prepararFiltrosDashboard();
@@ -4212,8 +4286,8 @@ function renderDashboard(){
   const card=(lbl,val,sub,icon,tone,cls='')=>`<div class="kpi-card ${tone?'tone-'+tone:''} ${cls}"><div class="kpi-icon">${svgIcon(icon)}</div><div><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div></div>`;
   document.getElementById('dashKpis').innerHTML=[
     card('SALDO INICIAL',inicial.toLocaleString('pt-BR'),'cabeças','stack',''),
-    card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos ${nasc.toLocaleString('pt-BR')} · Compras ${compras.toLocaleString('pt-BR')}`,'plus',''),
-    card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas ${vendas.toLocaleString('pt-BR')} · Mortes ${mortes.toLocaleString('pt-BR')}`,'minus','red'),
+    card('ENTRADAS',entradas.toLocaleString('pt-BR'),`Nascimentos <button type="button" class="dash-number" data-dash-detalhe="birth">${nasc.toLocaleString('pt-BR')}</button> · Compras <button type="button" class="dash-number" data-dash-detalhe="purchase">${compras.toLocaleString('pt-BR')}</button>`,'plus',''),
+    card('SAÍDAS',saidas.toLocaleString('pt-BR'),`Vendas <button type="button" class="dash-number" data-dash-detalhe="sale">${vendas.toLocaleString('pt-BR')}</button> · Mortes <button type="button" class="dash-number" data-dash-detalhe="death">${mortes.toLocaleString('pt-BR')}</button>`,'minus','red'),
     card('VARIAÇÃO',`${delta>=0?'+':''}${delta.toLocaleString('pt-BR')}`,`${pctDelta.toFixed(1).replace('.',',')}% em relação ao saldo inicial`,'chart',''),
     card('SALDO ATUAL',ativos.length.toLocaleString('pt-BR'),'cabeças ativas','stack','', 'current')
   ].join('');
@@ -4242,13 +4316,8 @@ function renderDashboard(){
   const path=xy.map((p,i)=>`${i?'L':'M'}${p.x},${p.y}`).join(' ');
   document.getElementById('dashEvolution').innerHTML=`<div class="trend-heading"><span>Saldo em cada fechamento mensal</span><strong>${ativos.length.toLocaleString('pt-BR')} <small>cabeças em ${formatBR(ref)}</small></strong></div><svg class="balance-trend" viewBox="0 0 810 260" role="img" aria-label="Evolução do saldo ativo, calculado pelo mapa em cada data">${[0,1,2,3].map(i=>{const y=40+i*170/3,v=top-i*(top-bottom)/3;return `<line x1="60" x2="760" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="3 5"/><text x="50" y="${y+4}" text-anchor="end">${Math.round(v).toLocaleString('pt-BR')}</text>`}).join('')}<path d="${path} L${xy[xy.length-1].x},210 L${xy[0].x},210 Z" fill="var(--chart-area)"/><path d="${path}" fill="none" stroke="var(--chart-green)" stroke-width="3" stroke-linejoin="round"/>${xy.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="5" fill="var(--chart-green)"><title>${formatBR(p.day)}: ${p.value.toLocaleString('pt-BR')} cabeças</title></circle><text x="${p.x}" y="240" text-anchor="middle">${p.day.slice(5,7)}/${p.day.slice(0,4)}</text>`).join('')}</svg><div class="chart-note">Saldo ativo por data • período até ${formatBR(ref)}</div>`;
   document.getElementById('dashTransfer').innerHTML=`<div class="transfer-symbol">⇄</div><div class="transfer-value">${transf.toLocaleString('pt-BR')}</div><p>Transferências entre seções</p><span>Não alteram o saldo total da fazenda</span>`;
-  const rows=new Map();
-  const row=k=>{k=ctx.secao(k);if(!rows.has(k))rows.set(k,{initial:0,in:0,out:0,current:0});return rows.get(k);};
-  abertura.forEach(a=>row(a.setorAtual||a.setor||a.setorInicial).initial++);
-  ativos.forEach(a=>row(a.setorAtual||a.setor||a.setorInicial).current++);
-  DB.setores.forEach(s=>row(typeof s==='string'?s:s.nome));
-  movs.forEach(m=>{const o=ctx.origem(m),d=ctx.destino(m),n=qtd(m);if(ctx.entrada(m))row(d).in+=n;if(ctx.saida(m))row(o).out+=n;if(isTransf(m)&&norm(o)!==norm(d)){row(o).out+=n;row(d).in+=n;}});
-  const sections=[...rows.keys()].filter(k=>!f.setor||norm(k)===norm(f.setor)).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const rows=new Map(linhasSecoesDashboard(ctx).map(v=>[v.secao,v]));
+  const sections=[...rows.keys()];
   const numero=n=>n.toLocaleString('pt-BR');
   document.getElementById('dashSections').innerHTML=`<div class="table-wrap"><table class="exec section-comparison"><thead><tr><th>Seção</th><th class="num">Saldo inicial</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Saldo atual</th><th class="num">Variação</th></tr></thead><tbody>${sections.map(k=>{const v=rows.get(k),d=v.current-v.initial;return `<tr><td>${esc(k)}</td><td class="num">${numero(v.initial)}</td><td class="num">${numero(v.in)}</td><td class="num">${numero(v.out)}</td><td class="num"><b>${numero(v.current)}</b></td><td class="num">${d>0?'+':''}${numero(d)}</td></tr>`;}).join('')}<tr class="total"><td>TOTAL</td><td class="num">${numero(inicial)}</td><td class="num">${numero(entradas)}</td><td class="num">${numero(saidas)}</td><td class="num">${numero(ativos.length)}</td><td class="num">${delta>0?'+':''}${numero(delta)}</td></tr></tbody></table></div><p class="chart-note">As seções incluem transferências nas entradas e saídas. No total da fazenda, transferências internas se anulam.</p>`;
 
@@ -4262,6 +4331,7 @@ function renderDashboard(){
   document.getElementById('dashRecent').innerHTML=`<table class="recent-table"><thead><tr><th>Data</th><th>Tipo</th><th>Qtde</th><th>Setor / Destino</th></tr></thead><tbody>${recent.map(m=>`<tr><td>${formatBR(m.data)||'-'}</td><td>${tipoOperacionalMov(m)||m.tipo||'-'}</td><td>${qtd(m)}</td><td>${m.setorDestino||m.setor||m.setorOrigem||'-'}</td></tr>`).join('')}</tbody></table>`;
 
   renderMortalidade(ctx);
+  ativarDetalhesDashboard();
   const upd=DB.config?._centralUpdatedAt; let updTxt='Sincronizada'; try{if(upd)updTxt=new Date(upd).toLocaleString('pt-BR')}catch(e){}
   document.getElementById('dashSync').innerHTML=`<b>● Base sincronizada</b><br><span>Última atualização: ${updTxt}</span>`;
   document.getElementById('dashStatus').innerHTML=`<div class="status-line"><i class="status-ok"></i><div><b>Dados sincronizados</b><br>Origem: Supabase (nuvem)</div></div><div class="status-line"><i class="status-ok"></i><div><b>${ativos.length.toLocaleString('pt-BR')} animais ativos</b><br>${DB.movimentacoes.length.toLocaleString('pt-BR')} movimentações registradas</div></div><div class="status-line"><i class="status-ok"></i><div><b>${AUTH_ADMIN?'Modo Administrador':'Modo Consulta'}</b><br>${AUTH_ADMIN?'Edição e importação liberadas.':'Somente consulta. Alertas operacionais ocultos.'}</div></div>`;
@@ -6892,5 +6962,12 @@ html[data-theme="dark"] body .user-avatar{background:var(--hover-surface)!import
  document.querySelectorAll('.table-wrap').forEach(w=>{w.tabIndex=0;if(!w.hasAttribute('aria-label'))w.setAttribute('aria-label','Tabela com rolagem horizontal');});
 })();
 </script>
+<style id="dashboard-details-v17">
+html body #view-dashboard .dashboard-filters{position:sticky;top:calc(var(--layout-header,76px) + 8px);z-index:30;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 5px 18px rgba(0,0,0,.06)}
+html body .dash-number{font:inherit;color:inherit;background:transparent;border:0;border-radius:4px;padding:0;cursor:pointer;text-align:inherit;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px}
+html body .dash-number:hover,html body .dash-number:focus-visible{color:var(--chart-green);background:var(--chart-area);outline:2px solid var(--chart-green);outline-offset:3px}
+html body .dash-section-link{font-weight:650}.dash-detail-metrics{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}.dash-detail-metrics b{margin-left:8px}
+@media(max-width:600px){html body #view-dashboard .dashboard-filters{top:var(--layout-header,68px);gap:6px!important;padding:8px!important}html body #view-dashboard .dashboard-filters .field{flex:1 1 42%!important}html body #view-dashboard .dashboard-filters button{min-height:36px;font-size:11px;padding:7px 9px}html body #dashFilterStatus{font-size:10px!important;line-height:1.3}}
+</style>
 </body>
 </html>
