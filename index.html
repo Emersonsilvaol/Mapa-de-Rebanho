@@ -1744,7 +1744,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-04-session-es256-v13';
+  window.__MAPA_BUILD__='2026-10-04-session-background-v14';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -1918,8 +1918,9 @@ async function iniciarAutenticacao(){
   const gate=document.getElementById('authGate'), msg=document.getElementById('loginMsg');
   if(!window.supabase){ msg.textContent='Falha ao carregar o serviço de autenticação.'; return false; }
   if(SUPABASE_PUBLISHABLE_KEY.startsWith('COLE_AQUI')){ msg.textContent='Configuração do Supabase pendente: falta a chave publishable.'; return false; }
-  const travaSessao=navigator.locks&&window.supabase.navigatorLock?{lock:window.supabase.navigatorLock,lockAcquireTimeout:30000}:{};
-  authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:AUTH_STORAGE_KEY,storage:AUTH_STORAGE,...travaSessao}});
+  // This SDK already coordinates refreshes across tabs. A legacy browser lock
+  // can stay held by a suspended tab and stall session recovery on return.
+  authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:AUTH_STORAGE_KEY,storage:AUTH_STORAGE}});
   authClient.auth.onAuthStateChange((event,session)=>{
     const revisao=++AUTH_EVENTO_REVISAO;
     if(event==='SIGNED_OUT')setTimeout(()=>void processarSessaoEncerrada(revisao),0);
@@ -2084,7 +2085,7 @@ function aplicarPerfilServidor(data){
  AUTH_PERMISSIONS=AUTH_PROFILE.permissions||{};ACESSO_SUSPENSO=false;ACESSO_VALIDADO_EM=Date.now();
  aplicarPermissoes();
 }
-async function verificarAcessoAtual(){
+async function verificarAcessoAtual({background=false}={}){
  if(!AUTH_USER||!authClient)return false;
  if(VALIDACAO_PROMISE)return VALIDACAO_PROMISE;
  VALIDACAO_PROMISE=(async()=>{
@@ -2115,21 +2116,28 @@ async function verificarAcessoAtual(){
     return true;
    }
    return false;
-  }catch(e){bloquearAcesso(e.status===401||e.status===403?e.message:'Não foi possível confirmar o acesso. Verifique a conexão e tente novamente.',e.status===401||e.status===403);return false;}
+  }catch(e){
+   const negado=e.status===401||e.status===403;
+   if(background&&!negado&&!ACESSO_SUSPENSO&&SISTEMA_INICIADO){
+    // Keep the already-authorized screen and form state during a temporary
+    // connection failure. Writes still require fresh server authorization.
+    ACESSO_VALIDADO_EM=0;
+   }else bloquearAcesso(negado?e.message:'Não foi possível confirmar o acesso. Verifique a conexão e tente novamente.',negado);
+   return false;
+  }
  })();
  try{return await VALIDACAO_PROMISE;}finally{VALIDACAO_PROMISE=null;}
 }
 function retomarAcessoAoVoltar(){
  if(!AUTH_USER)return;
- guardarTelaAtual();ACESSO_SUSPENSO=true;aplicarPermissoes();
- mostrarGateAcesso('Confirmando seu acesso...',false);
- void verificarAcessoAtual();
+ // Returning to a tab is not a new login. Only a confirmed denial opens the gate.
+ void verificarAcessoAtual({background:true});
 }
 function acompanharPerfil(){
  if(PERFIL_CHANNEL)authClient.removeChannel(PERFIL_CHANNEL);
  clearInterval(PERFIL_POLL);
  PERFIL_CHANNEL=authClient.channel('mapa-perfil-'+AUTH_USER.id).on('postgres_changes',{event:'*',schema:'public',table:'profiles',filter:'id=eq.'+AUTH_USER.id},()=>{bloquearAcesso('Atualizando permissões...',false);void verificarAcessoAtual();}).subscribe();
- PERFIL_POLL=setInterval(()=>{if(document.visibilityState==='visible')void verificarAcessoAtual();},15000);
+ PERFIL_POLL=setInterval(()=>{if(document.visibilityState==='visible')void verificarAcessoAtual({background:true});},15000);
 }
 async function liberarSessao(user){
  AUTH_USER=user;AUTH_ADMIN=false;AUTH_PERMISSIONS={};AUTH_PROFILE={};
@@ -2138,11 +2146,14 @@ async function liberarSessao(user){
   document.getElementById('authGate').hidden=true;document.getElementById('loginForm').hidden=false;acompanharPerfil();return true;
  }catch(e){bloquearAcesso(e.message,e.status===401||e.status===403);return false;}
 }
-window.addEventListener('offline',()=>bloquearAcesso('Conexão perdida. Reconecte-se para retomar o acesso.',false));
+window.addEventListener('offline',()=>{
+ ACESSO_VALIDADO_EM=0;
+ if(!SISTEMA_INICIADO||ACESSO_SUSPENSO)mostrarGateAcesso('Conexão perdida. Reconecte-se para retomar o acesso.',false);
+});
 function recuperarAcessoVisivel(){
  if(SAIDA_EXPLICITA||document.visibilityState==='hidden')return;
  if(AUTH_USER)retomarAcessoAoVoltar();
- else if(authClient)void restaurarSessaoSalva();
+ else if(authClient&&document.getElementById('loginForm').hidden)void restaurarSessaoSalva();
 }
 window.addEventListener('online',recuperarAcessoVisivel);
 window.addEventListener('pageshow',e=>{if(e.persisted)recuperarAcessoVisivel();});
