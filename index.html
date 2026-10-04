@@ -1744,7 +1744,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-04-mobile-dark-v12';
+  window.__MAPA_BUILD__='2026-10-04-session-es256-v13';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -2031,10 +2031,25 @@ function aplicarPermissoesUI(){
 }
 
 async function acessoServidor(body){
- let result=await authClient.functions.invoke('mapa-acesso',{body});
+ // Bind each request to the current session, including after background refresh.
+ const invoke=async()=>{
+  const {data,error}=await authClient.auth.getSession();
+  if(error)throw error;
+  if(!data?.session){const e=new Error('Sua sessão expirou. Entre novamente.');e.status=401;throw e;}
+  const token=data.session.access_token;
+  return authClient.functions.invoke('mapa-acesso',{body,...(token?{headers:{Authorization:'Bearer '+token}}:{})});
+ };
+ let result=await invoke();
  if(result.error?.context?.status===401&&authClient.auth?.refreshSession){
   const renewed=await authClient.auth.refreshSession();
-  if(!renewed.error&&renewed.data?.session)result=await authClient.functions.invoke('mapa-acesso',{body});
+  if(renewed.error){
+   // A failed connection while renewing is recoverable; it is not a logout.
+   const e=new Error('Não foi possível renovar a sessão agora. Tente novamente.');
+   const code=renewed.error.code;
+   e.status=['refresh_token_not_found','refresh_token_already_used','session_not_found','session_expired','user_banned'].includes(code)?401:503;
+   throw e;
+  }
+  if(renewed.data?.session)result=await invoke();
  }
  const {data,error}=result;
  if(error||data?.error){
@@ -2113,7 +2128,7 @@ function retomarAcessoAoVoltar(){
 function acompanharPerfil(){
  if(PERFIL_CHANNEL)authClient.removeChannel(PERFIL_CHANNEL);
  clearInterval(PERFIL_POLL);
- PERFIL_CHANNEL=authClient.channel('mapa-perfil-'+AUTH_USER.id).on('postgres_changes',{event:'*',schema:'public',table:'profiles',filter:'id=eq.'+AUTH_USER.id},()=>{bloquearAcesso('Atualizando permissões...');void verificarAcessoAtual();}).subscribe();
+ PERFIL_CHANNEL=authClient.channel('mapa-perfil-'+AUTH_USER.id).on('postgres_changes',{event:'*',schema:'public',table:'profiles',filter:'id=eq.'+AUTH_USER.id},()=>{bloquearAcesso('Atualizando permissões...',false);void verificarAcessoAtual();}).subscribe();
  PERFIL_POLL=setInterval(()=>{if(document.visibilityState==='visible')void verificarAcessoAtual();},15000);
 }
 async function liberarSessao(user){
@@ -2124,8 +2139,14 @@ async function liberarSessao(user){
  }catch(e){bloquearAcesso(e.message,e.status===401||e.status===403);return false;}
 }
 window.addEventListener('offline',()=>bloquearAcesso('Conexão perdida. Reconecte-se para retomar o acesso.',false));
-window.addEventListener('online',()=>void verificarAcessoAtual());
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')retomarAcessoAoVoltar();});
+function recuperarAcessoVisivel(){
+ if(SAIDA_EXPLICITA||document.visibilityState==='hidden')return;
+ if(AUTH_USER)retomarAcessoAoVoltar();
+ else if(authClient)void restaurarSessaoSalva();
+}
+window.addEventListener('online',recuperarAcessoVisivel);
+window.addEventListener('pageshow',e=>{if(e.persisted)recuperarAcessoVisivel();});
+document.addEventListener('visibilitychange',recuperarAcessoVisivel);
 async function autorizarExportacao(mod,formato){
  if(!await verificarAcessoAtual()||!podeAcesso(mod,'exportar')||(mod==='configuracoes'&&!AUTH_ADMIN)){toast('Exportação não autorizada.','err');return false;}
  try{await acessoServidor({action:'export',module:mod,format:formato});return true;}catch(e){toast(e.message,'err');return false;}
@@ -6829,4 +6850,3 @@ html[data-theme="dark"] body .user-avatar{background:var(--hover-surface)!import
 </script>
 </body>
 </html>
-
