@@ -1753,7 +1753,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-04-conciliacao-grupo-v19';
+  window.__MAPA_BUILD__='2026-10-05-dashboard-secoes-v20';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -4190,8 +4190,8 @@ function contextoDashboard(filtros=DASH_FILTROS){
 }
 function prepararFiltrosDashboard(){
  const form=document.getElementById('dashFilterForm');if(!form)return;
- const setores=[...new Set([...DB.setores.map(s=>typeof s==='string'?s:s.nome),...DB.animais.map(a=>a.setorInicial),...DB.movimentacoes.flatMap(m=>[m.setorOrigem,m.setorDestino])].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
- const select=document.getElementById('dashSecao');select.innerHTML='<option value="">Todas as seções</option>'+setores.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')+'<option value="Sem setor">Sem setor</option>';
+ const oficiais=['Bela Vista','Guaicurus','Porto Carreiro','Três Pedras','Tope','Três Barras','Confinamento','Margarida','Mutum']; const setores=oficiais.slice().sort((a,b)=>a.localeCompare(b,'pt-BR')); const selecionado=setores.find(s=>normalizarDashboard(s)===normalizarDashboard(DASH_FILTROS.setor)); DASH_FILTROS.setor=selecionado||'';
+ const select=document.getElementById('dashSecao');select.innerHTML='<option value="">Todas as seções</option>'+setores.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
  document.getElementById('dashIni').value=DASH_FILTROS.ini;document.getElementById('dashFim').value=DASH_FILTROS.fim||todayISO();select.value=DASH_FILTROS.setor;document.getElementById('dashSexo').value=DASH_FILTROS.sexo;
  form.onsubmit=e=>{e.preventDefault();const ini=document.getElementById('dashIni').value,fim=document.getElementById('dashFim').value||todayISO();if(ini&&ini>fim){document.getElementById('dashFilterStatus').textContent='A data inicial deve ser anterior ou igual à data final.';return;}DASH_FILTROS={ini,fim,setor:select.value,sexo:document.getElementById('dashSexo').value};renderDashboard();};
  document.getElementById('dashLimpar').onclick=()=>{DASH_FILTROS={ini:'',fim:'',setor:'',sexo:''};renderDashboard();};
