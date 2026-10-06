@@ -4,7 +4,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="mapa-build" content="2026-10-06-conciliacao-irancho-v26">
+<meta name="mapa-build" content="2026-10-06-controle-posicoes-v27">
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -1619,8 +1619,8 @@ thead th{
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
           <button class="btn btn-outline" id="btnImportLocaisXlsx">IMPORTAR XLSX</button>
           <button class="btn btn-outline" id="btnModeloLocaisXlsx">BAIXAR MODELO XLSX</button>
-          <button class="btn btn-gold" id="btnConciliarGestao">CONCILIAR COM GESTÃO PECUÁRIA</button>
-          <button class="btn btn-outline" id="btnConsultarIranchoLocais">CONSULTAR LOCAIS NO IRANCHO</button>
+          <button class="btn btn-gold" id="btnConciliarGestao">CONFERIR LEITURAS DA GESTÃO</button>
+          <button class="btn btn-outline" id="btnConsultarIranchoLocais">CONSULTAR LOCAIS NO IRANCHO</button><button class="btn btn-outline" id="btnConsultarIranchoAnimais">CONSULTAR POSIÇÃO ATUAL NO IRANCHO</button><div id="iranchoPosicoesResultado" hidden></div>
           <input type="file" id="fileLocaisXlsx" accept=".xlsx,.xls,.csv" hidden>
         </div>
         <div id="locaisSetoresStatus" style="margin-top:10px;font-size:12px;color:var(--cinza-600)"></div>
@@ -1628,7 +1628,7 @@ thead th{
       </div>
     </div>
     <div class="panel admin-only" id="conciliacaoGestaoPanel" style="margin-top:16px">
-      <div class="panel-head"><div><h3>Conciliação Local × Seção × Lote</h3><span class="sub">Compara a posição operacional do Gestão Pecuária com a seção oficial do Mapa de Rebanho.</span></div></div>
+      <div class="panel-head"><div><h3>Conferência de posição dos animais</h3><span class="sub">SISBOV · posição no Mapa · posição da leitura · conferência e movimentação.</span></div></div>
       <div class="panel-body" id="conciliacaoGestaoConteudo"><div class="alert alert-gold"><span>Clique em “Conciliar com Gestão Pecuária” para verificar divergências.</span></div></div>
     </div>
     <div class="panel admin-only" id="iranchoLocaisPanel" style="margin-top:16px" hidden>
@@ -1759,7 +1759,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-06-conciliacao-irancho-v26';
+  window.__MAPA_BUILD__='2026-10-06-controle-posicoes-v27';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -5253,6 +5253,12 @@ async function confirmarImportacaoLocais(lista){
  await carregarLocaisSetores();toast(`${salvos} local(is) importado(s).`,'ok');
 }
 let IRANCHO_CONSULTA=null,IRANCHO_CONSULTA_OCUPADA=false,IRANCHO_CONSULTA_PAGINA=0;
+async function consultarPosicoesIrancho(){
+ if(!AUTH_ADMIN||!podeAcesso('configuracoes'))return;
+ const btn=document.getElementById('btnConsultarIranchoAnimais'),box=document.getElementById('iranchoPosicoesResultado');if(btn.disabled)return;btn.disabled=true;box.hidden=false;box.textContent='Consultando posição atual no iRancho…';
+ try{const {data,error}=await authClient.functions.invoke('irancho-posicoes',{method:'GET'});if(error){let d;try{d=await error.context?.json();}catch{}throw Error(d?.error||'Consulta não concluída.');}box.innerHTML='<details open><summary>Conferência da conexão ao vivo</summary><pre style="white-space:pre-wrap">'+esc(JSON.stringify(data,null,2))+'</pre></details>';}
+ catch(e){box.textContent=e.message;}finally{btn.disabled=false;}
+}
 async function consultarLocaisIrancho(){
  if(!AUTH_ADMIN||!authClient||!podeAcesso('configuracoes')||IRANCHO_CONSULTA_OCUPADA)return;
  const panel=document.getElementById('iranchoLocaisPanel'),box=document.getElementById('iranchoLocaisConteudo'),btn=document.getElementById('btnConsultarIranchoLocais');
@@ -5292,7 +5298,8 @@ function classificarPosicaoGestao(pos,mapaIndex,localIndex){
  const a=mapaIndex.get(normalizarSisbov(pos.sisbov));
  const nome=canonTexto(pos.local).replace(/^codigo\s+/,'');
  const cad=localIndex.get(canonTexto('irancho:'+pos.local_codigo))||localIndex.get(canonTexto(pos.local))||localIndex.get(canonTexto(pos.local_codigo))||localIndex.get(nome);
- const x={...pos,animalMapa:a||null,secaoLocal:cad?.secao||'',localCadastro:cad||null,cadastroIrancho:canonTexto(pos.cadastro_origem).includes('irancho'),sisbovMapa:a?.sisbov||pos.sisbov};
+ const api=(IRANCHO_CONSULTA?.catalogo||[]).find(v=>String(v.id)===String(pos.local_codigo));
+ const x={...pos,localIrancho:api?.local||'',secaoIrancho:api?.secao||'',animalMapa:a||null,secaoLocal:cad?.secao||'',localCadastro:cad||null,cadastroIrancho:canonTexto(pos.cadastro_origem).includes('irancho'),sisbovMapa:a?.sisbov||pos.sisbov};
  if(!a)return {...x,situacao:'NAO_LOCALIZADO'};
  if(a.status!=='ATIVO')return {...x,situacao:'ANIMAL_BAIXADO'};
  if(!String(pos.local||pos.local_codigo||'').trim())return {...x,situacao:'SEM_LOCAL'};
@@ -5315,24 +5322,32 @@ async function conciliarGestaoPecuaria(){
  const idx=indiceAnimaisGestao(buildMapaUICached(todayISO())),lidx=indiceLocaisGestao(locais);
  CONCILIACAO_GESTAO=positions.map(p=>classificarPosicaoGestao(p,idx,lidx));CONCILIACAO_PAGINA=0;renderConciliacaoGestao();
 }
-function temDivergenciaGestao(x){
- if(x.situacao==='ANIMAL_BAIXADO')return false;
- if(x.situacao!=='OK')return true;
- const a=x.animalMapa;
- return !a||canonTexto(a.localAtual||'')!==canonTexto(x.localCadastro?.local||'')||String(a.loteAtual||'').trim()!==String(x.lote||'').trim();
+function categoriaControleGestao(x){
+ if(x.situacao==='NAO_LOCALIZADO')return 'AUSENTES';
+ if(!['OK','DIVERGENTE'].includes(x.situacao))return 'REVISAO';
+ if(x.situacao==='DIVERGENTE')return 'DIFERENCAS';
+ const a=x.animalMapa||{},local=String(a.localAtual||'').trim(),lote=String(a.loteAtual||'').trim(),destino=String(x.localCadastro?.local||'').trim(),loteDestino=String(x.lote||'').trim();
+ if((local&&destino&&canonTexto(local)!==canonTexto(destino))||(lote&&loteDestino&&canonTexto(lote)!==canonTexto(loteDestino)))return 'DIFERENCAS';
+ if(!local||!lote||!destino||!loteDestino)return 'PREENCHER';
+ return 'CONFERIDOS';
 }
+function temDivergenciaGestao(x){return categoriaControleGestao(x)==='DIFERENCAS';}
+function resumoPosicaoControle(secao,local,lote){return `<b>${esc(secao||'Seção não informada')}</b><br>Local: ${esc(local||'Não informado')}<br>Lote: ${esc(lote||'Não informado')}`;}
 function renderConciliacaoGestao(){
  const box=document.getElementById('conciliacaoGestaoConteudo');if(!box)return;
- const nomes={OK:'Mesmo setor',DIVERGENTE:'Setor divergente',NAO_LOCALIZADO:'SISBOV ausente no Mapa',ANIMAL_BAIXADO:'Animal morto/vendido ou inativo',LOCAL_NAO_CADASTRADO:'Local aguardando cadastro',SEM_LOCAL:'Local não informado',SECAO_LOCAL_DIVERGENTE:'Setor da Gestão difere do cadastro do local'};
- const counts={};CONCILIACAO_GESTAO.forEach(x=>counts[x.situacao]=(counts[x.situacao]||0)+1);
- const itens=CONCILIACAO_GESTAO.map((x,i)=>({x,i})).filter(({x})=>(!CONCILIACAO_BUSCA||String(x.sisbov).includes(CONCILIACAO_BUSCA)||canonTexto(x.local).includes(canonTexto(CONCILIACAO_BUSCA)))&&(!CONCILIACAO_FILTRO||(CONCILIACAO_FILTRO==='DIFERENCAS'?temDivergenciaGestao(x):CONCILIACAO_FILTRO==='IRANCHO'?x.cadastroIrancho:x.situacao===CONCILIACAO_FILTRO)));
- const pages=Math.max(1,Math.ceil(itens.length/100));CONCILIACAO_PAGINA=Math.min(CONCILIACAO_PAGINA,pages-1);
- box.innerHTML=`<div class="alert alert-gold"><span>Compare a posição atual do Mapa com o pasto identificado no iRancho e a leitura importada na Gestão. Ao confirmar, seção, local e lote são gravados no Mapa e a movimentação recebe o SISBOV e a origem da leitura.</span></div><div class="toolbar"><div class="field"><label for="concBusca">SISBOV ou local</label><input id="concBusca" value="${esc(CONCILIACAO_BUSCA)}"></div><div class="field"><label for="concFiltro">Situação</label><select id="concFiltro"><option value="DIFERENCAS" ${CONCILIACAO_FILTRO==='DIFERENCAS'?'selected':''}>Somente divergências (${CONCILIACAO_GESTAO.filter(temDivergenciaGestao).length})</option><option value="" ${CONCILIACAO_FILTRO===''?'selected':''}>Todas</option>${Object.entries(nomes).map(([k,v])=>`<option value="${k}" ${k===CONCILIACAO_FILTRO?'selected':''}>${v} (${counts[k]||0})</option>`).join('')}<option value="IRANCHO" ${CONCILIACAO_FILTRO==='IRANCHO'?'selected':''}>Cadastro no iRancho</option></select></div><button class="btn btn-outline" id="concAplicarFiltro">Filtrar</button><button type="button" class="btn btn-primary" id="concAprovarGrupo">Conferir grupo para aprovação</button></div><p>${itens.length.toLocaleString('pt-BR')} registros encontrados · Página ${CONCILIACAO_PAGINA+1} de ${pages}. O filtro inicial mostra somente diferenças e dados pendentes de conferência.</p><div class="table-wrap"><table class="exec"><thead><tr><th>SISBOV lido / atual</th><th>Seção / local / lote no Mapa</th><th>Setor da leitura</th><th>Local / subdivisão</th><th>Setor cadastrado do local</th><th>Lote de destino</th><th>Data da leitura</th><th>Origem do cadastro</th><th>Usuário do cadastro</th><th>Data do cadastro</th><th>Responsável do manejo</th><th>Alerta / situação</th><th>Ação</th></tr></thead><tbody>${itens.slice(CONCILIACAO_PAGINA*100,(CONCILIACAO_PAGINA+1)*100).map(({x,i})=>`<tr><td>${esc(x.sisbov)}${x.sisbovMapa!==x.sisbov?'<br>Atual: '+esc(x.sisbovMapa):''}</td><td>${esc(x.animalMapa?.setorAtual||'Não encontrado')}<br>Local: ${esc(x.animalMapa?.localAtual||'Não informado')}<br>Lote: ${esc(x.animalMapa?.loteAtual||'Não informado')}</td><td>${esc(x.secao_gestao||'Não informado')}</td><td>${esc(x.localCadastro?.local||x.local||x.local_codigo||'Não informado')}</td><td>${esc(x.secaoLocal||'Aguardando carga dos locais')}</td><td>${esc(x.lote||'Não informado')}</td><td>${esc(dataHoraBR(x.data_posicao))}</td><td>${esc(x.cadastro_origem||'Não informada pela origem')}</td><td>${esc(x.cadastro_usuario||'Usuário não informado pela origem')}</td><td>${esc(x.cadastro_em?dataHoraBR(x.cadastro_em):'Não informada')}</td><td>${esc(x.responsavel_manejo||'Não informado')}</td><td><span class="badge ${temDivergenciaGestao(x)?'badge-gold':'badge-green'}">${x.situacao==='OK'&&temDivergenciaGestao(x)?'Local ou lote divergente':nomes[x.situacao]}</span>${x.cadastroIrancho?'<br><b>Alerta: cadastro no iRancho — conferir</b>':''}</td><td>${x.animalMapa?.status==='ATIVO'?`<button type="button" class="btn btn-primary btn-sm" data-conc-acao="ajustar" data-conc-index="${i}">Alterar seção / local / lote</button>`:''}<button type="button" class="btn btn-outline btn-sm" data-conc-acao="revisar" data-conc-index="${i}">Revisar</button>${x.animalMapa?`<button type="button" class="btn btn-outline btn-sm" data-conc-acao="manter" data-conc-index="${i}">Manter Mapa</button>`:''}${x.situacao==='LOCAL_NAO_CADASTRADO'?`<button type="button" class="btn btn-outline btn-sm" data-conc-acao="local" data-conc-index="${i}">Cadastrar local</button>`:''}</td></tr>`).join('')||'<tr><td colspan="13">Nenhuma posição encontrada para este filtro.</td></tr>'}</tbody></table></div><div class="toolbar"><button type="button" id="concPrev" class="btn btn-outline" ${CONCILIACAO_PAGINA===0?'disabled':''}>Anterior</button><button type="button" id="concNext" class="btn btn-outline" ${CONCILIACAO_PAGINA>=pages-1?'disabled':''}>Próxima</button></div>`;
- window.__CONCILIACAO_VISIVEL=CONCILIACAO_GESTAO;
- document.getElementById('concAprovarGrupo').onclick=prepararConciliacaoGrupo;
- document.getElementById('concAplicarFiltro').onclick=()=>{CONCILIACAO_BUSCA=document.getElementById('concBusca').value.trim();CONCILIACAO_FILTRO=document.getElementById('concFiltro').value;CONCILIACAO_PAGINA=0;renderConciliacaoGestao();};
+ const grupos={DIFERENCAS:'Diferenças de posição',PREENCHER:'Completar posição',REVISAO:'Leituras para revisar',AUSENTES:'SISBOV ausente no Mapa',CONFERIDOS:'Posições conferidas'};
+ const counts={};CONCILIACAO_GESTAO.forEach(x=>{const g=categoriaControleGestao(x);counts[g]=(counts[g]||0)+1;});
+ if(!grupos[CONCILIACAO_FILTRO])CONCILIACAO_FILTRO='DIFERENCAS';
+ const itens=CONCILIACAO_GESTAO.map((x,i)=>({x,i})).filter(({x})=>categoriaControleGestao(x)===CONCILIACAO_FILTRO&&(!CONCILIACAO_BUSCA||canonTexto([x.sisbov,x.animalMapa?.setorAtual,x.secao_gestao,x.local,x.localCadastro?.local,x.lote].join(' ')).includes(canonTexto(CONCILIACAO_BUSCA))));
+ const pages=Math.max(1,Math.ceil(itens.length/30));CONCILIACAO_PAGINA=Math.min(CONCILIACAO_PAGINA,pages-1);
+ const rotulo=x=>{const g=categoriaControleGestao(x);if(g==='PREENCHER')return 'Faltam dados; não comprova movimentação';if(g==='REVISAO')return x.situacao==='SECAO_LOCAL_DIVERGENTE'?'A seção da leitura não corresponde ao local':'Local sem vínculo ou leitura não utilizável';if(g==='AUSENTES')return 'Animal não encontrado no Mapa';if(g==='CONFERIDOS')return 'Posições correspondem';return x.situacao==='DIVERGENTE'?'Seção diferente':'Local ou lote diferente';};
+ box.innerHTML=`<div class="toolbar" style="flex-wrap:wrap">${Object.entries(grupos).map(([g,n])=>`<button class="btn ${g===CONCILIACAO_FILTRO?'btn-primary':'btn-outline'}" data-conc-grupo="${g}">${n} (${counts[g]||0})</button>`).join('')}</div><p><b>Fonte:</b> manejos importados na Gestão · ${CONCILIACAO_GESTAO.length.toLocaleString('pt-BR')} leituras. A data da leitura aparece em cada animal. Dados faltantes não entram como diferença comprovada.</p><div class="toolbar"><div class="field"><label for="concBusca">Buscar SISBOV, seção, local ou lote</label><input id="concBusca" value="${esc(CONCILIACAO_BUSCA)}"></div><button class="btn btn-outline" id="concAplicarFiltro">Buscar</button><button class="btn btn-outline" id="concAtualizar">Atualizar conferência</button>${CONCILIACAO_FILTRO==='PREENCHER'?'<button class="btn btn-primary" id="concAprovarGrupo">Conferir preenchimentos em grupo</button>':''}</div><p>${itens.length.toLocaleString('pt-BR')} animais · ${esc(grupos[CONCILIACAO_FILTRO])} · Página ${CONCILIACAO_PAGINA+1} de ${pages}</p><div class="table-wrap"><table class="exec"><thead><tr><th>SISBOV</th><th>Posição atual no Mapa</th><th>Posição da leitura</th><th>Conferência</th><th>Ação</th></tr></thead><tbody>${itens.slice(CONCILIACAO_PAGINA*30,(CONCILIACAO_PAGINA+1)*30).map(({x,i})=>`<tr><td><b>${esc(x.sisbovMapa)}</b>${x.sisbovMapa!==x.sisbov?'<br>Lido: '+esc(x.sisbov):''}</td><td>${resumoPosicaoControle(x.animalMapa?.setorAtual,x.animalMapa?.localAtual,x.animalMapa?.loteAtual)}</td><td>${resumoPosicaoControle(x.secaoLocal||x.secao_gestao,x.localCadastro?.local||x.localIrancho||x.local,x.lote)}<br><small>Leitura: ${esc(dataHoraBR(x.data_posicao))}</small></td><td><span class="badge ${temDivergenciaGestao(x)?'badge-gold':'badge-green'}">${esc(rotulo(x))}</span><details><summary>Origem e responsável</summary><p>Seção informada no manejo: ${esc(x.secao_gestao||'Não informada')}<br>Seção do local no iRancho: ${esc(x.secaoIrancho||'Não identificada')}<br>Responsável: ${esc(x.responsavel_manejo||'Não informado')}<br>Usuário do cadastro: ${esc(x.cadastro_usuario||'Não informado pela origem')}<br>Origem: ${esc(x.cadastro_origem||'Não informada')}</p></details></td><td>${['DIFERENCAS','PREENCHER'].includes(categoriaControleGestao(x))&&x.animalMapa?.status==='ATIVO'?`<button class="btn btn-primary btn-sm" data-conc-acao="ajustar" data-conc-index="${i}">${temDivergenciaGestao(x)?'Conferir movimentação':'Completar local / lote'}</button>`:''}${['REVISAO','AUSENTES'].includes(categoriaControleGestao(x))?`<button class="btn btn-outline btn-sm" data-conc-acao="revisar" data-conc-index="${i}">Registrar revisão</button>`:''}</td></tr>`).join('')||`<tr><td colspan="5">${CONCILIACAO_FILTRO==='DIFERENCAS'?'Nenhuma diferença de posição comprovada nas leituras consultadas. Confira as abas de preenchimento e revisão.':'Nenhum animal neste grupo.'}</td></tr>`}</tbody></table></div><div class="toolbar"><button id="concPrev" class="btn btn-outline" ${CONCILIACAO_PAGINA===0?'disabled':''}>Anterior</button><button id="concNext" class="btn btn-outline" ${CONCILIACAO_PAGINA>=pages-1?'disabled':''}>Próxima</button></div>`;
+ box.querySelectorAll('[data-conc-grupo]').forEach(b=>b.onclick=()=>{CONCILIACAO_FILTRO=b.dataset.concGrupo;CONCILIACAO_PAGINA=0;renderConciliacaoGestao();});
+ document.getElementById('concAplicarFiltro').onclick=()=>{CONCILIACAO_BUSCA=document.getElementById('concBusca').value.trim();CONCILIACAO_PAGINA=0;renderConciliacaoGestao();};
+ document.getElementById('concAtualizar').onclick=conciliarGestaoPecuaria;
+ const grupo=document.getElementById('concAprovarGrupo');if(grupo)grupo.onclick=prepararConciliacaoGrupo;
  document.getElementById('concPrev').onclick=()=>{CONCILIACAO_PAGINA--;renderConciliacaoGestao();};document.getElementById('concNext').onclick=()=>{CONCILIACAO_PAGINA++;renderConciliacaoGestao();};
- box.querySelectorAll('[data-conc-acao]').forEach(b=>b.onclick=()=>b.dataset.concAcao==='local'?preencherLocalDaConciliacao(Number(b.dataset.concIndex)):decidirConciliacao(Number(b.dataset.concIndex),b.dataset.concAcao));
+ box.querySelectorAll('[data-conc-acao]').forEach(b=>b.onclick=()=>decidirConciliacao(Number(b.dataset.concIndex),b.dataset.concAcao));
 }
 function preencherLocalDaConciliacao(i){const x=CONCILIACAO_GESTAO[i];if(!x||!exigirAdmin('cadastrar local'))return;document.getElementById('localNome').value=x.local||'';document.getElementById('localCodigo').value=x.local_codigo||'';document.getElementById('localSecao').focus();toast('Escolha a seção correta e salve o local.','ok');}
 async function registrarDecisaoConciliacao(x,status,detalhes={}){
@@ -6837,6 +6852,7 @@ function initEvents(){
   const bImpLocais=document.getElementById('btnImportLocaisXlsx'); if(bImpLocais)bImpLocais.onclick=()=>document.getElementById('fileLocaisXlsx')?.click();
   const fImpLocais=document.getElementById('fileLocaisXlsx'); if(fImpLocais)fImpLocais.onchange=()=>importarLocaisSetores(fImpLocais);
   const bModeloLocais=document.getElementById('btnModeloLocaisXlsx'); if(bModeloLocais)bModeloLocais.onclick=baixarModeloLocaisSetores;
+  document.getElementById('btnConsultarIranchoAnimais').onclick=consultarPosicoesIrancho;
   const bConciliarGestao=document.getElementById('btnConciliarGestao'); if(bConciliarGestao)bConciliarGestao.onclick=conciliarGestaoPecuaria;
   const bConsultarIrancho=document.getElementById('btnConsultarIranchoLocais');if(bConsultarIrancho)bConsultarIrancho.onclick=consultarLocaisIrancho;
 
