@@ -1241,6 +1241,7 @@ thead th{
   <div class="header-actions">
     <span class="pill" id="headerHerdCount">0 cabeças</span>
     <span class="pill" id="headerDate">—</span>
+    <button type="button" id="syncStatusCompact" class="pill" hidden onclick="irParaView('config')" aria-label="Conferir sincronização em Configurações" style="cursor:pointer;font:inherit;font-size:11px;background:transparent;color:var(--dourado);">● Conferir base</button>
     <span class="user-chip user-identity" id="authUser">
   <span class="user-avatar" aria-hidden="true">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-4 3.2-6 7.5-6s6.7 2 7.5 6"/></svg>
@@ -1753,7 +1754,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-06-salvamento-importacao-v23';
+  window.__MAPA_BUILD__='2026-10-06-status-discreto-v24';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -2558,6 +2559,12 @@ async function tentarSincronizarAgora(){
  if(await sincronizarSupabase()){renderAll();toast('Salvamento confirmado na nuvem.','ok');}
 }
 function atualizarEstadoProtecao(){
+ const compacto=document.getElementById('syncStatusCompact');
+ if(compacto){
+  compacto.hidden=!LOCAL_DIRTY||!AUTH_ADMIN;
+  compacto.textContent=_syncEmAndamento?'● Salvando':'● Conferir base';
+  compacto.title=CONFLITO_CENTRAL?'Conferir rascunho preservado em Configurações':_syncEmAndamento?'Salvando alterações na nuvem':'Há alterações neste navegador aguardando confirmação na nuvem. Confira em Configurações.';
+ }
  const e=document.getElementById('estadoProtecao');
  if(e)e.textContent=CONFLITO_CENTRAL?'Conflito: rascunho preservado':LOCAL_DIRTY?'Alterações aguardando sincronização':CENTRAL_REVISION==null?'Sem versão central validada':'Sincronizado · versão '+CENTRAL_REVISION;
  let aviso=document.getElementById('avisoSincronizacao');
@@ -2566,7 +2573,7 @@ function atualizarEstadoProtecao(){
   const texto=document.createElement('span');texto.id='textoSincronizacao';aviso.append(texto);
   const retry=document.createElement('button');retry.id='btnTentarSincronizar';retry.className='btn btn-outline btn-sm';retry.textContent='Tentar salvar na nuvem';retry.onclick=tentarSincronizarAgora;aviso.append(retry);
   const backup=document.createElement('button');backup.className='btn btn-outline btn-sm';backup.textContent='Exportar Backup';backup.onclick=exportarBackup;aviso.append(backup);
-  document.getElementById('mainTabs')?.after(aviso);
+  document.getElementById('estadoProtecao')?.closest('.panel-body')?.prepend(aviso);
  }
  if(!aviso)return;
  aviso.hidden=!LOCAL_DIRTY||!AUTH_ADMIN;
@@ -2574,7 +2581,7 @@ function atualizarEstadoProtecao(){
  document.getElementById('btnTentarSincronizar').disabled=_syncEmAndamento||CONFLITO_CENTRAL;
 }
 function mostrarConflitoCentral(){
- let e=document.getElementById('conflitoCentral');if(!e){e=document.createElement('div');e.id='conflitoCentral';e.className='alert alert-gold';document.body.prepend(e);}
+ let e=document.getElementById('conflitoCentral');if(!e){e=document.createElement('div');e.id='conflitoCentral';e.className='alert alert-gold';document.getElementById('estadoProtecao')?.closest('.panel-body')?.prepend(e);}
  e.hidden=false;e.innerHTML='<span>Outra sessão alterou a base, ou a versão central não foi validada. Seu rascunho foi preservado. Exporte o rascunho antes de carregar a versão central.</span><button id="baixarRascunho" class="btn btn-outline">Exportar rascunho</button><button id="recarregarCentral" class="btn btn-outline">Carregar versão central</button>';
  document.getElementById('baixarRascunho').onclick=exportarBackup;
  document.getElementById('recarregarCentral').onclick=()=>confirmDialog('Carregar versão central','Isso descartará as alterações locais não sincronizadas. Exporte o rascunho antes de continuar.',async()=>{if(await carregarBaseCentral()){await idbSet('mapa_pending_draft',null);e.hidden=true;await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes),idbSet(LS_KEYS.setores,DB.setores),idbSet(LS_KEYS.config,DB.config)]);closeModal();renderAll();}});
