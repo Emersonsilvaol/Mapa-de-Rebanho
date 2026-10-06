@@ -1753,7 +1753,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-06-dashboard-movimentos-v21';
+  window.__MAPA_BUILD__='2026-10-06-importacao-locais-v22';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -5179,7 +5179,7 @@ async function importarLocaisSetores(input){
  const file=input.files?.[0];if(!file)return;
  try{
   const rows=await lerArquivo(file),validos=[],erros=[],vistos=new Map();
-  rows.forEach((r,i)=>{const get=(...names)=>{for(const [k,v] of Object.entries(r))if(names.includes(normHeader(k)))return v;return ''};const secao=secaoCanonica(get('SECAO','SETOR')),local=String(get('LOCAL','PASTO','PIQUETE')||'').trim(),codigo=String(get('CODIGO','COD')||'').trim(),ativo=ativoPlanilha(get('ATIVO','STATUS'));const linha=i+2;
+  rows.forEach((r,i)=>{const get=(...names)=>{const aceitos=names.map(normHeader);for(const [k,v] of Object.entries(r))if(aceitos.includes(normHeader(k)))return v;return ''};const secao=secaoCanonica(get('SECAO','SETOR')),local=String(get('LOCAL','PASTO','PIQUETE')||'').trim(),codigo=String(get('CODIGO','COD')||'').trim(),ativo=ativoPlanilha(get('ATIVO','STATUS'));const linha=i+2;
    if(!secao||!DB.setores.some(x=>chaveSetor(x)===chaveSetor(secao)))return erros.push({linha,motivo:'Seção inválida'});
    if(!local)return erros.push({linha,motivo:'Local ausente'});
    const k=canonTexto(local);if(vistos.has(k)&&chaveSetor(vistos.get(k))!==chaveSetor(secao))return erros.push({linha,motivo:`Local repetido em seções diferentes (${vistos.get(k)} / ${secao})`});vistos.set(k,secao);validos.push({linha,secao,local,codigo,ativo});
