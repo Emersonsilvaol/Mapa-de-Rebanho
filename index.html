@@ -4,7 +4,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="mapa-build" content="2026-10-01-locais-lotes-conciliacao">
+<meta name="mapa-build" content="2026-10-06-consulta-irancho-v25">
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -1620,6 +1620,7 @@ thead th{
           <button class="btn btn-outline" id="btnImportLocaisXlsx">IMPORTAR XLSX</button>
           <button class="btn btn-outline" id="btnModeloLocaisXlsx">BAIXAR MODELO XLSX</button>
           <button class="btn btn-gold" id="btnConciliarGestao">CONCILIAR COM GESTÃO PECUÁRIA</button>
+          <button class="btn btn-outline" id="btnConsultarIranchoLocais">CONSULTAR LOCAIS NO IRANCHO</button>
           <input type="file" id="fileLocaisXlsx" accept=".xlsx,.xls,.csv" hidden>
         </div>
         <div id="locaisSetoresStatus" style="margin-top:10px;font-size:12px;color:var(--cinza-600)"></div>
@@ -1629,6 +1630,10 @@ thead th{
     <div class="panel admin-only" id="conciliacaoGestaoPanel" style="margin-top:16px">
       <div class="panel-head"><div><h3>Conciliação Local × Seção × Lote</h3><span class="sub">Compara a posição operacional do Gestão Pecuária com a seção oficial do Mapa de Rebanho.</span></div></div>
       <div class="panel-body" id="conciliacaoGestaoConteudo"><div class="alert alert-gold"><span>Clique em “Conciliar com Gestão Pecuária” para verificar divergências.</span></div></div>
+    </div>
+    <div class="panel admin-only" id="iranchoLocaisPanel" style="margin-top:16px" hidden>
+      <div class="panel-head"><div><h3>Consulta de locais · iRancho</h3><span class="sub">Identifica o local pelo ID da API e confere a seção cadastrada no mapa.</span></div></div>
+      <div class="panel-body" id="iranchoLocaisConteudo" aria-live="polite"></div>
     </div>
     <div class="panel" id="visualEditorPanel">
       <div class="panel-head"><h3>Editor Visual do Sistema</h3><span class="sub">Personalize sem editar o código HTML</span></div>
@@ -1754,7 +1759,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-06-status-discreto-v24';
+  window.__MAPA_BUILD__='2026-10-06-consulta-irancho-v25';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -5247,6 +5252,34 @@ async function confirmarImportacaoLocais(lista){
  for(const x of lista){const existente=atuais.find(a=>canonTexto(a.local)===canonTexto(x.local));let q=existente?authClient.from('mapa_locais_setores').update({secao:x.secao,codigo:x.codigo,ativo:x.ativo,updated_at:new Date().toISOString()}).eq('id',existente.id):authClient.from('mapa_locais_setores').insert({secao:x.secao,local:x.local,codigo:x.codigo,ativo:x.ativo});const {error}=await q;if(!error)salvos++;}
  await carregarLocaisSetores();toast(`${salvos} local(is) importado(s).`,'ok');
 }
+let IRANCHO_CONSULTA=null,IRANCHO_CONSULTA_OCUPADA=false,IRANCHO_CONSULTA_PAGINA=0;
+async function consultarLocaisIrancho(){
+ if(!AUTH_ADMIN||!authClient||!podeAcesso('configuracoes')||IRANCHO_CONSULTA_OCUPADA)return;
+ const panel=document.getElementById('iranchoLocaisPanel'),box=document.getElementById('iranchoLocaisConteudo'),btn=document.getElementById('btnConsultarIranchoLocais');
+ if(!panel||!box)return;
+ IRANCHO_CONSULTA=null;IRANCHO_CONSULTA_OCUPADA=true;panel.hidden=false;box.textContent='Consultando os locais no iRancho…';if(btn)btn.disabled=true;
+ try{
+  const {data,error}=await authClient.functions.invoke('irancho-locais',{method:'GET'});
+  if(error){let detail;try{detail=await error.context?.json();}catch(_){}throw new Error(detail?.code==='IRANCHO_TOKEN_PENDENTE'?'A conexão está preparada, mas o token ainda precisa ser configurado no servidor.':detail?.error||'Não foi possível consultar o iRancho. Tente novamente.');}
+  if(!data||!Array.isArray(data.catalogo)||!Array.isArray(data.posicoes)||!Array.isArray(data.locais_sem_correspondencia)||!data.resumo||data.somente_consulta!==true)throw Error('A consulta retornou dados incompletos.');
+  if(!AUTH_ADMIN||!podeAcesso('configuracoes')){box.textContent='';panel.hidden=true;return;}
+  IRANCHO_CONSULTA=data;IRANCHO_CONSULTA_PAGINA=0;renderConsultaIrancho();
+ }catch(e){IRANCHO_CONSULTA=null;box.textContent=e.message||'Consulta indisponível.';}
+ finally{IRANCHO_CONSULTA_OCUPADA=false;if(btn)btn.disabled=false;}
+}
+function renderConsultaIrancho(){
+ const box=document.getElementById('iranchoLocaisConteudo'),data=IRANCHO_CONSULTA;
+ if(!box||!data||!AUTH_ADMIN||!podeAcesso('configuracoes'))return;
+ const busca=document.getElementById('iranchoConsultaBusca')?.value||'',tipo=document.getElementById('iranchoConsultaTipo')?.value||'catalogo';
+ const nomes={VINCULADO:'Local e seção conferidos',FAZENDA_SEM_VINCULO:'Seção aguardando vínculo',VINCULO_AMBIGUO:'Mais de um local corresponde',LOCAL_NAO_CADASTRADO:'Local ausente no cadastro do mapa',ID_NAO_ENCONTRADO:'ID ausente no catálogo iRancho',SECAO_DIVERGENTE:'Seção da leitura divergente'};
+ const lista=(tipo==='posicoes'?data.posicoes:tipo==='semCorrespondencia'?data.locais_sem_correspondencia:data.catalogo).filter(x=>!busca||canonTexto([x.sisbov,x.local,x.local_irancho,x.secao,x.secao_irancho,x.id,x.codigo,x.codigo_mapa,x.lote].join(' ')).includes(canonTexto(busca)));
+ const pages=Math.max(1,Math.ceil(lista.length/100));IRANCHO_CONSULTA_PAGINA=Math.min(IRANCHO_CONSULTA_PAGINA,pages-1);
+ const resumo=data.resumo,n=v=>Number(v||0).toLocaleString('pt-BR');
+ box.innerHTML=`<div class="kpi-row"><div class="kpi-card"><div><div class="kpi-lbl">SUBDIVISÕES NO IRANCHO</div><div class="kpi-val">${n(resumo.subdivisoes)}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">LOCAIS VINCULADOS AO MAPA</div><div class="kpi-val">${n(resumo.vinculados)}</div></div></div><div class="kpi-card"><div><div class="kpi-lbl">POSIÇÕES IMPORTADAS NA GESTÃO</div><div class="kpi-val">${n(resumo.posicoes)}</div></div></div></div><p>Consulta em ${esc(dataHoraBR(data.consultado_em))}. As posições da Gestão vêm dos manejos já importados e podem representar parte do rebanho. Esta conferência não altera cadastros ou saldo.</p><div class="toolbar"><div class="field"><label for="iranchoConsultaBusca">SISBOV, local, seção ou lote</label><input id="iranchoConsultaBusca" value="${esc(busca)}"></div><div class="field"><label for="iranchoConsultaTipo">Mostrar</label><select id="iranchoConsultaTipo"><option value="catalogo" ${tipo==='catalogo'?'selected':''}>Locais do iRancho</option><option value="posicoes" ${tipo==='posicoes'?'selected':''}>Posições da Gestão</option><option value="semCorrespondencia" ${tipo==='semCorrespondencia'?'selected':''}>Locais do mapa sem correspondência</option></select></div><button id="iranchoConsultaFiltrar" class="btn btn-outline">Filtrar</button></div><p>${n(lista.length)} registros · Página ${IRANCHO_CONSULTA_PAGINA+1} de ${pages}</p><div class="table-wrap"><table class="exec"><thead><tr>${tipo==='posicoes'?'<th>SISBOV</th><th>Seção da leitura</th><th>Local no iRancho</th><th>ID iRancho</th><th>Seção do local</th><th>Lote da Gestão</th><th>Data da posição</th><th>Situação</th>':'<th>Seção</th><th>Local</th><th>ID iRancho</th><th>Código do mapa</th><th>Situação</th>'}</tr></thead><tbody>${lista.slice(IRANCHO_CONSULTA_PAGINA*100,(IRANCHO_CONSULTA_PAGINA+1)*100).map(x=>tipo==='posicoes'?`<tr><td>${esc(x.sisbov)}</td><td>${esc(x.secao_leitura||'Não informada')}</td><td>${esc(x.local_irancho||x.local_origem||'Não localizado')}</td><td>${esc(x.local_codigo||'—')}</td><td>${esc(x.secao_irancho||'Aguardando vínculo')}</td><td>${esc(x.lote||'Não informado')}</td><td>${esc(x.data_posicao?dataHoraBR(x.data_posicao):'Não informada')}</td><td>${esc(nomes[x.situacao]||x.situacao)}</td></tr>`:`<tr><td>${esc(x.secao||'Aguardando vínculo')}</td><td>${esc(x.local)}</td><td>${esc(tipo==='semCorrespondencia'?'—':x.id)}</td><td>${esc(x.codigo_mapa||x.codigo||'—')}</td><td>${esc(tipo==='semCorrespondencia'?'Sem correspondência na consulta':nomes[x.situacao]||x.situacao)}</td></tr>`).join('')||`<tr><td colspan="${tipo==='posicoes'?8:5}">Nenhum registro encontrado.</td></tr>`}</tbody></table></div><div class="toolbar"><button id="iranchoConsultaAnterior" class="btn btn-outline" ${IRANCHO_CONSULTA_PAGINA===0?'disabled':''}>Anterior</button><button id="iranchoConsultaProxima" class="btn btn-outline" ${IRANCHO_CONSULTA_PAGINA>=pages-1?'disabled':''}>Próxima</button></div>`;
+ document.getElementById('iranchoConsultaFiltrar').onclick=()=>{IRANCHO_CONSULTA_PAGINA=0;renderConsultaIrancho();};
+ document.getElementById('iranchoConsultaAnterior').onclick=()=>{IRANCHO_CONSULTA_PAGINA--;renderConsultaIrancho();};
+ document.getElementById('iranchoConsultaProxima').onclick=()=>{IRANCHO_CONSULTA_PAGINA++;renderConsultaIrancho();};
+}
 let CONCILIACAO_PAGINA=0,CONCILIACAO_BUSCA='',CONCILIACAO_FILTRO='',CONCILIACAO_OCUPADA=false;
 function chaveLeituraGestao(x){return JSON.stringify([normalizarSisbov(x.sisbov),x.secao_gestao||'',x.local||'',x.local_codigo||'',x.lote||'',x.lote_codigo||'',x.data_posicao||'']);}
 function indiceLocaisGestao(locais){
@@ -6775,6 +6808,7 @@ function initEvents(){
   const fImpLocais=document.getElementById('fileLocaisXlsx'); if(fImpLocais)fImpLocais.onchange=()=>importarLocaisSetores(fImpLocais);
   const bModeloLocais=document.getElementById('btnModeloLocaisXlsx'); if(bModeloLocais)bModeloLocais.onclick=baixarModeloLocaisSetores;
   const bConciliarGestao=document.getElementById('btnConciliarGestao'); if(bConciliarGestao)bConciliarGestao.onclick=conciliarGestaoPecuaria;
+  const bConsultarIrancho=document.getElementById('btnConsultarIranchoLocais');if(bConsultarIrancho)bConsultarIrancho.onclick=consultarLocaisIrancho;
 
   // Configurações / Backup
   document.getElementById('btnExportBackup').onclick = exportarBackup;
