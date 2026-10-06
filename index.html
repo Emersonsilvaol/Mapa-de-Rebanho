@@ -1753,7 +1753,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-05-dashboard-secoes-v20';
+  window.__MAPA_BUILD__='2026-10-06-dashboard-movimentos-v21';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -4218,7 +4218,7 @@ function ativarDetalhesDashboard(){
  view.querySelectorAll('#dashSexCat tbody tr').forEach((tr,i)=>{[...tr.cells].slice(1).forEach((el,j)=>botaoNumeroDashboard(el,'current',{...(i<CATEGORIAS.length?{categoria:CATEGORIAS[i]}:{}),...(j<2?{sexo:j===0?'Macho':'Fêmea'}:{})}));});
  view.querySelectorAll('#dashSex .composition-sex b').forEach((el,i)=>botaoNumeroDashboard(el,'current',{sexo:i===0?'Fêmea':'Macho'}));
  botaoNumeroDashboard(document.getElementById('dashTransfer')?.querySelector('.transfer-value'),'transfer');
- view.querySelectorAll('#dashRecent tbody tr').forEach((tr,i)=>botaoNumeroDashboard(tr.cells[2],'movement:'+i));
+ view.querySelectorAll('#dashRecent tbody tr[data-movement-index]').forEach(tr=>botaoNumeroDashboard(tr.cells[7],'movement:'+tr.dataset.movementIndex));
  view.querySelectorAll('#dashIndicators .exec-metric b').forEach((el,i)=>botaoNumeroDashboard(el,['birth','death','current','current'][i],i>1?{sexo:i===2?'Fêmea':'Macho'}:{}));
  const mort=view.querySelectorAll('#mortResumo .kpi-val');botaoNumeroDashboard(mort[0],'death');botaoNumeroDashboard(mort[1],'initial');botaoNumeroDashboard(mort[2],'death');
  view.onclick=e=>{const b=e.target.closest('[data-dash-detalhe],[data-dash-secao]');if(!b)return;if(!podeAcesso('dashboard')){toast('Consulta não autorizada.','err');return;}abrirDetalheDashboard(b.dataset.dashDetalhe||'current',b.dataset.dashSecao||b.dataset.secao||'',b.dataset.sexo||'',b.dataset.categoria||'',b.hasAttribute('data-dash-secao'));};
@@ -4269,6 +4269,28 @@ async function exportarDashboard(formato){
  doc.setFontSize(9);doc.text(d.filtros,10,23);doc.autoTable({startY:28,head:[['Indicador','Cabeças']],body:d.saldo,headStyles:autoTableHead()});doc.autoTable({startY:doc.lastAutoTable.finalY+8,head:[heads],body:[...d.secoes,['TOTAL',d.ctx.abertura.length,d.saldo[1][1],d.saldo[2][1],d.ctx.ativos.length,d.saldo[4][1]]],headStyles:autoTableHead()});doc.addPage();doc.text('Composição por faixa etária — '+d.filtros,10,14);doc.autoTable({startY:20,head:[['Faixa etária','Machos','Fêmeas','Total']],body:CATEGORIAS.map(c=>{const a=d.ctx.ativos.filter(a=>a.categoria===c);return [c,a.filter(a=>d.ctx.sexo(a.sexo)==='Macho').length,a.filter(a=>d.ctx.sexo(a.sexo)==='Fêmea').length,a.length];}),headStyles:autoTableHead()});doc.text(nota,10,doc.lastAutoTable.finalY+10);doc.addPage();doc.text('Movimentações — '+d.filtros,10,14);doc.autoTable({startY:20,head:[['Data','Tipo','SISBOV','Origem','Destino','Sexo','Quantidade']],body:d.movs,styles:{fontSize:7},headStyles:autoTableHead()});finalizarPDF(doc,'dashboard-filtrado.pdf');
 }
 
+function dadosMovimentoDashboard(m){
+ const a=resolverAnimalHistorico(m)||{};
+ const nascimento=m.nascimento||a.nascimento||'';
+ const categoria=nascimento?calcCategoria(nascimento,m.data):m.categoria||'—';
+ return {sisbov:normalizarSisbov(m.sisbov||m.sisbovAnterior||a.sisbov||''),sexo:m.sexo||a.sexo||'Não informado',raca:m.raca||a.raca||'Não informada',categoria:categoria==='—'?'Não informada':categoria+' meses'};
+}
+function renderRecentesDashboard(recent,ctx){
+ if(!recent.length)return '<p class="dashboard-empty">Nenhuma movimentação no período selecionado.</p>';
+ return `<p class="activity-caption">Últimas ${recent.length} movimentações · categoria na data do evento · clique no SISBOV ou na quantidade para consultar</p><div class="table-wrap"><table class="recent-table recent-detail-table"><thead><tr><th>Data</th><th>Movimentação</th><th>SISBOV</th><th>Sexo</th><th>Raça</th><th>Categoria</th><th>Origem → destino</th><th class="num">Qtde</th></tr></thead><tbody>${recent.map((m,i)=>{
+ const d=dadosMovimentoDashboard(m),tipo=tipoOperacionalMov(m)||'Não informado',tone=ctx.entra(m)?'entry':ctx.sai(m)?'exit':'transfer';
+ const origem=m.setorOrigem||m.setor||'—',destino=m.destinoExterno||m.setorDestino||'—';
+ return `<tr data-movement-index="${i}"><td>${esc(formatBR(m.data)||'—')}</td><td><span class="movement-badge ${tone}">${esc(tipo)}</span></td><td>${d.sisbov?`<button type="button" class="dash-number sisbov-link" data-dash-detalhe="movement:${i}" aria-label="Consultar SISBOV ${esc(d.sisbov)}">${esc(d.sisbov)}</button>`:'<span class="field-missing">Sem SISBOV individual</span>'}</td><td>${esc(d.sexo)}</td><td>${esc(d.raca)}</td><td>${esc(d.categoria)}</td><td><span class="movement-route">${esc(origem)} <span aria-label="para">→</span> ${esc(destino)}</span></td><td class="num">${ctx.qtd(m).toLocaleString('pt-BR')}</td></tr>`;
+ }).join('')}</tbody></table></div>`;
+}
+function renderFluxoMensalDashboard(months,monthly,maxFlow){
+ if(!months.length)return '<p class="dashboard-empty">Nenhuma entrada ou saída no período selecionado.</p>';
+ const nomes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+ const totals=months.reduce((v,k)=>({in:v.in+monthly[k].in,out:v.out+monthly[k].out}),{in:0,out:0});
+ const n=v=>v.toLocaleString('pt-BR');
+ return `<div class="flow-totals"><div><span><i class="flow-dot entry"></i>Entradas</span><strong>${n(totals.in)}</strong></div><div><span><i class="flow-dot exit"></i>Saídas</span><strong>${n(totals.out)}</strong></div></div><p class="activity-caption">${months.length} ${months.length===1?'mês exibido':'meses exibidos'} · valores em cabeças · mesma escala para todas as barras</p><div class="flow-months">${months.map(k=>{const v=monthly[k],saldo=v.in-v.out;return `<div class="flow-month"><div class="flow-month-title"><b>${nomes[Number(k.slice(5))-1]} ${k.slice(0,4)}</b><span>Saldo <strong class="${saldo<0?'negative':'positive'}">${saldo>0?'+':''}${n(saldo)}</strong></span></div>${[['in','Entradas','entry'],['out','Saídas','exit']].map(([field,label,tone])=>`<div class="flow-line"><span>${label}</span><div class="flow-track" aria-hidden="true"><i class="${tone}" style="width:${v[field]/maxFlow*100}%"></i></div><strong>${n(v[field])}</strong></div>`).join('')}</div>`;}).join('')}</div>`;
+}
+
 function renderDashboard(){
   document.getElementById('alertaCadastro')?.remove();
   prepararFiltrosDashboard();
@@ -4306,7 +4328,7 @@ function renderDashboard(){
 
   const monthly={}; movs.forEach(m=>{const d=String(m.data||'');if(!/^\d{4}-\d{2}/.test(d))return;const k=d.slice(0,7);monthly[k]??={in:0,out:0};if(entra(m))monthly[k].in+=qtd(m);if(sai(m))monthly[k].out+=qtd(m)});
   const months=Object.keys(monthly).sort().slice(-9), maxFlow=Math.max(1,...months.flatMap(k=>[monthly[k].in,monthly[k].out]));
-  document.getElementById('dashFlow').innerHTML=`<div style="font-size:10px;margin-bottom:4px"><span style="color:#2e9b59">■ Entradas</span> &nbsp; <span style="color:#9f8047">■ Saídas</span></div><div class="mini-bars">${months.map(k=>`<div class="mini-month"><div class="mini-pair"><div class="mini-bar mini-in dash-hover-data" style="height:${monthly[k].in/maxFlow*110}px" data-dash-tip="${k.slice(5)}/${k.slice(0,4)} · Entradas: ${monthly[k].in.toLocaleString('pt-BR')} cabeças"></div><div class="mini-bar mini-out dash-hover-data" style="height:${monthly[k].out/maxFlow*110}px" data-dash-tip="${k.slice(5)}/${k.slice(0,4)} · Saídas: ${monthly[k].out.toLocaleString('pt-BR')} cabeças"></div></div>${k.slice(5)}</div>`).join('')}</div>`;
+  document.getElementById('dashFlow').innerHTML=renderFluxoMensalDashboard(months,monthly,maxFlow);
 
   const evolutionMonths=Object.keys(monthly).filter(k=>k<=ref.slice(0,7)).sort().slice(-8);
   const points=evolutionMonths.map(k=>{const [year,month]=k.split('-').map(Number);const end=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);const day=end>ref?ref:end;return {day,value:ctx.mapa(day).length};});
@@ -4329,7 +4351,7 @@ function renderDashboard(){
   document.getElementById('dashIndicators').innerHTML=`<div class="exec-metric-grid"><div class="exec-metric"><b>${nascRate.toFixed(1).replace('.',',')}%</b><span>Nascimentos / saldo inicial</span></div><div class="exec-metric"><b>${mortRate.toFixed(1).replace('.',',')}%</b><span>Mortes / saldo inicial</span></div><div class="exec-metric"><b>${pf.toFixed(1).replace('.',',')}%</b><span>Fêmeas no rebanho atual</span></div><div class="exec-metric"><b>${(ativos.length?machos/ativos.length*100:0).toFixed(1).replace('.',',')}%</b><span>Machos no rebanho atual</span></div></div>`;
 
   const recent=[...movs].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).slice(0,6);
-  document.getElementById('dashRecent').innerHTML=`<table class="recent-table"><thead><tr><th>Data</th><th>Tipo</th><th>Qtde</th><th>Setor / Destino</th></tr></thead><tbody>${recent.map(m=>`<tr><td>${formatBR(m.data)||'-'}</td><td>${tipoOperacionalMov(m)||m.tipo||'-'}</td><td>${qtd(m)}</td><td>${m.setorDestino||m.setor||m.setorOrigem||'-'}</td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('dashRecent').innerHTML=renderRecentesDashboard(recent,ctx);
 
   renderMortalidade(ctx);
   ativarDetalhesDashboard();
@@ -7081,6 +7103,12 @@ html body .dash-number{font:inherit;color:inherit;background:transparent;border:
 html body .dash-number:hover,html body .dash-number:focus-visible{color:var(--chart-green);background:var(--chart-area);outline:2px solid var(--chart-green);outline-offset:3px}
 html body .dash-section-link{font-weight:650}.dash-detail-metrics{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}.dash-detail-metrics b{margin-left:8px}
 @media(max-width:600px){html body #view-dashboard .dashboard-filters{top:var(--layout-header,68px);gap:6px!important;padding:8px!important}html body #view-dashboard .dashboard-filters .field{flex:1 1 42%!important}html body #view-dashboard .dashboard-filters button{min-height:36px;font-size:11px;padding:7px 9px}html body #dashFilterStatus{font-size:10px!important;line-height:1.3}}
+</style>
+<style>
+/* Dashboard: identificação dos animais e comparação mensal legível. */
+html body #view-dashboard .dashboard-activity{grid-template-columns:minmax(0,1fr)!important}
+.recent-detail-table{min-width:960px!important;width:100%}.recent-detail-table th,.recent-detail-table td{padding:12px 10px!important;font-size:12px!important;vertical-align:middle}.recent-detail-table th{white-space:nowrap}.recent-detail-table .sisbov-link{font-variant-numeric:tabular-nums;letter-spacing:.25px;font-weight:700;font-size:12px;white-space:nowrap}.movement-badge{display:inline-block;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:650;background:var(--chart-area);color:var(--ink);white-space:nowrap}.movement-badge.exit{background:rgba(185,132,56,.13)}.movement-route{display:block;min-width:180px;line-height:1.6}.movement-route>span{color:var(--muted);margin:0 4px}.field-missing,.activity-caption,.dashboard-empty{color:var(--muted)}.activity-caption{font-size:11px;line-height:1.5;margin:0 0 14px}.dashboard-empty{font-size:13px;padding:20px 0}
+.flow-totals{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}.flow-totals>div{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--canvas)}.flow-totals span{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}.flow-totals strong{display:block;font-size:26px;color:var(--ink);margin-top:5px;font-variant-numeric:tabular-nums}.flow-dot{width:8px;height:8px;display:inline-block;border-radius:50%}.flow-dot.entry,.flow-track .entry{background:var(--chart-green)}.flow-dot.exit,.flow-track .exit{background:#b58c4e}.flow-month{padding:12px 0;border-top:1px solid var(--line)}.flow-month-title{display:flex;justify-content:space-between;gap:10px;margin-bottom:9px;color:var(--ink);font-size:12px}.flow-month-title>span{color:var(--muted);font-size:11px}.flow-line{display:grid;grid-template-columns:55px minmax(30px,1fr) 54px;gap:9px;align-items:center;margin:7px 0;font-size:11px;color:var(--muted)}.flow-line>strong{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums;font-size:12px}.flow-track{height:9px;background:var(--canvas);border-radius:4px;overflow:hidden}.flow-track i{display:block;height:100%;border-radius:4px}.flow-month-title .positive{color:var(--chart-green)}.flow-month-title .negative{color:#a87934}html[data-theme="dark"] .flow-month-title .negative{color:#e5b46e}
 </style>
 </body>
 </html>
