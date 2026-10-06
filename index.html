@@ -1753,7 +1753,7 @@ thead th{
 
 <script id="reid-definitive-compat">
 (function(){
-  window.__MAPA_BUILD__='2026-10-06-importacao-locais-v22';
+  window.__MAPA_BUILD__='2026-10-06-salvamento-importacao-v23';
 
   window.esc = function(v){
     return String(v===undefined || v===null ? '' : v)
@@ -2518,26 +2518,61 @@ function aplicarBaseCentralRecebida(data){
 function payloadCentral(){
   return {versao:2,geradoEm:new Date().toISOString(),animais:DB.animais||[],movimentacoes:DB.movimentacoes||[],setores:DB.setores||[],config:DB.config||{}};
 }
-let _syncTimer=null, _syncEmAndamento=false, _syncPendente=false;
-async function sincronizarSupabase(){
-  if(!LOCAL_DIRTY)return true;
-  if(CONFLITO_CENTRAL||CENTRAL_REVISION==null){mostrarConflitoCentral();return false;}
-  if(_syncEmAndamento){_syncPendente=true;return false;}
-  if(!await verificarAcessoAtual()||!AUTH_ADMIN)return false;
-  if(!confirmarGrandeAntesSalvar()){toast('Alteração não enviada. O rascunho local foi preservado.','err');return false;}
-  _syncEmAndamento=true;const generation=DB_GENERATION;const snapshot=JSON.parse(JSON.stringify(payloadCentral()));
-  try{
-    const {data,error}=await authClient.rpc('mapa_salvar',{p_payload:snapshot,p_revision:CENTRAL_REVISION,p_reason:PENDING_REASON});
-    if(error)throw error;
-    if(!data?.ok){CONFLITO_CENTRAL=true;mostrarConflitoCentral();return false;}
-    CENTRAL_REVISION=data.revision;BASE_CONFIRMADA=snapshot;
-    if(generation===DB_GENERATION){LOCAL_DIRTY=false;PENDING_REASON='';await idbSet('mapa_pending_draft',null);}
-    else _syncPendente=true;
-    atualizarEstadoProtecao();return !LOCAL_DIRTY;
-  }catch(e){toast('Alteração ainda não sincronizada: '+e.message,'err');atualizarEstadoProtecao();return false;}
-  finally{_syncEmAndamento=false;if(_syncPendente&&!CONFLITO_CENTRAL){_syncPendente=false;agendarSyncCentral();}}
+let _syncTimer=null, _syncEmAndamento=false, _syncPendente=false, _syncPromise=null, SYNC_ERRO='';
+function sincronizarSupabase(){
+  clearTimeout(_syncTimer);
+  if(_syncPromise)return _syncPromise;
+  if(!LOCAL_DIRTY)return Promise.resolve(true);
+  if(CONFLITO_CENTRAL||CENTRAL_REVISION==null){mostrarConflitoCentral();return Promise.resolve(false);}
+  // Reserve the operation before any asynchronous access check. Both the
+  // import confirmation and the automatic timer must await this same write.
+  _syncEmAndamento=true;
+  _syncPromise=(async()=>{
+    try{
+      if(!await verificarAcessoAtual()||!AUTH_ADMIN)return false;
+      if(!LOCAL_DIRTY)return true;
+      if(!confirmarGrandeAntesSalvar()){SYNC_ERRO='Confirmação da alteração não concluída.';return false;}
+      const generation=DB_GENERATION,snapshot=JSON.parse(JSON.stringify(payloadCentral()));
+      const {data,error}=await authClient.rpc('mapa_salvar',{p_payload:snapshot,p_revision:CENTRAL_REVISION,p_reason:PENDING_REASON});
+      if(error)throw error;
+      if(!data?.ok){CONFLITO_CENTRAL=true;mostrarConflitoCentral();return false;}
+      CENTRAL_REVISION=data.revision;BASE_CONFIRMADA=snapshot;SYNC_ERRO='';
+      if(generation===DB_GENERATION){
+        LOCAL_DIRTY=false;PENDING_REASON='';
+        // A local cleanup failure must not turn a confirmed cloud write into
+        // a failed import. Identical stale drafts are ignored on next load.
+        try{await idbSet('mapa_pending_draft',null);}catch(e){console.warn('Falha ao limpar rascunho já sincronizado',e);}
+      }else _syncPendente=true;
+      atualizarEstadoProtecao();return !LOCAL_DIRTY;
+    }catch(e){
+      SYNC_ERRO=e.code==='57014'?'O banco demorou para concluir o salvamento.':e.message||'Falha de conexão com a nuvem.';
+      toast('Dados preservados neste navegador, mas ainda não confirmados na nuvem: '+SYNC_ERRO,'err');return false;
+    }finally{
+      _syncEmAndamento=false;_syncPromise=null;atualizarEstadoProtecao();
+      if(_syncPendente&&!CONFLITO_CENTRAL){_syncPendente=false;agendarSyncCentral();}
+    }
+  })();
+  atualizarEstadoProtecao();return _syncPromise;
 }
-function atualizarEstadoProtecao(){const e=document.getElementById('estadoProtecao');if(e)e.textContent=CONFLITO_CENTRAL?'Conflito: rascunho preservado':LOCAL_DIRTY?'Alterações aguardando sincronização':CENTRAL_REVISION==null?'Sem versão central validada':'Sincronizado · versão '+CENTRAL_REVISION;}
+async function tentarSincronizarAgora(){
+ if(await sincronizarSupabase()){renderAll();toast('Salvamento confirmado na nuvem.','ok');}
+}
+function atualizarEstadoProtecao(){
+ const e=document.getElementById('estadoProtecao');
+ if(e)e.textContent=CONFLITO_CENTRAL?'Conflito: rascunho preservado':LOCAL_DIRTY?'Alterações aguardando sincronização':CENTRAL_REVISION==null?'Sem versão central validada':'Sincronizado · versão '+CENTRAL_REVISION;
+ let aviso=document.getElementById('avisoSincronizacao');
+ if(!aviso&&LOCAL_DIRTY&&AUTH_ADMIN){
+  aviso=document.createElement('div');aviso.id='avisoSincronizacao';aviso.className='alert alert-gold';aviso.setAttribute('role','status');
+  const texto=document.createElement('span');texto.id='textoSincronizacao';aviso.append(texto);
+  const retry=document.createElement('button');retry.id='btnTentarSincronizar';retry.className='btn btn-outline btn-sm';retry.textContent='Tentar salvar na nuvem';retry.onclick=tentarSincronizarAgora;aviso.append(retry);
+  const backup=document.createElement('button');backup.className='btn btn-outline btn-sm';backup.textContent='Exportar Backup';backup.onclick=exportarBackup;aviso.append(backup);
+  document.getElementById('mainTabs')?.after(aviso);
+ }
+ if(!aviso)return;
+ aviso.hidden=!LOCAL_DIRTY||!AUTH_ADMIN;
+ document.getElementById('textoSincronizacao').textContent=CONFLITO_CENTRAL?'Existe um conflito de versões. Seu rascunho está preservado; confira antes de substituir a base.':_syncEmAndamento?'Salvando na nuvem. Aguarde a confirmação.':'Alterações neste navegador ainda não confirmadas na nuvem. O e-mail automático usa somente os dados confirmados.'+(SYNC_ERRO?' '+SYNC_ERRO:'');
+ document.getElementById('btnTentarSincronizar').disabled=_syncEmAndamento||CONFLITO_CENTRAL;
+}
 function mostrarConflitoCentral(){
  let e=document.getElementById('conflitoCentral');if(!e){e=document.createElement('div');e.id='conflitoCentral';e.className='alert alert-gold';document.body.prepend(e);}
  e.hidden=false;e.innerHTML='<span>Outra sessão alterou a base, ou a versão central não foi validada. Seu rascunho foi preservado. Exporte o rascunho antes de carregar a versão central.</span><button id="baixarRascunho" class="btn btn-outline">Exportar rascunho</button><button id="recarregarCentral" class="btn btn-outline">Carregar versão central</button>';
@@ -2565,7 +2600,19 @@ async function recuperarBaseCentralAposInicio(){
 
 async function loadDB(){
   const central=await carregarBaseCentral();
-  if(AUTH_ADMIN){const draft=await idbGet('mapa_pending_draft').catch(()=>null);if(draft?.payload){DB={...draft.payload};CENTRAL_REVISION=draft.revision;PENDING_REASON=draft.reason||'Rascunho recuperado';LOCAL_DIRTY=true;CONFLITO_CENTRAL=true;mostrarConflitoCentral();}}
+  if(AUTH_ADMIN){
+   const draft=await idbGet('mapa_pending_draft').catch(()=>null);
+   if(draft?.payload){
+    const igual=central&&['animais','movimentacoes','setores','config'].every(k=>JSON.stringify(draft.payload[k])===JSON.stringify(BASE_CONFIRMADA[k]));
+    if(igual){await idbSet('mapa_pending_draft',null).catch(()=>{});}
+    else{
+     const mudou=central&&draft.revision!==CENTRAL_REVISION;
+     DB={...draft.payload};PENDING_REASON=draft.reason||'Rascunho recuperado';LOCAL_DIRTY=true;
+     CONFLITO_CENTRAL=!!mudou||!central;
+     if(CONFLITO_CENTRAL)mostrarConflitoCentral();else atualizarEstadoProtecao();
+    }
+   }
+  }
   if(!AUTH_ADMIN){
     if(!central){DB.animais=[];DB.movimentacoes=[];bloquearAcesso('Não foi possível carregar os dados autorizados. Tente retomar o acesso.',false);}
     return;
@@ -3236,9 +3283,8 @@ function confirmarImportMov(res){
       }
       if(!confirmarAlteracaoGrande(candidate,separadasPreview.novas))return;
       DB=candidate;PENDING_REASON='Importação de movimentações conferida';
-      const okAnimais=await saveDB('animais');
-      const okMov=await saveDB('mov');
-      if(okAnimais===false || okMov===false || !await sincronizarSupabase()){
+      const okDados=await saveDB();
+      if(okDados===false || !await sincronizarSupabase()){
         toast('A importação foi processada, mas houve falha ao persistir os dados. Não feche a página; faça backup e tente novamente.','err');
         return;
       }
