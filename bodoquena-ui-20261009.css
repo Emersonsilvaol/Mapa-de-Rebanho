@@ -1,0 +1,37 @@
+/* Bodoquena | Mapa de Rebanho | UI executivo v2026.10.09
+   Camada puramente visual: mantém os IDs, eventos, saldos, permissões e cor do mapa.
+   Carregada por último para consolidar as regras CSS antigas. */
+:root {--bq-ease:cubic-bezier(.2,.8,.2,1);--bq-radius:12px;--bq-line:var(--line,#e0e7e2);--bq-surface:var(--surface,#fff);--bq-canvas:var(--canvas,#f5f7f5);--bq-ink:var(--ink,#172e22);--bq-muted:var(--muted,#6b7d70);}
+html body main {background:var(--bq-canvas)!important;}
+html body .view{min-width:0;}
+html body .view-title {font-size:clamp(23px,2.2vw,30px)!important;line-height:1.2!important;letter-spacing:-.7px!important;font-weight:750!important;}
+html body .view-sub{color:var(--bq-muted)!important;line-height:1.55!important;}
+html body nav.tabs.premium-sidebar{background:var(--bq-surface)!important;border-right:1px solid var(--bq-line)!important;box-shadow:none!important;scrollbar-width:thin;}
+html body nav.tabs.premium-sidebar .nav-section{color:var(--bq-muted)!important;letter-spacing:1px!important;font-size:9px!important;}
+html body nav.tabs.premium-sidebar button{border-radius:9px!important;min-height:42px!important;margin:2px 0!important;font-weight:550!important;transition:background .17s var(--bq-ease),color .17s var(--bq-ease)!important;}
+html body nav.tabs.premium-sidebar button:hover{background:var(--bq-canvas)!important;color:var(--bq-ink)!important;transform:none!important;}
+html body nav.tabs.premium-sidebar button.active{background:var(--chart-area,#e8f2e9)!important;color:var(--bq-ink)!important;font-weight:720!important;box-shadow:inset 3px 0 0 var(--chart-green,#39765b)!important;}
+html body nav.tabs.premium-sidebar .tab-ico{opacity:.86!important;color:currentColor!important;}
+html body header.app-header{box-shadow:0 1px 0 var(--bq-line)!important;}
+html body .panel{border-radius:var(--bq-radius)!important;border-color:var(--bq-line)!important;box-shadow:0 3px 16px rgba(14,41,24,.045)!important;min-width:0;}
+html body .panel-head{padding:16px 18px!important;border-bottom:1px solid var(--bq-line)!important;background:var(--bq-surface)!important;}
+html body .panel-head h3{font-size:14px!important;letter-spacing:-.2px!important;font-weight:750!important;}
+html body .toolbar{border-radius:var(--bq-radius)!important;border-color:var(--bq-line)!important;box-shadow:none!important;gap:12px!important;}
+html body .toolbar :is(input,select), html body .field :is(input,select){border-radius:8px!important;min-height:39px!important;}
+html body #view-dashboard .exec-kpis{gap:13px!important;margin-bottom:18px!important;}
+html body #view-dashboard .kpi-card{border-radius:var(--bq-radius)!important;box-shadow:0 3px 12px rgba(14,41,24,.035)!important;transition:transform .16s var(--bq-ease),box-shadow .16s var(--bq-ease)!important;}
+html body #view-dashboard .kpi-card:is(:hover,:focus-within){transform:translateY(-2px);box-shadow:0 8px 23px rgba(14,41,24,.075)!important;}
+html body #view-dashboard .kpi-val{font-variant-numeric:tabular-nums!important;}
+html body :is(.btn,.btn-primary,.btn-outline,.theme-toggle){border-radius:9px!important;}
+html body :is(button,input,select,textarea,[role="button"]):focus-visible{outline:2px solid var(--chart-green,#39765b)!important;outline-offset:2px!important;}
+html body .table-wrap{max-width:100%;overflow:auto;scrollbar-width:thin;}
+html body table.exec:not(.grid) thead th{position:sticky;top:0;z-index:1;font-size:10px!important;letter-spacing:.2px!important;}
+html body table.exec:not(.grid) tbody tr:hover td{background:var(--chart-area,#eff5f0)!important;}
+html body .modal-box,html body .modal-content{border-radius:14px!important;}
+html[data-theme="dark"] body nav.tabs.premium-sidebar{background:var(--surface,#1b2923)!important;border-right-color:var(--line,#34473b)!important;}
+html[data-theme="dark"] body nav.tabs.premium-sidebar button:hover{color:var(--ink,#e2eee6)!important;background:var(--canvas,#111c17)!important;}
+html[data-theme="dark"] body nav.tabs.premium-sidebar button.active{background:var(--chart-area,rgba(131,187,153,.12))!important;color:var(--ink,#e2eee6)!important;}
+html[data-theme="dark"] body #view-dashboard .kpi-card:is(:hover,:focus-within){box-shadow:0 7px 25px rgba(0,0,0,.2)!important;}
+@media(max-width:900px){html body nav.tabs.premium-sidebar button{min-height:44px!important;}html body #view-dashboard .exec-kpis{gap:10px!important;}html body .view-title{font-size:23px!important;}}
+@media(max-width:620px){html body #view-dashboard .kpi-val{font-size:clamp(23px,6vw,31px)!important;}html body .panel-head{padding:13px!important;}html body .toolbar{gap:9px!important;}}
+@media(prefers-reduced-motion:reduce){html body #view-dashboard .kpi-card,html body nav.tabs.premium-sidebar button{transition:none!important;transform:none!important;}}
