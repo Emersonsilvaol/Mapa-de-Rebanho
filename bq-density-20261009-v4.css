@@ -1,0 +1,85 @@
+/* Bodoquena · Densidade Executiva v4 · 09/10/2026
+ * Somente apresentação. Não altera SISBOV, saldos, dados, autorizações ou eventos.
+ * Mantém as regras atuais de cor do mapa, login, impressão e modo escuro. */
+:root{--bq4-space:10px;--bq4-border:var(--line,#dce5df);--bq4-paper:var(--surface,#fff);--bq4-muted:var(--muted,#66796c)}
+html body :is(#view-dashboard,#view-mapaInicial,#view-mapaAtual,#view-movimentacoes,#view-relatorio,#view-fichaAnimal){min-width:0}
+html body :is(#view-dashboard,#view-mapaInicial,#view-mapaAtual,#view-movimentacoes,#view-relatorio,#view-fichaAnimal)>.bq3-heading{align-items:center!important;gap:12px!important;margin:0 0 8px!important;padding:0!important}
+html body :is(#view-dashboard,#view-mapaInicial,#view-mapaAtual,#view-movimentacoes,#view-relatorio,#view-fichaAnimal) .bq3-heading .view-title{margin:0 0 3px!important;line-height:1.15!important}
+html body :is(#view-dashboard,#view-mapaInicial,#view-mapaAtual,#view-movimentacoes,#view-relatorio,#view-fichaAnimal) .bq3-heading .view-sub{line-height:1.35!important;font-size:11.5px!important}
+html body .bq4-head-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px;max-width:60%}
+html body .bq4-head-actions .bq3-jump{min-height:32px;padding:6px 9px!important;margin:0!important;border-radius:8px!important;font-size:10.5px!important;white-space:nowrap}
+html body #view-dashboard>.bq3-heading{padding-bottom:2px!important}
+html body #view-dashboard #dashSync{padding:6px 10px!important;margin:0 0 7px!important;min-height:0!important;font-size:10.5px!important;line-height:1.3!important}
+html body #view-dashboard #dashKpis{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:8px!important;margin:0 0 9px!important;align-items:stretch!important}
+html body #view-dashboard #dashKpis .kpi-card{position:relative!important;display:flex!important;align-items:flex-start!important;gap:6px!important;min-width:0!important;min-height:75px!important;height:auto!important;padding:10px 11px!important;border-radius:10px!important;overflow:visible!important}
+html body #view-dashboard #dashKpis .kpi-card .kpi-icon{width:24px!important;height:24px!important;min-width:24px!important;margin:0!important;padding:5px!important;border-radius:7px!important}
+html body #view-dashboard #dashKpis .kpi-card>div:last-child{min-width:0!important;flex:1}
+html body #view-dashboard #dashKpis .kpi-lbl{font-size:9px!important;line-height:1.2!important;letter-spacing:.1px!important;margin:0 0 4px!important}
+html body #view-dashboard #dashKpis .kpi-val{font-size:clamp(20px,2.1vw,27px)!important;font-weight:780!important;line-height:1.1!important;letter-spacing:-.65px!important;font-variant-numeric:tabular-nums!important}
+html body #view-dashboard #dashKpis .kpi-sub{margin:4px 0 0!important;font-size:10px!important;line-height:1.3!important;min-height:0!important}
+html body #view-dashboard :is(.bq-kpi-cta,.dash-number){display:inline-flex;align-items:center;gap:4px;padding:2px 5px!important;border-radius:6px!important;font-size:10px!important;line-height:1.25!important;white-space:normal;text-align:left}
+html body #view-dashboard #bqDashCompact{padding:7px 10px!important;margin:0 0 9px!important;min-height:0!important;gap:10px!important;border-radius:10px!important}
+html body #view-dashboard .bq-dash-overview{gap:6px!important;min-width:0!important}
+html body #view-dashboard .bq-dash-eyebrow{font-size:9px!important}
+html body #view-dashboard .bq-dash-overview-main{gap:3px!important}
+html body #view-dashboard #bqDashPeriod{font-size:12px!important;line-height:1.25!important}
+html body #view-dashboard .bq-dash-actions{gap:6px!important}
+html body #view-dashboard .bq-dash-btn{min-height:33px!important;padding:6px 10px!important;border-radius:8px!important}
+html body #view-dashboard .bq3-shortcuts.bq4-head-actions{margin:0!important}
+html body #view-dashboard #dashDataQuality:not([hidden]){margin:0 0 8px!important;padding:8px 10px!important}
+html body #view-dashboard .exec-row{display:grid!important;gap:10px!important;margin:0 0 10px!important;align-items:start!important}
+html body #view-dashboard .dashboard-overview{grid-template-columns:minmax(0,1.12fr) minmax(0,1fr)!important}
+html body #view-dashboard .dashboard-activity{grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr)!important}
+html body #view-dashboard .dashboard-support{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+html body #view-dashboard .exec-row>.panel{min-width:0!important;min-height:0!important;height:auto!important;align-self:start!important;margin:0!important;border-radius:10px!important}
+html body #view-dashboard .exec-row .panel-head{padding:10px 12px!important;min-height:0!important}
+html body #view-dashboard .exec-row .panel-head h3{font-size:12px!important;line-height:1.3!important}
+html body #view-dashboard .exec-row .panel-body{padding:9px 12px!important;min-height:0!important}
+html body #view-dashboard .exec-row :is(table,canvas,svg){max-width:100%}
+html body #view-dashboard .dashboard-mortality{margin:0 0 10px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes) .bq3-statusgrid{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:8px!important;margin:0 0 9px!important}
+html body #view-movimentacoes .bq3-statusgrid{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes) .bq3-status-card{padding:8px 10px!important;min-height:51px!important;border-radius:9px!important;box-shadow:none!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
+html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes) .bq3-status-card>span{margin-bottom:3px!important;font-size:9.5px!important;line-height:1.25!important}
+html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes) .bq3-status-card>strong{font-size:clamp(18px,1.75vw,24px)!important;line-height:1.1!important}
+html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes)>.toolbar{margin:0 0 8px!important;gap:7px!important;padding:8px 10px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes)>.toolbar .btn{min-height:34px!important;padding:7px 10px!important;font-size:11px!important;letter-spacing:0!important}
+html body #view-mapaInicial .bq3-searchbox{margin:0 0 8px!important;border-radius:9px!important}
+html body #view-mapaInicial .bq3-searchbox :is(.panel-body,.panel-head){padding:8px 10px!important}
+html body #view-mapaInicial .bq3-searchbox .panel-body{display:flex!important;align-items:end!important;flex-wrap:wrap!important;gap:8px!important}
+html body #view-mapaInicial .bq3-searchbox :is(.field,input){margin-bottom:0!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) #mapaInicialResumo .panel,html body #view-mapaAtual #mapaAtualResumo .panel{margin:0!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) :is(#mapaInicialResumo,#mapaAtualResumo) .panel-head{padding:9px 12px!important;gap:8px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) :is(#mapaInicialResumo,#mapaAtualResumo) .panel-body{padding:7px 10px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) :is(#mapaInicialResumo,#mapaAtualResumo) h3{font-size:12px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) :is(#mapaInicialResumo,#mapaAtualResumo) table.grid{margin:0!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) :is(#mapaInicialResumo,#mapaAtualResumo) table.grid th{padding:7px 9px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) :is(#mapaInicialResumo,#mapaAtualResumo) table.grid td{padding:6px 9px!important}
+html body #view-mapaInicial #mapaInicialDetalhe,html body #view-mapaAtual #painelAnimais{margin-top:8px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) :is(#mapaInicialDetalhe,#painelAnimais) .panel-head{padding:9px 12px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual) :is(#mapaInicialDetalhe,#painelAnimais) .panel-body{padding:8px 10px!important}
+html body #view-mapaAtual #mapaAtualAlertas:empty{display:none!important}
+html body #view-mapaAtual #mapaAtualAlertas:not(:empty){margin:0 0 8px!important}
+html body #view-movimentacoes .bq3-actionbar{display:flex!important}
+html body #view-movimentacoes #btnNovaMov{order:-3!important}
+html body #view-movimentacoes #btnImportMov{order:-2!important}
+html body #view-movimentacoes .bq3-movfilters{gap:7px!important;margin:0 0 8px!important;padding:8px!important}
+html body #view-movimentacoes .bq3-movfilters .field{min-width:105px!important;flex:1 1 120px!important}
+html body #view-movimentacoes .bq3-movfilters input,html body #view-movimentacoes .bq3-movfilters select{height:34px!important}
+html body #view-movimentacoes>.panel{margin:0!important}
+html body #view-movimentacoes>.panel .panel-head{padding:9px 12px!important}
+html body #view-movimentacoes>.panel .panel-body{padding:7px 9px!important}
+html body :is(#view-relatorio,#view-fichaAnimal)>.toolbar,html body #view-relatorio .bq4-report-filters{display:flex!important;flex-wrap:wrap!important;gap:8px!important;padding:9px 10px!important;margin:0 0 9px!important}
+html body #view-relatorio .bq4-report-filters .field{flex:1 1 120px!important;min-width:100px!important;margin:0!important}
+html body #view-relatorio .bq4-report-filters :is(input,select){min-height:34px!important}
+html body #view-fichaAnimal>.panel{margin:0 0 9px!important}
+html body #view-fichaAnimal>.panel .panel-body{padding:11px!important}
+html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes,#view-relatorio,#view-fichaAnimal) .table-wrap{overflow-x:auto!important;max-width:100%!important;scrollbar-width:thin}
+html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes,#view-relatorio,#view-fichaAnimal) table.exec th{white-space:nowrap}
+html[data-theme="dark"] body .bq4-head-actions .bq3-jump{color:var(--ink,#e0efe2)!important}
+@media(min-width:1650px){html body #view-dashboard #dashKpis{grid-template-columns:repeat(5,minmax(0,1fr))!important}html body :is(#view-mapaInicial,#view-mapaAtual) .bq3-statusgrid{grid-template-columns:repeat(5,minmax(0,1fr))!important}}
+@media(max-width:1180px){html body #view-dashboard .dashboard-support{grid-template-columns:repeat(2,minmax(0,1fr))!important}html body #view-movimentacoes .bq3-statusgrid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:920px){html body #view-dashboard #dashKpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}html body #view-dashboard .dashboard-overview,html body #view-dashboard .dashboard-activity{grid-template-columns:minmax(0,1fr)!important}html body .bq4-head-actions{max-width:100%;justify-content:flex-start}html body .bq3-heading{flex-wrap:wrap!important}}
+@media(max-width:680px){html body #view-dashboard #dashKpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes) .bq3-statusgrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}html body #view-dashboard .dashboard-support{grid-template-columns:minmax(0,1fr)!important}html body #view-dashboard #dashKpis .kpi-card{min-height:72px!important}html body .bq4-head-actions{gap:5px}html body .bq4-head-actions .bq3-jump{min-height:30px!important;font-size:10px!important;padding:5px 8px!important}html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes)>.toolbar{padding:8px!important}html body #view-movimentacoes .bq3-movfilters .field{flex:1 1 140px!important}html body #view-dashboard .exec-row .panel-body{padding:9px!important}}
+@media(max-width:360px){html body #view-dashboard #dashKpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}html body #view-dashboard #dashKpis .kpi-icon{display:none!important}html body :is(#view-mapaInicial,#view-mapaAtual,#view-movimentacoes) .bq3-status-card{padding:7px!important}}
+@media print{html body .bq4-head-actions,html body .bq3-shortcuts{display:none!important}}
