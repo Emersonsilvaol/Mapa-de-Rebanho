@@ -1262,6 +1262,7 @@ thead th{
   <div class="nav-section">REBANHO</div>
   <button data-view="mapaInicial"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M6 3.5h9l3 3V20.5H6z"/><path d="M14.5 3.5v4h4"/><path d="M9 11h6M9 14.5h6M9 18h4"/></svg><span>Mapa Inicial</span></button>
   <button data-view="mapaAtual"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Mapa Atual / Final</span></button>
+  <button data-view="projecaoIdade"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V13M10 20V8M16 20V4M3 21h18"/><path d="m4 8 6-4 6-2"/></svg><span>Projeção de Idade</span></button>
   <button data-view="fichaAnimal"><svg class="tab-ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20c1-5 13-5 14 0"/></svg><span>Ficha do Animal</span></button>
   <div class="nav-section">OPERAÇÕES</div>
   <button data-view="movimentacoes"><svg class="tab-ico" viewBox="0 0 24 24"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg><span>Movimentações</span></button>
@@ -1524,6 +1525,32 @@ thead th{
   </section>
 
   <!-- ================= RELATÓRIO DO PERÍODO ================= -->
+  <section id="view-projecaoIdade" class="view" hidden>
+    <div class="pi-head"><div><h2>Projeção de idade das fêmeas</h2><p>Monte seu relatório de quantidade por idade, usando as fêmeas ativas do mapa final.</p></div><span class="pi-tag">Base do mapa final</span></div>
+    <form id="piFiltros" class="pi-filters">
+      <label for="piInicio">Ano inicial<input id="piInicio" type="number" min="2026" max="2100" required></label>
+      <label for="piFim">Ano final<input id="piFim" type="number" min="2026" max="2100" required></label>
+      <label for="piIdadeMin">Idade mínima (anos completos)<input id="piIdadeMin" type="number" min="0" max="100" value="0" required></label>
+      <label for="piIdadeMax">Idade máxima (anos completos)<input id="piIdadeMax" type="number" min="0" max="100" value="100" required></label>
+      <label for="piSetor">Sessão / setor<select id="piSetor"><option value="">Todas as sessões / setores</option></select></label>
+      <label for="piData">Data de referência em cada ano<select id="piData"><option value="12-31">31 de dezembro</option><option value="06-30">30 de junho</option><option value="01-01">1º de janeiro</option></select></label>
+      <label>Sexo<input value="Somente fêmeas" readonly aria-label="Este relatório inclui somente fêmeas"></label>
+      <div class="pi-actions"><button type="submit" class="btn btn-primary">Aplicar filtros</button><button type="button" id="piLimpar" class="btn btn-outline">Limpar</button></div>
+    </form>
+    <div class="pi-view-options">
+      <label for="piAnoGrafico">Ano do gráfico<select id="piAnoGrafico"></select></label>
+      <label for="piModo">Formato do relatório<select id="piModo"><option value="both">Gráfico + mapa de calor</option><option value="heat">Mapa de calor</option><option value="table">Tabela sem cores</option></select></label>
+      <label for="piMetrica">Valor exibido<select id="piMetrica"><option value="count">Quantidade de fêmeas</option><option value="percent">Percentual por ano</option></select></label>
+      <div class="pi-actions"><button type="button" id="piAtualizar" class="btn btn-outline">Atualizar base</button><button type="button" id="piPDF" class="btn btn-outline">Exportar PDF</button><button type="button" id="piExcel" class="btn btn-outline">Exportar Excel</button></div>
+    </div>
+    <p id="piStatus" role="status" aria-live="polite"></p><div id="piErro" role="alert" hidden></div><div id="piAviso" role="status" hidden></div>
+    <div id="piKpis" class="pi-kpis"></div>
+    <div id="piConteudo" class="pi-content">
+      <article id="piGraficoPanel" class="pi-panel"><h3 id="piGraficoTitulo">Quantidade por idade</h3><p>Fêmeas por idade completa no ano selecionado.</p><div id="piGrafico"></div></article>
+      <article id="piTabelaPanel" class="pi-panel"><h3>Idade × ano da projeção</h3><p>Menor quantidade em verde, intermediária em amarelo e maior em vermelho. Toque em um número para abrir os animais.</p><div id="piTabela" class="pi-scroll" tabindex="0" aria-label="Tabela de projeção com rolagem horizontal e vertical"></div></article>
+    </div>
+    <div class="pi-note"><b>Como ler esta projeção</b><p id="piDescricao"></p><p>Cada fêmea avança de idade conforme a data de nascimento cadastrada. O relatório acompanha a base atual, sem estimar nascimentos, compras, mortes, vendas ou descarte futuros.</p><p>As movimentações efetivamente registradas atualizam a base e a projeção automaticamente. Ao filtrar idades, o total do recorte pode variar entre os anos.</p></div>
+  </section>
   <section id="view-relatorio" class="view">
     <h2 class="view-title">Relatório do Período</h2>
     <p class="view-sub">Compara o rebanho na Data Inicial com o rebanho na Data Final, detalhando todas as movimentações do período.</p>
@@ -1982,6 +2009,7 @@ let MAPA_SERVIDOR=null, MAPA_SERVIDOR_REF=null, CONCILIACAO_SERVIDOR=null;
 function moduloViewAcesso(v){
  const x=String(v||'').toLowerCase();
  if(x.includes('mapa-inicial')||x==='mapainicial')return'mapaInicial';
+ if(x==='projecaoidade')return'mapaAtual';
  if(x.includes('mapa-atual')||x.includes('mapa-final')||x==='mapaatual')return'mapaAtual';
  if(x.includes('moviment'))return'movimentacoes'; if(x.includes('ficha'))return'fichaAnimal';
  if(x.includes('invent'))return'inventario'; if(x.includes('nasc'))return'nascimentos'; if(x.includes('mortal'))return'mortalidade';
@@ -2099,6 +2127,7 @@ let VIEW_ANTES_VALIDACAO='', VALIDACAO_PROMISE=null, ACESSO_EPOCH=0;
 function guardarTelaAtual(){if(VIEW_ANTES_VALIDACAO)return;const v=document.querySelector('main .view.active');if(v)VIEW_ANTES_VALIDACAO=v.id;}
 function bloquearAcesso(msg,login=true){
  guardarTelaAtual();ACESSO_EPOCH++;
+ if(typeof limparProjecaoIdade==='function')limparProjecaoIdade();
  ACESSO_SUSPENSO=true;AUTH_ADMIN=false;AUTH_PERMISSIONS={};MAPA_SERVIDOR=null;
  if(typeof DB!=='undefined'){DB.animais=[];DB.movimentacoes=[];DB.config={};invalidarMapaUICache();}
  document.querySelectorAll('main .view').forEach(s=>s.hidden=true);
@@ -3838,10 +3867,11 @@ async function excluirMovimentacao(id){
 function renderDetalheTable(containerId, lista, modo){
   const el = document.getElementById(containerId);
   if(!el) return;
+  const podeEditarInicial=AUTH_ADMIN && modo==='inicial' && !lista.some(a=>a.documental);
   const cabecalho = modo==='final'
     ? `<tr><th>Setor Atual</th><th>Local</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th><th>Status</th></tr>`
-    : `<tr><th>Setor</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th>${AUTH_ADMIN?'<th>Ações</th>':''}</tr>`;
-  const colspan = modo==='final' ? 10 : (AUTH_ADMIN?9:8);
+    : `<tr><th>Setor</th><th>SISBOV</th><th>Brinco</th><th>Chip</th><th>Sexo</th><th>Raça</th><th>Data de Nascimento</th><th>Categoria</th>${podeEditarInicial?'<th>Ações</th>':''}</tr>`;
+  const colspan = modo==='final' ? 10 : (podeEditarInicial?9:8);
   const linhas = lista.map(a=>{
     const cellsBase = `<td>${a.sisbov? `<span class="link-sisbov">${a.sisbov}</span>` : `<span class="no-sisbov">sem SISBOV</span>`}</td>`+
       `<td>${a.brinco||'<span class="pending">PENDENTE</span>'}</td><td>${a.chip||'<span class="pending">PENDENTE</span>'}</td><td>${a.sexo||'<span class="pending">PENDENTE</span>'}</td><td>${a.raca||'<span class="pending">PENDENTE</span>'}</td>`+
@@ -3849,7 +3879,7 @@ function renderDetalheTable(containerId, lista, modo){
     if(modo==='final'){
       return `<tr><td>${a.setorAtual}</td><td>${a.localAtual||'Não informado'}</td>${cellsBase}<td><span class="badge badge-ativo">${a.status||'ATIVO'}</span></td></tr>`;
     }
-    return `<tr><td>${a.setorAtual}</td>${cellsBase}${AUTH_ADMIN?`<td><button class="btn btn-outline btn-sm btnEditAnimal" data-id="${a.id}">EDITAR</button></td>`:''}</tr>`;
+    return `<tr><td>${a.setorAtual}</td>${cellsBase}${podeEditarInicial?`<td><button class="btn btn-outline btn-sm btnEditAnimal" data-id="${a.id}">EDITAR</button></td>`:''}</tr>`;
   }).join('') || `<tr><td colspan="${colspan}" style="text-align:center;color:var(--cinza-600);">Nenhum animal encontrado.</td></tr>`;
   el.innerHTML = `<div class="table-wrap"><table class="exec"><thead>${cabecalho}</thead><tbody>${linhas}</tbody></table></div>
     <p style="font-size:11px;color:var(--cinza-600);margin-top:6px;">${lista.length.toLocaleString('pt-BR')} animal(is) listado(s) — categoria calculada automaticamente pela data de nascimento.</p>`;
@@ -4449,19 +4479,62 @@ function renderMapaResumoTable(resumo, containerId, tituloRef){
   document.getElementById(containerId).innerHTML = `<div class="panel"><div class="panel-head"><h3>${tituloRef}</h3></div><div class="panel-body">${html}</div></div>`;
 }
 
-function renderMapaInicial(){
-  const ref = DB.config.dataMapaInicial;
-  const busca = normalizarSisbov(mapaInicialBuscaSisbov);
-  const base = DB.animais.filter(a=>a.origem==='inicial' && (!busca || normalizarSisbov(a.sisbov).includes(busca))).map(a=>({
-    ...a, setorAtual:a.setorInicial, status:'ATIVO', categoria: calcCategoria(a.nascimento, ref)
-  }));
-  renderMapaGridPanel(base, 'mapaInicialResumo', `MAPA INICIAL — ${base.length.toLocaleString('pt-BR')} animais`, ref?`Data de referência: ${formatBR(ref)}`:'', 'inicial');
-  const resultado=document.getElementById('mapaInicialBuscaResultado');
-  if(resultado) resultado.textContent=busca?`${base.length.toLocaleString('pt-BR')} animal(is) encontrado(s)`:'Digite um SISBOV para filtrar';
-  document.getElementById('mapaInicialDetalhe').innerHTML = `<div class="panel"><div class="panel-head"><h3>Detalhamento dos Animais — Mapa Inicial</h3></div>
-    <div class="panel-body" id="mapaInicialDetalheBody"></div></div>`;
-  renderDetalheTable('mapaInicialDetalheBody', base, 'inicial');
+let __baseMapaInicialPromise = null;
+let __mapaInicialRenderSeq = 0;
+// Visão documental imutável: nenhuma mutação em DB, nenhum lançamento nem merge de SISBOV.
+function carregarBaseMapaInicialDocumental(){
+  if(!__baseMapaInicialPromise){
+    __baseMapaInicialPromise=fetch('/dados/rebanho.json',{cache:'no-store'})
+      .then(r=>{if(!r.ok) throw new Error('Não foi possível acessar o documento de abertura');return r.json();})
+      .then(doc=>{
+        if(doc.dataInicial!=='2026-09-11'||!Array.isArray(doc.inicial)||doc.inicial.length!==14951||Number(doc.totais?.inicial)!==14951)
+          throw new Error('Base de abertura não confere com os 14.951 registros oficiais');
+        if(new Set(doc.inicial.map(a=>normalizarSisbov(a[0]))).size!==14951)
+          throw new Error('A base documental apresenta SISBOV não distintos');
+        return doc;
+      }).catch(err=>{__baseMapaInicialPromise=null;throw err;});
+  }
+  return __baseMapaInicialPromise;
 }
+function animaisDoMapaInicialDocumental(doc){
+  return doc.inicial.map((row,i)=>({
+    id:'documental_'+i,
+    sisbov:normalizarSisbov(row[0]),
+    brinco:String(row[1]??'').trim(),
+    sexo:String(row[2]??'').trim(),
+    raca:String(row[3]??'').trim(),
+    setorInicial:String(row[4]??'').trim(),
+    setorAtual:String(row[4]??'').trim(),
+    nascimento:String(row[5]??'').trim(),
+    chip:'', origem:'inicial', status:'ATIVO',
+    categoria:calcCategoria(String(row[5]??'').trim(),doc.dataInicial),
+    documental:true
+  }));
+}
+async function renderMapaInicial(){
+  const seq=++__mapaInicialRenderSeq;
+  const resumo=document.getElementById('mapaInicialResumo');
+  if(resumo)resumo.innerHTML='<div class="panel"><div class="panel-body">Carregando mapa inicial documental...</div></div>';
+  try{
+    const doc=await carregarBaseMapaInicialDocumental();
+    if(seq!==__mapaInicialRenderSeq)return;
+    const busca=normalizarSisbov(document.getElementById('mapaInicialBuscaSisbov')?.value||'');
+    const base=animaisDoMapaInicialDocumental(doc).filter(a=>!busca||normalizarSisbov(a.sisbov).includes(busca));
+    const tituloInicial=`MAPA INICIAL — ${base.length.toLocaleString('pt-BR')} animais`;
+    const subtituloInicial=`Base original: 11/09/2026 · 14.951 registros documentais · consulta histórica, sem alteração do cadastro operacional`;
+    renderMapaGridPanel(base,'mapaInicialResumo',tituloInicial,subtituloInicial,'inicial');
+    const resultado=document.getElementById('mapaInicialBuscaResultado');
+    if(resultado)resultado.textContent=busca?`${base.length.toLocaleString('pt-BR')} animal(is) encontrado(s)`:'Digite um SISBOV para filtrar';
+    document.getElementById('mapaInicialDetalhe').innerHTML='<div class="panel"><div class="panel-head"><h3>Detalhamento dos Animais — Mapa Inicial Documental</h3></div><div class="panel-body" id="mapaInicialDetalheBody"></div></div>';
+    renderDetalheTable('mapaInicialDetalheBody',base,'inicial');
+  }catch(err){
+    if(seq!==__mapaInicialRenderSeq)return;
+    console.error('[Bodoquena] Falha na base documental de abertura:',err);
+    if(resumo)resumo.innerHTML='<div class="panel"><div class="panel-body" role="alert">Não foi possível carregar os 14.951 registros do Mapa Inicial. A base operacional não será exibida como se fosse a documental. Atualize e tente novamente.</div></div>';
+    const detail=document.getElementById('mapaInicialDetalhe');if(detail)detail.innerHTML='';
+  }
+}
+
 
 function popularSelect(sel, values, keepFirst, usarRotulo=true){
   const first = keepFirst ? sel.querySelector('option') : null;
@@ -5712,6 +5785,7 @@ function renderAll(){
   else if(id==='view-mortalidade') renderMortalidadeModulo();
   else if(id==='view-mapaAtual') renderMapaAtual();
   else if(id==='view-inventario') renderInventario();
+  else if(id==='view-projecaoIdade'&&typeof renderProjecaoIdade==='function') renderProjecaoIdade();
   else if(id==='view-relatorio') renderRelatorio();
   else if(id==='view-mortalidade') renderMortalidade();
   else if(id==='view-config') { renderHistoricoAuditorias(); renderLogSistema(); renderSetores(); renderLocaisSetores(); if(AUTH_ADMIN&&!LOCAIS_SETORES_CACHE.length) void carregarLocaisSetores(); }
@@ -5796,8 +5870,11 @@ function autoTableHead(){ return {fillColor:[15,59,46], textColor:255, fontStyle
 
 async function exportarMapaInicial(formato){
   if(!await autorizarExportacao('mapaInicial',formato))return;
-  const ref = DB.config.dataMapaInicial;
-  const base = DB.animais.filter(a=>a.origem==='inicial').map(a=>({...a, setorAtual:a.setorInicial, status:'ATIVO', categoria:calcCategoria(a.nascimento, ref)}));
+  let doc;
+  try { doc=await carregarBaseMapaInicialDocumental(); }
+  catch(err){toast('A base documental de 14.951 animais não está disponível. Exportação cancelada.','err');return;}
+  const ref=doc.dataInicial;
+  const base=animaisDoMapaInicialDocumental(doc);
   if(formato==='xlsx'){
     const {aoa, styleMatrix, merges} = buildGridAOA(base);
     exportarXLSXMultiplo([
@@ -6506,6 +6583,7 @@ function irParaView(view){
   if(view==='reidentificacao'){ iniciarReidPage();iniciarModulosNascimentoMorte(); setTimeout(()=>document.getElementById('reidPageBusca')?.focus(),40); }
   if(view==='nascimentos') renderNascimentos();
   if(view==='mortalidade') renderMortalidadeModulo();
+  if(view==='projecaoIdade'&&typeof renderProjecaoIdade==='function'){renderProjecaoIdade();void atualizarProjecaoIdade();}
   if(view==='mapaAtual') renderMapaAtual();
   if(view==='relatorio') renderRelatorio();
   if(view==='fichaAnimal') renderFichaAnimal();
@@ -7396,9 +7474,176 @@ html body #view-dashboard .dashboard-activity{grid-template-columns:minmax(0,1fr
 const conferenciaAuto=document.getElementById('view-conferencia');
 for(const id of ['conciliacaoGestaoPanel','locaisSetoresPanel','iranchoLocaisPanel']){const panel=document.getElementById(id);if(panel&&conferenciaAuto){panel.removeAttribute('hidden');conferenciaAuto.appendChild(panel);}}
 conferenciaAuto?.querySelector('[data-goto="config"]')?.remove();
-</script><link rel="stylesheet" href="/bq-experience-20261009.css"><script src="/bq-experience-20261009.js" defer></script><link rel="stylesheet" href="/bq-dashboard-compact-20261009.css"><script src="/bq-dashboard-compact-20261009.js" defer></script><script src="/bodoquena-layout-v3.js" defer id="bodoquena-layout-v3-script"></script>
+</script><link rel="stylesheet" href="/bq-experience-20261009.css"><script src="/bq-experience-20261009-v9.js" defer></script><link rel="stylesheet" href="/bq-dashboard-compact-20261009.css"><script src="/bq-dashboard-compact-20261009.js" defer></script><script src="/bodoquena-layout-v10.js" defer id="bodoquena-layout-v3-script"></script>
 <link rel="stylesheet" href="/bq-density-20261009-v4.css" id="bq-density-20261009-v4-css">
 <script src="/bq-density-20261009-v4.js" defer id="bq-density-20261009-v4-js"></script>
 <link rel="stylesheet" href="/bq-executive-readable-v5.css" id="bq-executive-readable-v5">
+<!-- Visão Executiva Premium — versão aprovada -->
+<link rel="stylesheet" href="/bq-premium-dashboard-compact.css" id="bq-premium-dashboard-css">
+<script src="/bq-premium-dashboard-v10.js" defer id="bq-premium-dashboard-js"></script>
+
+<!-- Cartões compactos, animações preservadas, sem gráficos de linha -->
+<link rel="stylesheet" href="/bq-cards-approved-v2.css" id="bq-cards-approved-v2-css">
+<script src="/bq-cards-approved-v2.js" defer id="bq-cards-approved-v2-js"></script>
+<style id="bq-cards-compact-definitivo-v3">
+/* Bodoquena | Cartões compactos definitivos v3 — sem minigráficos. */
+/* Estilos restritos ao painel executivo; preserva SVG dos ícones. */
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis {
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:10px!important;
+  align-items:stretch!important;
+  margin:9px 0 16px!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > article.bq-premium-kpi {
+  min-height:0!important;
+  height:auto!important;
+  max-height:none!important;
+  padding:13px 13px 12px!important;
+  margin:0!important;
+  flex-direction:column!important;
+  gap:0!important;
+  align-self:stretch!important;
+  animation:bq-ref-card-in .36s both;
+  transition:transform .23s cubic-bezier(.2,.85,.3,1),box-shadow .23s ease,border-color .23s ease!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > article.bq-premium-kpi:hover {
+  transform:translateY(-4px)!important;
+  box-shadow:0 14px 28px rgba(4,64,38,.14)!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-head {
+  min-height:29px!important;
+  margin:0 0 8px!important;
+  gap:7px!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .kpi-icon {
+  width:31px!important;min-width:31px!important;
+  height:31px!important;flex:0 0 31px!important;
+  padding:7px!important;border-radius:10px!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .kpi-icon svg {
+  width:17px!important;height:17px!important;display:block!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .kpi-lbl {
+  font-size:clamp(9px,.82vw,12px)!important;
+  line-height:1.2!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis button.kpi-val.bq-premium-value {
+  font-size:clamp(25px,2.45vw,35px)!important;
+  line-height:1.04!important;
+  letter-spacing:-1px!important;
+  min-height:0!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis article.bq-premium-current button.kpi-val.bq-premium-value {
+  font-size:clamp(28px,2.7vw,39px)!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-unit {
+  margin:3px 0 8px!important;font-size:11px!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-divider {
+  margin:0 0 8px!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-card-body {
+  margin:0!important;font-size:10.5px!important;line-height:1.35!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-card-body p {
+  margin:0 0 4px!important;font-size:10.5px!important;line-height:1.4!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-breakdown {
+  padding:0!important;margin:0!important;border:0!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-breakdown-item small {
+  min-height:0!important;font-size:9px!important;
+}
+html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-breakdown-item button {
+  font-size:13px!important;
+}
+html body #view-dashboard.bq-premium-dashboard #dashKpis :is(
+ .bq-premium-spark,.bq-premium-spark-empty,.bq-premium-foot,.bq-premium-nocompare,.bq-premium-change
+) {display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;}
+@media (max-width:1170px) {
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis {
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+ }
+}
+@media (max-width:760px) {
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis {
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;
+ }
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > article.bq-premium-kpi {
+  padding:11px 9px!important;min-height:0!important;
+ }
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > article.bq-premium-current {
+  grid-column:1/-1!important;
+ }
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis button.kpi-val.bq-premium-value {
+  font-size:clamp(23px,5.6vw,32px)!important;
+ }
+}
+@media (max-width:430px) {
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis {
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;
+ }
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > article.bq-premium-kpi {
+  padding:10px 8px!important;min-height:0!important;
+ }
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .kpi-icon {
+  width:28px!important;height:28px!important;min-width:28px!important;flex:0 0 28px!important;padding:6px!important;
+ }
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .bq-premium-head {
+  min-height:28px!important;margin-bottom:7px!important;gap:5px!important;
+ }
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis .kpi-lbl {
+  font-size:9px!important;
+ }
+}
+@media (prefers-reduced-motion:reduce) {
+ html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > article.bq-premium-kpi {
+   animation:none!important;transition:none!important;transform:none!important;
+ }
+}
+</style>
+
+<style id="bq-mobile-labels-v4">
+/* FAZENDA BODOQUENA — refinamento dos textos dos cartões em telas pequenas.
+   Alteração exclusivamente visual. Preserva cálculo, detalhes por SISBOV e animações. */
+@media (max-width: 760px) {
+  html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > .bq-premium-kpi.bq-premium-in .bq-premium-breakdown {
+    display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; align-items: start !important; gap: 0 !important; width: 100% !important;
+  }
+  html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > .bq-premium-kpi.bq-premium-in .bq-premium-breakdown-item {
+    display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: flex-start !important; min-width: 0 !important; width: 100% !important; padding: 0 1px !important; gap: 3px !important; text-align: center !important; border-radius: 0 !important;
+  }
+  html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > .bq-premium-kpi.bq-premium-in .bq-premium-breakdown-item button {
+    order: 0 !important; display: block !important; min-width: 0 !important; max-width: 100% !important; width: auto !important; margin: 0 auto !important; padding: 0 1px !important; line-height: 1.22 !important; text-align: center !important; font-size: clamp(11px, 3.2vw, 13px) !important; font-variant-numeric: tabular-nums !important;
+  }
+  html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > .bq-premium-kpi.bq-premium-in .bq-premium-breakdown-item small {
+    order: 1 !important; display: block !important; min-height: 0 !important; height: auto !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; font-size: clamp(7.3px, 1.95vw, 9.5px) !important; line-height: 1.18 !important; letter-spacing: -0.2px !important; white-space: normal !important; word-break: normal !important; overflow-wrap: normal !important; text-wrap: balance !important; text-align: center !important;
+  }
+  html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > .bq-premium-kpi.bq-premium-in .bq-premium-breakdown-item:first-child small {
+    font-size: clamp(7.2px, 1.9vw, 8.5px) !important; letter-spacing: -0.25px !important; white-space: nowrap !important;
+  }
+  html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > .bq-premium-kpi.bq-premium-in .bq-premium-breakdown-item:last-child small {
+    font-size: clamp(7.4px, 1.95vw, 9px) !important; line-height: 1.15 !important;
+  }
+}
+@media (max-width: 350px) {
+  html body #view-dashboard.bq-premium-dashboard.bq-approved-reference-cards #dashKpis > .bq-premium-kpi.bq-premium-in .bq-premium-breakdown-item:first-child small {
+    font-size: 6.8px !important; letter-spacing: -0.35px !important;
+  }
+}
+</style>
+
+
+<style id="bq-clean-kpis-v9">
+/* No internal trend graphics. Other dashboard charts and icon SVGs unchanged. */
+#view-dashboard #dashKpis .bq-mini-trend,
+#view-dashboard #dashKpis .bq-trend-compare,
+#view-dashboard #dashKpis .bq-premium-spark,
+#view-dashboard #dashKpis .bq-premium-foot { display:none!important; }
+#view-dashboard #dashKpis>.bq-premium-kpi{height:auto!important;min-height:0!important;}
+</style>
+<link rel="stylesheet" href="/bq-projecao-idade-v1.css">
+<script src="/bq-projecao-idade-v1.js"></script>
 </body>
 </html>
