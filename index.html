@@ -1528,10 +1528,10 @@ thead th{
   <section id="view-projecaoIdade" class="view" hidden>
     <div class="pi-head"><div><h2>Projeção de idade das fêmeas</h2><p>Monte seu relatório de quantidade por idade, usando as fêmeas ativas do mapa final.</p></div><span class="pi-tag">Base do mapa final</span></div>
     <form id="piFiltros" class="pi-filters">
-      <label for="piInicio">Ano inicial<input id="piInicio" type="number" min="2026" max="2100" required></label>
-      <label for="piFim">Ano final<input id="piFim" type="number" min="2026" max="2100" required></label>
+      <label for="piInicio">Ano inicial<input id="piInicio" type="number" min="2026" max="9999" required></label>
+      <label for="piFim">Ano final<input id="piFim" type="number" min="2026" max="9999" required></label>
       <label for="piIdadeMin">Idade mínima (anos completos)<input id="piIdadeMin" type="number" min="0" max="100" value="0" required></label>
-      <label for="piIdadeMax">Idade máxima (anos completos)<input id="piIdadeMax" type="number" min="0" max="100" value="100" required></label>
+      <label for="piIdadeMax">Idade máxima (anos completos)<input id="piIdadeMax" type="number" min="0" max="9999" value="9999" required></label>
       <label for="piSetor">Sessão / setor<select id="piSetor"><option value="">Todas as sessões / setores</option></select></label>
       <label for="piData">Data de referência em cada ano<select id="piData"><option value="12-31">31 de dezembro</option><option value="06-30">30 de junho</option><option value="01-01">1º de janeiro</option></select></label>
       <label>Sexo<input value="Somente fêmeas" readonly aria-label="Este relatório inclui somente fêmeas"></label>
@@ -1541,7 +1541,7 @@ thead th{
       <label for="piAnoGrafico">Ano do gráfico<select id="piAnoGrafico"></select></label>
       <label for="piModo">Formato do relatório<select id="piModo"><option value="both">Gráfico + mapa de calor</option><option value="heat">Mapa de calor</option><option value="table">Tabela sem cores</option></select></label>
       <label for="piMetrica">Valor exibido<select id="piMetrica"><option value="count">Quantidade de fêmeas</option><option value="percent">Percentual por ano</option></select></label>
-      <div class="pi-actions"><button type="button" id="piAtualizar" class="btn btn-outline">Atualizar base</button><button type="button" id="piPDF" class="btn btn-outline">Exportar PDF</button><button type="button" id="piExcel" class="btn btn-outline">Exportar Excel</button></div>
+      <div class="pi-actions"><button type="button" id="piAtualizar" class="btn btn-outline">Atualizar base</button><button type="button" id="piPDF" class="btn btn-outline">Exportar PDF</button><button type="button" id="piHTML" class="btn btn-outline">Exportar HTML</button><button type="button" id="piExcel" class="btn btn-outline">Exportar Excel</button></div>
     </div>
     <p id="piStatus" role="status" aria-live="polite"></p><div id="piErro" role="alert" hidden></div><div id="piAviso" role="status" hidden></div>
     <div id="piKpis" class="pi-kpis"></div>
@@ -7644,6 +7644,7 @@ html body #view-dashboard.bq-premium-dashboard #dashKpis :is(
 #view-dashboard #dashKpis>.bq-premium-kpi{height:auto!important;min-height:0!important;}
 </style>
 <link rel="stylesheet" href="/bq-projecao-idade-v1.css">
-<script src="/bq-projecao-idade-v1.js"></script>
+<script src="/bq-projecao-report-v2.js"></script>
+<script src="/bq-projecao-idade-v1.js?v=20261012-filtros"></script>
 </body>
 </html>
