@@ -1541,7 +1541,7 @@ thead th{
       <label for="piAnoGrafico">Ano do gráfico<select id="piAnoGrafico"></select></label>
       <label for="piModo">Formato do relatório<select id="piModo"><option value="both">Gráfico + mapa de calor</option><option value="heat">Mapa de calor</option><option value="table">Tabela sem cores</option></select></label>
       <label for="piMetrica">Valor exibido<select id="piMetrica"><option value="count">Quantidade de fêmeas</option><option value="percent">Percentual por ano</option></select></label>
-      <div class="pi-actions"><button type="button" id="piAtualizar" class="btn btn-outline">Atualizar base</button><button type="button" id="piPDF" class="btn btn-outline">Exportar PDF</button><button type="button" id="piHTML" class="btn btn-outline">Exportar HTML</button><button type="button" id="piExcel" class="btn btn-outline">Exportar Excel</button></div>
+      <div class="pi-actions"><button type="button" id="piApresentar" class="btn btn-outline">Modo apresentação</button><button type="button" id="piAtualizar" class="btn btn-outline">Atualizar base</button><button type="button" id="piPDF" class="btn btn-outline">Exportar PDF</button><button type="button" id="piHTML" class="btn btn-outline">Exportar HTML</button><button type="button" id="piExcel" class="btn btn-outline">Exportar Excel</button></div>
     </div>
     <p id="piStatus" role="status" aria-live="polite"></p><div id="piErro" role="alert" hidden></div><div id="piAviso" role="status" hidden></div>
     <div id="piKpis" class="pi-kpis"></div>
@@ -7644,7 +7644,7 @@ html body #view-dashboard.bq-premium-dashboard #dashKpis :is(
 #view-dashboard #dashKpis>.bq-premium-kpi{height:auto!important;min-height:0!important;}
 </style>
 <link rel="stylesheet" href="/bq-projecao-idade-v1.css">
-<script src="/bq-projecao-report-v2.js"></script>
-<script src="/bq-projecao-idade-v1.js?v=20261012-filtros"></script>
+<script src="/bq-projecao-report-v2.js?v=20261012-apresentacao"></script>
+<script src="/bq-projecao-idade-v1.js?v=20261012-apresentacao"></script>
 </body>
 </html>

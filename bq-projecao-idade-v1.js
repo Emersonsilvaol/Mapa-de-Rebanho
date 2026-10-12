@@ -63,6 +63,7 @@
     el('piExcel').addEventListener('click', () => exportReport('xlsx'));
     el('piPDF').addEventListener('click', () => exportReport('pdf'));
     el('piHTML').addEventListener('click', () => exportReport('html'));
+    el('piApresentar').addEventListener('click',()=>{if(!canView()||!result)return;const content=standaloneHTML(true);openModal('Apresentação — evolução de idade das fêmeas',`<iframe title="Apresentação da projeção" srcdoc="${html(content)}" style="width:100%;height:75vh;border:0" allow="fullscreen"></iframe>`,[{label:'Fechar',cls:'btn-primary',onClick:closeModal}],true);});
     el('piTabela').addEventListener('click', event => {
       const cell = event.target.closest('[data-pi-age]'); if (cell) showAnimals(Number(cell.dataset.piYear),Number(cell.dataset.piAge));
     });
@@ -155,12 +156,12 @@
     } finally {refreshBusy=false;if(el('piAtualizar'))el('piAtualizar').disabled=false;}
   }
   root.atualizarProjecaoIdade = refresh;
-  function standaloneHTML() {
+  function standaloneHTML(presentation=false) {
     const date=todayISO(),map=LOCAL_DIRTY&&BASE_CONFIRMADA?calcularMapaOtimizado(BASE_CONFIRMADA,date):buildMapaUICached(date);
     const animals=(map.animais||[]).filter(a=>a.status==='ATIVO'&&a.sexo==='Fêmea'&&ageOn(a.nascimento,date)!==null);
     const data={};
     for(const a of animals){let sector=(a.setorAtual||'Sem setor').trim();if(sector.toLocaleLowerCase('pt-BR')==='confinamento')sector='Confinamento';const c=data[sector]||(data[sector]={});c[a.nascimento]=(c[a.nascimento]||0)+1;}
-    return root.BodoquenaAgeReportHTML(data,{...result.filters,focus:Number(el('piAnoGrafico').value),baseDate:date,updatedAt:DB.config?._centralUpdatedAt||''});
+    return root.BodoquenaAgeReportHTML(data,{...result.filters,focus:Number(el('piAnoGrafico').value),baseDate:date,presentation,updatedAt:DB.config?._centralUpdatedAt||''});
   }
   async function exportReport(format) {
     if (!result || !canView() || !await autorizarExportacao('mapaAtual',format)) return;
