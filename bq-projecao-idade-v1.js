@@ -14,9 +14,9 @@
     return r.y - b.y - (r.mo < b.mo || (r.mo === b.mo && r.d < b.d) ? 1 : 0);
   }
   function project(animals, filters, baseDate) {
-    const {start, end, monthDay = '12-31', section = '', minAge = 0, maxAge = 100} = filters;
-    if (!Number.isInteger(start) || !Number.isInteger(end) || start < Number(baseDate.slice(0,4)) || end < start || end - start > 20 || end > 2100 || minAge < 0 || maxAge < minAge || maxAge > 100) throw new Error('Confira o período e o intervalo de idades (até 21 anos na mesma consulta).');
-    const cohort = animals.filter(a => a.status === 'ATIVO' && a.sexo === 'Fêmea' && (!section || a.setorAtual === section));
+    const {start, end, monthDay = '12-31', section = '', minAge = 0, maxAge = 9999} = filters;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < Number(baseDate.slice(0,4)) || end < start || end - start > 20 || end > 9999 || minAge < 0 || maxAge < minAge || maxAge > 9999) throw new Error('Confira o período e o intervalo de idades (até 21 anos na mesma consulta).');
+    const cohort = animals.filter(a => a.status === 'ATIVO' && a.sexo === 'Fêmea' && (!section || String(a.setorAtual||'').trim().toLocaleLowerCase('pt-BR') === section.trim().toLocaleLowerCase('pt-BR')));
     const valid = cohort.filter(a => ageOn(a.nascimento, baseDate) !== null);
     const years = Array.from({length:end - start + 1}, (_,i) => start + i), byYear = {}, ages = new Set();
     for (const year of years) {
@@ -62,6 +62,7 @@
     el('piAtualizar').addEventListener('click', () => refresh(true));
     el('piExcel').addEventListener('click', () => exportReport('xlsx'));
     el('piPDF').addEventListener('click', () => exportReport('pdf'));
+    el('piHTML').addEventListener('click', () => exportReport('html'));
     el('piTabela').addEventListener('click', event => {
       const cell = event.target.closest('[data-pi-age]'); if (cell) showAnimals(Number(cell.dataset.piYear),Number(cell.dataset.piAge));
     });
@@ -83,7 +84,7 @@
       const date = todayISO();
       const map = LOCAL_DIRTY && BASE_CONFIRMADA ? calcularMapaOtimizado(BASE_CONFIRMADA,date) : buildMapaUICached(date);
       const animals = map.animais || [];
-      const sections = [...new Set(animals.filter(a=>a.status==='ATIVO'&&a.sexo==='Fêmea').map(a=>a.setorAtual||''))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+      const sections = [...new Set(animals.filter(a=>a.status==='ATIVO'&&a.sexo==='Fêmea').map(a=>(a.setorAtual||'').trim().toLocaleLowerCase('pt-BR')==='confinamento'?'Confinamento':a.setorAtual||''))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt-BR'));
       const previous = el('piSetor').value;
       el('piSetor').innerHTML = '<option value="">Todas as sessões / setores</option>'+sections.map(s=>`<option value="${html(s)}">${html(s)}</option>`).join('');
       if (sections.includes(previous)) el('piSetor').value = previous;
@@ -128,7 +129,7 @@
     const allTotals=result.years.map(y=>result.byYear[y].total), totalMax=Math.max(1,...allTotals);
     const cellColor=(n,y)=>mode==='table'?'transparent':heat(percent?(result.byYear[y].total?n/result.byYear[y].total:0):n,percent?Math.max(0,...result.years.flatMap(year=>Object.values(result.byYear[year].counts).map(v=>result.byYear[year].total?v/result.byYear[year].total:0))):max);
     el('piTabela').innerHTML=`<table class="pi-matrix"><caption>Fêmeas por idade e ano • ${percent?'participação no recorte de cada ano':'cabeças'}</caption><thead><tr><th scope="col">Idade</th>${result.years.map(y=>`<th scope="col">${y}</th>`).join('')}</tr></thead><tbody>${result.ages.map(age=>`<tr><th scope="row">${age} ${age===1?'ano':'anos'}</th>${result.years.map(y=>{const n=result.byYear[y].counts[age]||0;return `<td style="background:${cellColor(n,y)}">${n?`<button type="button" data-pi-age="${age}" data-pi-year="${y}" aria-label="${fmt(n)} fêmeas com ${age} anos em ${y}. Abrir animais.">${valueText(n,result.byYear[y].total)}</button>`:percent?'—':'0'}</td>`;}).join('')}</tr>`).join('')||`<tr><td colspan="${result.years.length+1}" class="pi-empty">Nenhuma fêmea com os filtros selecionados.</td></tr>`}</tbody><tfoot><tr><th scope="row">Total de fêmeas</th>${result.years.map(y=>`<td style="background:${mode==='table'?'transparent':heat(result.byYear[y].total,totalMax)}">${fmt(result.byYear[y].total)}</td>`).join('')}</tr><tr><th scope="row">Idade média</th>${result.years.map(y=>`<td>${result.byYear[y].mean===null?'—':result.byYear[y].mean.toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>`).join('')}</tr></tfoot></table>`;
-    el('piExcel').hidden=el('piPDF').hidden=!podeAcesso('mapaAtual','exportar');
+    el('piExcel').hidden=el('piPDF').hidden=el('piHTML').hidden=!podeAcesso('mapaAtual','exportar');
   }
   function selectedAnimals(year,age) {return result.valid.filter(a=>ageOn(a.nascimento,result.byYear[year].date)===age);}
   function showAnimals(year,age) {
@@ -154,9 +155,25 @@
     } finally {refreshBusy=false;if(el('piAtualizar'))el('piAtualizar').disabled=false;}
   }
   root.atualizarProjecaoIdade = refresh;
+  function standaloneHTML() {
+    const date=todayISO(),map=LOCAL_DIRTY&&BASE_CONFIRMADA?calcularMapaOtimizado(BASE_CONFIRMADA,date):buildMapaUICached(date);
+    const animals=(map.animais||[]).filter(a=>a.status==='ATIVO'&&a.sexo==='Fêmea'&&ageOn(a.nascimento,date)!==null);
+    const data={};
+    for(const a of animals){let sector=(a.setorAtual||'Sem setor').trim();if(sector.toLocaleLowerCase('pt-BR')==='confinamento')sector='Confinamento';const c=data[sector]||(data[sector]={});c[a.nascimento]=(c[a.nascimento]||0)+1;}
+    return root.BodoquenaAgeReportHTML(data,{...result.filters,focus:Number(el('piAnoGrafico').value),baseDate:date,updatedAt:DB.config?._centralUpdatedAt||''});
+  }
   async function exportReport(format) {
     if (!result || !canView() || !await autorizarExportacao('mapaAtual',format)) return;
-    root.renderProjecaoIdade();if(!result||!canView()||!garantirBibliotecaExportacao(format))return;
+    root.renderProjecaoIdade();if(!result||!canView()||(format==='xlsx'&&!garantirBibliotecaExportacao(format)))return;
+    if(format==='pdf'){
+      const frame=document.createElement('iframe');frame.title='Relatório para impressão';frame.style.cssText='position:fixed;width:0;height:0;border:0;';
+      frame.onload=()=>{frame.contentWindow.addEventListener('afterprint',()=>frame.remove(),{once:true});setTimeout(()=>{frame.contentWindow.focus();frame.contentWindow.print();},150);};
+      frame.srcdoc=standaloneHTML();document.body.appendChild(frame);return;
+    }
+    if(format==='html'){
+      const url=URL.createObjectURL(new Blob([standaloneHTML()],{type:'text/html;charset=utf-8'})),a=document.createElement('a');
+      a.href=url;a.download=`evolucao-idade-femeas-${result.filters.start}-${result.filters.end}.html`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);toast('Relatório HTML exportado.','ok');return;
+    }
     const note='Projeção das fêmeas atualmente ativas. Sem novos nascimentos, compras, mortes, vendas ou descarte futuros.';
     const rows=result.ages.map(age=>[age,...result.years.map(y=>result.byYear[y].counts[age]||0)]);
     const totals=['Total de fêmeas',...result.years.map(y=>result.byYear[y].total)],means=['Idade média (anos completos)',...result.years.map(y=>result.byYear[y].mean===null?'':Number(result.byYear[y].mean.toFixed(2)))];
@@ -172,14 +189,6 @@
       const details=result.valid.filter(a=>result.years.some(y=>{const age=ageOn(a.nascimento,result.byYear[y].date);return age>=result.filters.minAge&&age<=result.filters.maxAge;})).map(a=>({'SISBOV':a.sisbov||'','Brinco':a.brinco||'','Sessão / setor':a.setorAtual||'','Nascimento':a.nascimento,...Object.fromEntries(result.years.map(y=>['Idade em '+formatBR(result.byYear[y].date),ageOn(a.nascimento,result.byYear[y].date)]))}));
       const sheet=XLSX.utils.json_to_sheet(details);sheet['!cols']=[{wch:21},{wch:15},{wch:22},{wch:15},...result.years.map(()=>({wch:23}))];XLSX.utils.book_append_sheet(wb,sheet,'Femeas da base');
       XLSX.writeFile(wb,`projecao-idade-femeas-${result.filters.start}-${result.filters.end}.xlsx`);toast('Relatório Excel exportado.','ok');
-    } else {
-      const doc=novoPDF('Projeção de idade — Fêmeas','');if(!doc)return;
-      const percent=el('piMetrica').value==='percent';
-      doc.setFontSize(9);doc.text(describe(),10,23);doc.text(doc.splitTextToSize(note+(percent?' Participação por idade em %; totais em cabeças.':''),275),10,29);
-      const max=Math.max(1,...rows.flatMap(r=>r.slice(1))),maxTotal=Math.max(1,...totals.slice(1));
-      const displayRows=rows.map(row=>[row[0],...result.years.map((y,i)=>percent?(result.byYear[y].total?(row[i+1]/result.byYear[y].total*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%':'—'):row[i+1])]);
-      doc.autoTable({startY:40,head:[heading],body:[...displayRows,totals,means],theme:'grid',styles:{fontSize:result.years.length>12?6:8,textColor:[35,62,53],cellPadding:2.7},headStyles:{fillColor:[23,63,51],textColor:[255,255,255]},didParseCell(data){if(data.section==='body'&&data.column.index>0&&data.row.index<=rows.length){const n=data.row.index===rows.length?totals[data.column.index]:rows[data.row.index][data.column.index];const rgb=heat(n,data.row.index===rows.length?maxTotal:max);const m=/rgb\((\d+),(\d+),(\d+)\)/.exec(rgb);data.cell.styles.fillColor=m?m.slice(1).map(Number):[240,245,239];}}});
-      finalizarPDF(doc,`projecao-idade-femeas-${result.filters.start}-${result.filters.end}.pdf`);
     }
   }
 })(typeof window !== 'undefined' ? window : globalThis);
