@@ -50,15 +50,15 @@
   function initialize() {
     const form = el('piFiltros'); if (!form || form.dataset.ready) return;
     form.dataset.ready = '1';
-    const nextYear = Number(todayISO().slice(0,4)) + 1;
-    el('piInicio').value = nextYear; el('piFim').value = nextYear + 8;
+    const nextYear = Number(todayISO().slice(0,4));
+    el('piInicio').value = nextYear; el('piFim').value = nextYear + 9;
     el('piInicio').min = el('piFim').min = Number(todayISO().slice(0,4));
     form.addEventListener('submit', event => {event.preventDefault();root.renderProjecaoIdade();});
     form.addEventListener('change', () => root.renderProjecaoIdade());
     el('piAnoGrafico').addEventListener('change', renderOutput);
     el('piModo').addEventListener('change', renderOutput);
     el('piMetrica').addEventListener('change', renderOutput);
-    el('piLimpar').addEventListener('click', () => {form.reset();el('piInicio').value=nextYear;el('piFim').value=nextYear+8;root.renderProjecaoIdade();});
+    el('piLimpar').addEventListener('click', () => {form.reset();el('piInicio').value=nextYear;el('piFim').value=nextYear+9;root.renderProjecaoIdade();});
     el('piAtualizar').addEventListener('click', () => refresh(true));
     el('piExcel').addEventListener('click', () => exportReport('xlsx'));
     el('piPDF').addEventListener('click', () => exportReport('pdf'));
