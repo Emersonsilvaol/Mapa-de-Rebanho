@@ -23,7 +23,11 @@ Deno.serve(async req => {
     const [config]=await rest('mapa_email_config?id=eq.1&select=*');
     if(!config || !equal(await hash(token),config.token_hash)) return json({error:'unauthorized'},401);
     const input=await req.json();
-    if(!['preview','export','scheduled','send','cancel_scheduled'].includes(input.mode)) return json({error:'invalid_mode'},400);
+    if(!['render_pdf','render_xlsx','preview','export','scheduled','send','send_test','cancel_scheduled'].includes(input.mode)) return json({error:'invalid_mode'},400);
+    if(['render_pdf','render_xlsx'].includes(input.mode)) {
+      const files=await attachments(input.data,input.mode==='render_pdf'?'pdf':'xlsx');
+      return json({files:files.map(f=>({filename:f.filename,content:base64(f.bytes)}))});
+    }
     const key=Deno.env.get('RESEND_API_KEY') || await rest('rpc/mapa_email_resend_key','POST',{});
     if(input.mode==='cancel_scheduled') {
       if(!key) return json({error:'missing_resend_key'},503);
@@ -42,16 +46,35 @@ Deno.serve(async req => {
     if(input.mode==='export' && config.test_until && date>config.test_until) return json({error:'test_period_finished'},410);
     const [row]=await rest('mapa_rebanho_estado?id=eq.principal&select=payload,updated_at,revision');
     if(!row) return json({error:'missing_source'},503);
+    console.log('mapa_email_stage:source_loaded');
     const data=snapshot(row,date);
+    console.log('mapa_email_stage:snapshot_done');
     if(data.unknown || data.inconsistencies.length) return json({error:'map_inconsistencies',unknown:data.unknown,count:data.inconsistencies.length},409);
-    const files=await attachments(data);
+    const files=[];
+    for(const mode of ['render_pdf','render_xlsx']) {
+      const resp=await fetch(base+'/functions/v1/mapa-email',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({mode,data}),signal:AbortSignal.timeout(120000)});
+      const rendered=await resp.json();
+      if(!resp.ok) return json({error:'attachment_generation_failed',stage:mode,detail:rendered},502);
+      for(const f of rendered.files) files.push({filename:f.filename,content:f.content,byteLength:Math.floor(f.content.length*3/4)});
+    }
+    console.log('mapa_email_stage:attachments_done');
     const recipients=await rest('mapa_email_recipients?enabled=eq.true&select=email');
-    const metadata={date,revision:row.revision,updated_at:row.updated_at,total:data.finalCount,files:files.map(f=>({filename:f.filename,bytes:f.bytes.length})),recipients:recipients.map(r=>r.email),resend_key_present:!!key,enabled:config.enabled,sender:config.sender,domain_verified:config.domain_verified};
+    const metadata={date,revision:row.revision,updated_at:row.updated_at,total:data.finalCount,files:files.map(f=>({filename:f.filename,bytes:f.byteLength})),recipients:recipients.map(r=>r.email),resend_key_present:!!key,enabled:config.enabled,sender:config.sender,domain_verified:config.domain_verified};
     if(input.mode==='preview') return json({status:'preview',...metadata});
     if(!config.signature_base64) return json({error:'missing_signature'},503);
-    const encoded=files.map(f=>({filename:f.filename,content:base64(f.bytes)}));
+    const encoded=files.map(f=>({filename:f.filename,content:f.content}));
     encoded.push({filename:'assinatura-emerson.jpeg',content:config.signature_base64,content_id:'assinatura-emerson-branca'});
     if(input.mode==='export') return json({status:'ready',date,revision:row.revision,updated_at:row.updated_at,mail:{message:{subject:`Mapa de Rebanho — Bodoquena — ${date.split('-').reverse().join('/')}`,body:{contentType:'HTML',content:emailHTML(data)},toRecipients:recipients.map(r=>({emailAddress:{address:r.email}})),attachments:encoded.map(f=>({'@odata.type':'#microsoft.graph.fileAttachment',name:f.filename,contentType:f.filename.endsWith('.pdf')?'application/pdf':f.filename.endsWith('.xlsx')?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'image/jpeg',contentBytes:f.content,...(f.content_id?{isInline:true,contentId:f.content_id}:{})}))},saveToSentItems:true}});
+    // Explicit owner-only test does not reserve or consume the daily delivery.
+    if(input.mode==='send_test') {
+      if(!/^[a-zA-Z0-9_-]{8,80}$/.test(input.test_id||'')) return json({error:'invalid_test_id'},400);
+      const email=input.test_email || config.owner_email;
+      if(![config.owner_email.toLowerCase(),'emersontec13@gmail.com'].includes(String(email).toLowerCase())) return json({error:'invalid_test_recipient'},400);
+      const payload={from:config.sender,to:[email],reply_to:config.reply_to,subject:`TESTE — Mapa de Rebanho — ${date.split('-').reverse().join('/')}`,html:emailHTML(data),attachments:encoded};
+      const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json','Idempotency-Key':`mapa-layout-test-${input.test_id}`},body:JSON.stringify(payload),signal:AbortSignal.timeout(30000)});
+      const result=await response.json();
+      return json({status:response.ok&&result.id?'sent':'failed',email,id:result.id||null,error:response.ok?null:result.message,...metadata},response.ok?200:502);
+    }
     const results=[];
     for(const recipient of recipients) {
       if(!config.domain_verified && recipient.email.toLowerCase()!==config.owner_email.toLowerCase()) {results.push({email:recipient.email,status:'domain_required'});continue;}
@@ -74,3 +97,4 @@ Deno.serve(async req => {
     return json({status:results.every(r=>['sent','already_reserved'].includes(r.status))?'complete':'incomplete',...metadata,results});
   } catch {return json({error:'execution_failed'},500);}
 });
+
