@@ -1,7 +1,7 @@
 import {calcularMapa} from './engine.js';
 export const OWNER='emerson.oliveira@fazendabodoquena.com.br';
 export const MODULES=['dashboard','mapaInicial','mapaAtual','movimentacoes','nascimentos','mortalidade','reidentificacao','fichaAnimal','inventario','relatorios','configuracoes'];
-export function dono(user,profile){return profile?.ativo===true && user?.email?.toLowerCase()===OWNER;}
+export function dono(user,profile){return profile?.ativo===true && profile?.role==='admin' && [OWNER,'emersontec13@gmail.com'].includes(user?.email?.toLowerCase());}
 export function pode(user,profile,module,action='ver'){
  if(module==='configuracoes'&&!dono(user,profile))return false;
  return profile?.ativo===true && MODULES.includes(module) && (dono(user,profile)|| (action!=='excluir'&&Array.isArray(profile.permissions?.[module])&&profile.permissions[module].includes('ver')&&profile.permissions[module].includes(action)));
