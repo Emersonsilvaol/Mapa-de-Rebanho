@@ -1,0 +1,33 @@
+/* Bodoquena sidebar neutral V6 | only app navigation, no business logic. */
+html.bq-frontend-v2:not([data-theme="dark"]) #app > aside.sidebar,
+html.bq-frontend-v2:not([data-theme="dark"]) nav#mainTabs.premium-sidebar{
+  --bq2-sidebar:#f4f6f5!important;
+  background:#f4f6f5!important;background-image:none!important;
+  color:#303c36!important;border-color:#e0e6e2!important;
+  box-shadow:2px 0 12px rgba(32,45,37,.035)!important;
+}
+html.bq-frontend-v2:not([data-theme="dark"]) #app > aside.sidebar .side-brand{
+  background:#f4f6f5!important;background-image:none!important;color:#27352e!important;
+  border-bottom:1px solid #e1e7e3!important;
+}
+html.bq-frontend-v2:not([data-theme="dark"]) #app > aside.sidebar .side-brand :is(b,strong){color:#26332e!important}
+html.bq-frontend-v2:not([data-theme="dark"]) #app > aside.sidebar .side-brand small{color:#78867d!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(#app > aside.sidebar,nav#mainTabs.premium-sidebar) :is(.nav-label,.nav-section){color:#849189!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(#app > aside.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view]){
+ background:transparent!important;background-image:none!important;color:#45544a!important;
+ border:1px solid transparent!important;box-shadow:none!important;text-shadow:none!important;
+}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(#app > aside.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view]):hover{
+ background:#e8edeb!important;color:#253a2e!important;transform:translateX(2px);
+}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(#app > aside.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view]).active,
+html.bq-frontend-v2:not([data-theme="dark"]) :is(#app > aside.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view])[aria-current="page"]{
+ background:#e3ede6!important;background-image:none!important;color:#245439!important;
+ box-shadow:inset 3px 0 0 #39734c!important;border-color:transparent!important;
+ font-weight:700!important;
+}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(#app > aside.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view]) :is(svg,.tab-ico){color:inherit!important;stroke:currentColor!important}
+html.bq-frontend-v2:not([data-theme="dark"]) nav#mainTabs.premium-sidebar :is(.bq-collapse,.bq-nav-trigger),
+html.bq-frontend-v2:not([data-theme="dark"]) #app > aside.sidebar :is(.bq-collapse,.bq-nav-trigger){background:#fff!important;color:#344339!important;border:1px solid #dce4df!important;box-shadow:none!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(#app > aside.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view]):focus-visible{outline:2px solid #39734c!important;outline-offset:2px!important}
+@media (prefers-reduced-motion:reduce){html.bq-frontend-v2:not([data-theme="dark"]) :is(#app > aside.sidebar,nav#mainTabs.premium-sidebar) button{transition:none!important;transform:none!important}}
