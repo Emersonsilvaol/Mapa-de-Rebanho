@@ -66,7 +66,7 @@ Deno.serve(async (req: Request) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    const bootstrapAdmin = String(user.email || '').toLowerCase() === 'emerson.oliveira@fazendabodoquena.com.br';
+    const bootstrapAdmin = caller?.role === 'admin' && ['emerson.oliveira@fazendabodoquena.com.br','emersontec13@gmail.com'].includes(String(user.email || '').toLowerCase());
     if (callerError || !caller || caller.ativo !== true) return reply({ error: 'Usuário bloqueado.' }, 403);
     if (!bootstrapAdmin) {
       return reply({ error: 'Acesso exclusivo do administrador.' }, 403);
