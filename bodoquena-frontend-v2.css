@@ -1,0 +1,70 @@
+/* Fazenda Bodoquena | UI V2: somente visual. Nunca altera regras de negocio. */
+html.bq-frontend-v2:not([data-theme="dark"]){
+ --bq2-bg:#f7f8f8;--bq2-surface:#fff;--bq2-ink:#26332e;--bq2-muted:#697771;
+ --bq2-edge:#e1e7e3;--bq2-accent:#39734c;--bq2-soft:#eaf2ec;--bq2-sidebar:#293530;
+ --bq2-gold:#c5a45c;--bq2-shadow:0 4px 20px rgba(32,49,42,.045);
+ --verde-mais-escuro:#293530;--verde-escuro:#293530;--verde-medio:#39734c;
+ --verde-claro:#eaf2ec;--cinza-100:#f7f8f8;--dourado:#c5a45c;
+ --canvas:#f7f8f8;--surface:#fff;--line:#e1e7e3;--ink:#26332e;--muted:#697771;
+ --green:#39734c;--chart-green:#39734c;
+ color-scheme:light;
+}
+html.bq-frontend-v2:not([data-theme="dark"]) body{background:#f7f8f8;color:#26332e;letter-spacing:-.004em;-webkit-font-smoothing:antialiased}
+/* No scenic/animal background in application shell; keep institutional logo and real geospatial map imagery. */
+html.bq-frontend-v2:not([data-theme="dark"]) :is(header.top,header.app-header,.sidebar,.side-brand,nav#mainTabs,.premium-sidebar,.app-footer){background-image:none!important;filter:none!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(header.top,header.app-header){background:#fff!important;color:#26332e!important;border-bottom:1px solid #e1e7e3!important;box-shadow:0 2px 14px rgba(33,51,42,.035)!important;backdrop-filter:none!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(header.top,header.app-header) :is(h1,h2,.brand-name,.brand-title,.crumb,b,strong,small,.header-actions,.header-actions span){text-shadow:none!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(header.top,header.app-header) :is(.brand,.brand-name,.brand-title,.crumb,.header-actions,.header-actions span){color:#26332e!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.sidebar,nav#mainTabs.premium-sidebar){background:#293530!important;color:#ebf0ed!important;border-color:#394940!important;box-shadow:2px 0 18px rgba(24,40,32,.08)!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.sidebar,nav#mainTabs.premium-sidebar) :is(.nav-label,.nav-section,.bq-nav-trigger){color:#aab8af!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view]){background:transparent!important;color:#dbe5de!important;border:1px solid transparent!important;border-radius:9px!important;transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view]):hover{background:#36463e!important;color:#fff!important;transform:translateX(2px)}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.sidebar,nav#mainTabs.premium-sidebar) :is(button[data-page],button[data-view]).active{background:#405749!important;color:#fff!important;border-left:3px solid #c5a45c!important}
+html.bq-frontend-v2:not([data-theme="dark"]) .side-brand{background:#293530!important;color:#fff!important}
+html.bq-frontend-v2:not([data-theme="dark"]) .side-brand :is(b,small){color:#fff!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.main,main,#app){background-color:#f7f8f8}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.panel,.kpi-card,.metric,.stat-card,.exec-card,.pi-panel,.data-quality,.card,.bq-card){border-color:#e1e7e3!important;box-shadow:var(--bq2-shadow)!important;border-radius:11px!important;background-color:#fff;transition:box-shadow .18s ease,border-color .18s ease,transform .18s ease!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.panel,.kpi-card,.metric,.stat-card,.exec-card,.pi-panel,.data-quality,.card,.bq-card):hover{border-color:#ccd9d0!important;box-shadow:0 9px 25px rgba(33,51,42,.075)!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.panel,.kpi-card,.metric,.stat-card,.exec-card,.pi-panel,.data-quality,.card,.bq-card):focus-within{border-color:#78a387!important;box-shadow:0 0 0 3px rgba(57,115,76,.10)!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.page-head h1,.view-title){color:#26332e!important;letter-spacing:-.03em!important;font-weight:750!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.eyebrow,.view-sub,.note,.sub){letter-spacing:.015em}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.field input,.field select,.field textarea,input:not([type=checkbox]):not([type=radio]),select,textarea){accent-color:#39734c;transition:border-color .16s,box-shadow .16s,background-color .16s}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.field input,.field select,.field textarea,input:not([type=checkbox]):not([type=radio]),select,textarea):focus-visible{outline:0!important;border-color:#39734c!important;box-shadow:0 0 0 3px rgba(57,115,76,.13)!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(button,.btn,[role=button]){transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .16s ease}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(button,.btn,[role=button]):not(:disabled):active{transform:scale(.987)}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(button,.btn,[role=button]):focus-visible{outline:2px solid #39734c!important;outline-offset:3px!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.btn-primary,.btn.primary,button.primary,.bq-action-primary){background:#39734c!important;color:#fff!important;border-color:#39734c!important;box-shadow:0 2px 8px rgba(57,115,76,.12)!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.btn-primary,.btn.primary,button.primary,.bq-action-primary):hover:not(:disabled){background:#2e6040!important;border-color:#2e6040!important;box-shadow:0 5px 12px rgba(57,115,76,.16)!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.bq-search-launch,.bq-collapse){background:#f9fbfa!important;color:#26332e!important;border:1px solid #dbe5dd!important;border-radius:9px!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.bq-search-launch,.bq-collapse):hover{background:#edf4ef!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.bq-command,.bq-detail){border:1px solid #e1e7e3!important;box-shadow:0 24px 70px rgba(21,44,30,.18)!important;border-radius:14px!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.panel-head,.card-head){border-bottom-color:#eef1ef!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.toolbar,.dashboard-filters){background:#fff!important;border-color:#e1e7e3!important;border-radius:10px!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.table-wrap,.table-container){border-radius:9px}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(table thead th,table th){background:#f4f7f5!important;color:#43554b!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(table tbody tr:hover){background-color:#f5f9f6!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.chart-toolbar button[aria-pressed=true],[data-bq-range][aria-pressed=true]){background:#39734c!important;color:#fff!important;border-color:#39734c!important}
+html.bq-frontend-v2 .bq2-busy{position:relative;pointer-events:none;opacity:.7}
+html.bq-frontend-v2 .bq2-busy::after{content:'';display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:bq2-spin .7s linear infinite;margin-left:8px;vertical-align:-2px}
+html.bq-frontend-v2 .bq2-skeleton{border-radius:8px;background:#e9eeea;min-height:16px;animation:bq2-pulse 1.4s ease-in-out infinite}
+html.bq-frontend-v2 .bq2-toast{position:fixed;right:22px;bottom:22px;z-index:9900;border:1px solid #dbe5dd;border-radius:10px;padding:12px 16px;background:#fff;color:#26332e;box-shadow:0 12px 36px rgba(25,42,31,.16);font-size:13px;max-width:360px}
+html.bq-frontend-v2 .bq2-toast[hidden]{display:none!important}
+html.bq-frontend-v2 .bq2-backdrop[hidden]{display:none!important}
+html.bq-frontend-v2 .bq2-backdrop{position:fixed;inset:0;background:rgba(18,31,23,.46);z-index:9500;display:grid;place-items:center;padding:20px}
+html.bq-frontend-v2 .bq2-dialog{max-width:440px;width:100%;background:#fff;color:#26332e;border-radius:12px;padding:22px;box-shadow:0 24px 60px rgba(10,25,15,.21)}
+html.bq-frontend-v2 .bq2-dialog h2{font-size:18px;margin:0 0 10px}
+html.bq-frontend-v2 .bq2-dialog p{color:#607067;font-size:14px;line-height:1.5;margin:0 0 20px}
+html.bq-frontend-v2 .bq2-dialog-actions{display:flex;gap:10px;justify-content:flex-end}
+html.bq-frontend-v2 .bq2-dialog-actions button{padding:9px 15px;border-radius:8px;border:1px solid #dce6df;cursor:pointer}
+html.bq-frontend-v2 .bq2-dialog-actions .bq2-confirm{background:#39734c;color:#fff;border-color:#39734c}
+@keyframes bq2-spin{to{transform:rotate(360deg)}}@keyframes bq2-pulse{50%{opacity:.5}}
+@media(max-width:900px){html.bq-frontend-v2:not([data-theme="dark"]) .bq2-toast{left:14px;right:14px;bottom:14px;max-width:none}html.bq-frontend-v2:not([data-theme="dark"]) :is(.sidebar,nav#mainTabs.premium-sidebar){box-shadow:6px 0 24px rgba(20,37,27,.12)!important}}
+@media(prefers-reduced-motion:reduce){html.bq-frontend-v2 *,html.bq-frontend-v2 *::before,html.bq-frontend-v2 *::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+/* Never override hidden, module permission, view visibility, maps, report launchers or data calculations. */
+/* Header legibility on Mapa and Gestão, even where legacy inline styles use white text. */
+html.bq-frontend-v2:not([data-theme="dark"]) header.app-header :is(.brand-text h1,.brand-text h2,.brand-text strong,.brand-text p,.header-actions .pill,.header-actions small,.header-actions strong,#sidebarToggle){color:#26332e!important;text-shadow:none!important}
+html.bq-frontend-v2:not([data-theme="dark"]) header.app-header :is(.header-actions .pill,#sidebarToggle,.theme-toggle,.bq-search-launch){background:#f7f9f8!important;color:#26332e!important;border:1px solid #dce6df!important;border-radius:9px!important}
+html.bq-frontend-v2:not([data-theme="dark"]) header.app-header :is(.header-actions .pill,#sidebarToggle,.theme-toggle,.bq-search-launch):hover{background:#eaf2ec!important}
+html.bq-frontend-v2:not([data-theme="dark"]) header.app-header .brand-mark{background:#fff!important;border-color:#e1e7e3!important}
+html.bq-frontend-v2:not([data-theme="dark"]) :is(.sidebar,nav#mainTabs.premium-sidebar) :is(.bq-collapse,.bq-nav-trigger){box-shadow:none!important}
+html.bq-frontend-v2:not([data-theme="dark"]) nav#mainTabs.premium-sidebar .bq-collapse{background:#36463e!important;color:#fff!important;border-color:#43574b!important}
