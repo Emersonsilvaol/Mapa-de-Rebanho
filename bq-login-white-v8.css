@@ -1,0 +1,41 @@
+/* Fazenda Bodoquena - White Login V8. Only authentication gates; all application pages unchanged. */
+html body:has(> section#login.login:not([hidden])),
+html body section#login.login,
+html.bq-frontend-v2 body section#login.login,
+html[data-theme="dark"] body section#login.login{
+  background:#FFFFFF!important;background-color:#FFFFFF!important;background-image:none!important;
+  box-shadow:none!important;filter:none!important;
+}
+html body section#login.login::before,
+html body section#login.login::after,
+html body section#login.login .login-card::before,
+html body section#login.login .login-card::after{
+  background-image:none!important;box-shadow:none!important;
+}
+html body section#login.login .login-card,
+html[data-theme="dark"] body section#login.login .login-card{
+  background:#FFFFFF!important;background-image:none!important;color:#27342E!important;
+  border:1px solid #E7EAE8!important;box-shadow:0 16px 46px rgba(28,39,32,.055)!important;
+}
+html body section#login.login .login-card input{
+  background:#FFFFFF!important;color:#27342E!important;
+}
+html body #authGate#authGate,
+html.bq-frontend-v2 body #authGate#authGate,
+html[data-theme="dark"] body #authGate#authGate{
+  background:#FFFFFF!important;background-color:#FFFFFF!important;background-image:none!important;
+  filter:none!important;box-shadow:none!important;color-scheme:light;
+}
+html body #authGate#authGate::before,
+html body #authGate#authGate::after,
+html[data-theme="dark"] body #authGate#authGate::before,
+html[data-theme="dark"] body #authGate#authGate::after{
+  display:none!important;content:none!important;background:none!important;background-image:none!important;
+}
+html body #authGate#authGate .auth-card,
+html[data-theme="dark"] body #authGate#authGate .auth-card{
+  background:#FFFFFF!important;background-image:none!important;
+  color:#27342E!important;border:1px solid #E7EAE8!important;
+  box-shadow:0 16px 46px rgba(28,39,32,.055)!important;
+}
+html body #authGate#authGate .auth-card :is(input,select){background:#FFFFFF!important;color:#27342E!important}
