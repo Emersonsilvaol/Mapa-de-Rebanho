@@ -3276,11 +3276,13 @@ function analisarLoteMov(lista,ignorarId=''){
   if(m.tipo==='Transferência entre Seções'&&m.setorOrigem===m.setorDestino){erros.push(label+': origem e destino são iguais.');continue;}
   const animal=resolverAnimalHistorico(m),id=animal?.id||m.animalId||sis;
   if(m.tipo==='Nascimento'&&id&&births.has(id)){erros.push(label+': nascimento já registrado para este animal.');continue;}
-  if(['Transferência entre Seções','Movimentação entre Locais','Reidentificação',...TIPOS_BAIXA_DEFINITIVA].includes(m.tipo)&&id){
+  if(['Transferência entre Seções','Movimentação entre Locais','Reidentificação',...TIPOS_BAIXA_DEFINITIVA].includes(m.tipo)&&(id||m.brinco||m.chip)){
    if(!states.has(m.data)){const original=DB;try{DB={...base,movimentacoes:base.movimentacoes.concat(staged)};states.set(m.data,new Map(buildMapaNaData(m.data).animais.map(a=>[a.id,{...a}])));}finally{DB=original;}}
    const map=states.get(m.data),a=map.get(id)||[...map.values()].find(a=>normalizarSisbov(a.sisbov)===sis&&sis);
    if(a&&a.status!=='ATIVO'){erros.push(label+': animal já morto ou vendido nesta data.');continue;}
-   if(a&&m.setorOrigem&&a.setorAtual&&normalizarCabecalho(m.setorOrigem)!==normalizarCabecalho(a.setorAtual))avisos.push(label+`: origem informada ${m.setorOrigem}; seção reconstruída ${a.setorAtual}. Confira a ordem dos manejos dessa data.`);
+   if(!a){erros.push(label+': animal não localizado no mapa nesta data. Registre a entrada correta antes de movimentar.');continue;}
+   if(!a.setorAtual){erros.push(label+': setor atual não identificado no mapa. Confira o cadastro antes de movimentar.');continue;}
+   if(!m.setorOrigem||chaveSetor(m.setorOrigem)!==chaveSetor(a.setorAtual)){erros.push(label+`: movimentação bloqueada. O animal está em ${a.setorAtual} na data do lançamento e só pode sair desse setor; origem informada: ${m.setorOrigem||'não informada'}.`);continue;}
    if(a&&TIPOS_BAIXA_DEFINITIVA.includes(m.tipo))a.status='BAIXADO';
    if(a&&m.tipo==='Transferência entre Seções')a.setorAtual=m.setorDestino;
   }
@@ -4803,7 +4805,9 @@ function abrirFormularioMov(m){
     const q=String(buscaNormal.value||'').trim();
     if(forcar!==true&&q===ultimaBuscaNormal)return;
     ultimaBuscaNormal=q;
-    const a=localizarPorIdentificador(q);
+    const a=animalPorIdentificacaoAtualOuHistorico(q,document.getElementById('formMovData').value||todayISO());
+    const origemEl=document.getElementById('formMovOrigem');
+    origemEl.disabled=false;origemEl.title='';
     if(a){
       const d=dadosAnimalParaMov(a,document.getElementById('formMovData').value||todayISO(),m?.id||'');
       document.getElementById('formMovSisbov').value=d.sisbov||'';
@@ -4812,11 +4816,13 @@ function abrirFormularioMov(m){
       document.getElementById('formMovSexo').value=d.sexo||'';
       document.getElementById('formMovRaca').value=d.raca||'';
       document.getElementById('formMovNasc').value=d.nascimento||'';
-      document.getElementById('formMovOrigem').value=d.setorOrigem||'';
+      origemEl.value=d.setorOrigem||'';
+      origemEl.disabled=!['Nascimento','Compra','Animais sem auditar'].includes(tipoEl.value);
+      origemEl.title=origemEl.disabled?'Setor de origem obtido do mapa na data do lançamento.':'';
       if(['Nascimento','Compra'].includes(tipoEl.value)&&!document.getElementById('formMovDestino').value)document.getElementById('formMovDestino').value=d.setorOrigem||'';
       const localEl=document.getElementById('formMovLocal'); if(localEl) localEl.value=d.local||'';
       document.getElementById('formMovCategoria').value=d.categoria||calcCategoria(d.nascimento||'',document.getElementById('formMovData').value||todayISO());
-      msgNormal.style.display='block'; msgNormal.className='alert alert-green'; msgNormal.innerHTML='<b>Animal encontrado.</b> Os dados foram puxados automaticamente da base.';
+      msgNormal.style.display='block'; msgNormal.className='alert alert-green'; msgNormal.innerHTML='<b>Animal encontrado.</b> Setor no mapa na data do lançamento: <b>'+esc(d.setorOrigem||'não identificado')+'</b>. A origem deve corresponder a esse setor.';
     }else if(q){msgNormal.style.display='block';msgNormal.className='alert alert-gold';msgNormal.textContent='Animal não encontrado no Mapa Inicial. Preencha os dados manualmente.';}
     else msgNormal.style.display='none';
   };
@@ -4880,11 +4886,12 @@ function abrirFormularioMov(m){
     else {
       const el=document.getElementById('formMovCategoria');
       if(el) el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO());
-      preencherNormal();
+      preencherNormal(true);
     }
   });
   document.getElementById('formMovNasc').addEventListener('change',()=>{const el=document.getElementById('formMovCategoria');if(el)el.value=calcCategoria(document.getElementById('formMovNasc').value,document.getElementById('formMovData').value||todayISO());});
   ajustarFluxo(false);
+  if(tipoEl.value!=='Reidentificação')preencherNormal(true);
 }
 async function salvarFormularioMov(m){
   if(!await verificarAcessoAtual())return;
