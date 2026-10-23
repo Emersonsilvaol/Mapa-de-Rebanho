@@ -230,6 +230,7 @@
         label.append(input,create('span','',th.textContent.trim()||'Coluna '+(i+1)));list.append(label);
       });
       cols.append(summary,list);bar.append(filter,selection,selected,cols);
+      if(table.id==='movTable'){selection.hidden=true;selected.hidden=true;}
       const holder=table.closest('.table-wrap');
       (holder||table).parentNode?.insertBefore(bar,holder||table);
       let selecting=false;

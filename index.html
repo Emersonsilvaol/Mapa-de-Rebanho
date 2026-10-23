@@ -1498,6 +1498,12 @@ thead th{
     <div class="panel">
       <div class="panel-head"><h3>Lançamentos</h3><span id="movCount" style="font-size:11.5px;color:var(--cinza-600);"></span></div>
       <div class="panel-body">
+        <div id="movBulkActions" hidden class="toolbar" style="gap:8px" aria-label="Seleção de movimentações">
+          <span id="movSelectionCount" role="status" aria-live="polite"></span>
+          <button type="button" class="btn btn-outline btn-sm" id="movSelectFiltered">Selecionar todos do filtro</button>
+          <button type="button" class="btn btn-outline btn-sm" id="movClearSelection">Limpar seleção</button>
+          <button type="button" class="btn btn-danger btn-sm" id="movDeleteSelected" disabled>Excluir selecionadas</button>
+        </div>
         <div class="table-wrap"><table class="exec" id="movTable"><thead></thead><tbody></tbody></table></div>
         <div class="pager" id="movPager"></div>
       </div>
@@ -5052,6 +5058,52 @@ Deseja realmente continuar?</p>`, [
   ]);
 }
 
+// Seleção por ID: preserva páginas, restringe aos filtros atuais e nunca inclui outros lançamentos.
+const movSelecionadas = new Set();
+let movExclusaoEmAndamento = false;
+function atualizarSelecaoMov(){
+  const admin=AUTH_ADMIN && podeGravar();
+  document.getElementById('movBulkActions').hidden=!admin;
+  const checks=[...document.querySelectorAll('#movTable .movSelectRow')];
+  checks.forEach(c=>{c.checked=movSelecionadas.has(c.dataset.id);c.closest('tr').classList.toggle('bq-row-selected',c.checked);});
+  const all=document.getElementById('movSelectPage');
+  if(all){all.checked=checks.length>0&&checks.every(c=>c.checked);all.indeterminate=checks.some(c=>c.checked)&&!all.checked;}
+  document.getElementById('movSelectionCount').textContent=movSelecionadas.size.toLocaleString('pt-BR')+' movimentação(ões) selecionada(s)';
+  document.getElementById('movDeleteSelected').disabled=!admin||!movSelecionadas.size||movExclusaoEmAndamento;
+}
+async function excluirMovimentacoesSelecionadas(){
+  if(movExclusaoEmAndamento||!await verificarAcessoAtual()||!exigirAdmin('excluir movimentações'))return;
+  const ids=new Set(movSelecionadas);
+  const registros=DB.movimentacoes.filter(m=>ids.has(m.id));
+  if(!registros.length)return;
+  const preview=registros.slice(0,20).map(m=>`<li>${esc(formatBR(m.data))} · ${esc(m.tipo)} · SISBOV ${esc(m.sisbov||'não informado')}</li>`).join('');
+  openModal('Excluir movimentações selecionadas',`<p>Excluir <b>${registros.length.toLocaleString('pt-BR')} movimentação(ões)</b>? O mapa será recalculado sem estes lançamentos. Os animais permanecem cadastrados. As exclusões ficam no histórico e podem ser recuperadas nas Configurações.</p><ul>${preview}</ul>${registros.length>20?'<p>Prévia dos primeiros 20 registros.</p>':''}<div class="field"><label for="movBulkReason">Motivo da exclusão</label><input id="movBulkReason" placeholder="Informe o motivo" required maxlength="500"></div>`,[
+    {label:'Cancelar',cls:'btn-outline',onClick:closeModal},
+    {label:'Excluir '+registros.length.toLocaleString('pt-BR')+' selecionadas',cls:'btn-danger',onClick:async()=>{
+      if(movExclusaoEmAndamento)return;
+      const motivo=document.getElementById('movBulkReason')?.value.trim();
+      if(!motivo){toast('Informe o motivo da exclusão.','err');return;}
+      movExclusaoEmAndamento=true;atualizarSelecaoMov();
+      try{
+        if(!await verificarAcessoAtual()||!exigirAdmin('excluir movimentações'))return;
+        if(LOCAL_DIRTY||_syncEmAndamento){toast('Conclua a sincronização pendente antes de excluir o grupo.','err');return;}
+        const atuais=DB.movimentacoes.filter(m=>ids.has(m.id));
+        if(atuais.length!==registros.length||atuais.some(m=>JSON.stringify(m)!==JSON.stringify(registros.find(r=>r.id===m.id)))){toast('Os registros mudaram. Confira a seleção novamente.','err');closeModal();renderMovimentacoes();return;}
+        const candidate={...DB,movimentacoes:DB.movimentacoes.filter(m=>!ids.has(m.id))};
+        if(!confirmarAlteracaoGrande(candidate,atuais))return;
+        PENDING_REASON='Exclusão em lote de '+atuais.length+' movimentações: '+motivo;
+        DB.movimentacoes=candidate.movimentacoes;
+        const salvo=await saveDB('mov');
+        const sincronizado=salvo&&await sincronizarSupabase();
+        ids.forEach(id=>movSelecionadas.delete(id));
+        closeModal();renderAll();
+        if(sincronizado)toast(atuais.length.toLocaleString('pt-BR')+' movimentação(ões) excluída(s) e sincronizada(s).','ok');
+        else toast('Exclusão ainda não confirmada na nuvem. Confira a sincronização em Configurações.','err');
+      }finally{movExclusaoEmAndamento=false;atualizarSelecaoMov();}
+    }}
+  ]);
+}
+
 function renderMovimentacoes(){
   const tSel = document.getElementById('movFiltroTipo');
   if(tSel.options.length<=1) popularSelect(tSel, TIPOS_MOV, true, false);
@@ -5062,18 +5114,20 @@ function renderMovimentacoes(){
   popularFiltrosLocal();
 
   const lista = filtrarMovimentacoes();
+  const permitidos=new Set(AUTH_ADMIN?lista.map(m=>m.id):[]);
+  for(const id of movSelecionadas)if(!permitidos.has(id))movSelecionadas.delete(id);
   document.getElementById('movCount').textContent = `${lista.length.toLocaleString('pt-BR')} lançamento(s)`;
   const totalPag = Math.max(1, Math.ceil(lista.length/PAGE_SIZE));
   paginaMov = Math.min(paginaMov, totalPag);
   const slice = lista.slice((paginaMov-1)*PAGE_SIZE, paginaMov*PAGE_SIZE);
 
-  const thead = `<tr><th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${podeGravar()?'<th>Ação</th>':''}</tr>`;
+  const thead = `<tr>${AUTH_ADMIN?'<th><input type="checkbox" id="movSelectPage" aria-label="Selecionar todas as movimentações desta página"></th>':''}<th>Data</th><th>Tipo</th><th>SISBOV</th><th>Brinco</th><th>Origem</th><th>Destino</th><th>Local</th><th>Sexo</th><th>Raça</th><th>Nascimento</th><th>Categoria</th><th class="num">Qtd.</th><th>Obs.</th>${podeGravar()?'<th>Ação</th>':''}</tr>`;
   const tbody = slice.map(m=>`<tr>
-    <td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'<span class="no-sisbov">agregado</span>')}</td>
+    ${AUTH_ADMIN?`<td><input type="checkbox" class="movSelectRow" data-id="${esc(m.id)}" aria-label="Selecionar movimentação ${esc(m.sisbov||m.tipo)}"></td>`:''}<td>${formatBR(m.data)}</td><td>${tipoOperacionalMov(m)}</td><td>${m.tipo==='Reidentificação'?`${m.sisbovAnterior||m.sisbov||'—'} → ${m.sisbovNovo||'—'}`:(m.sisbov||'<span class="no-sisbov">agregado</span>')}</td>
     <td>${m.tipo==='Reidentificação'?`${m.brincoAnterior||m.brinco||'—'} → ${m.brincoNovo||'—'}`:(m.brinco||'—')}</td><td>${m.setorOrigem||'—'}</td><td>${m.setorDestino||m.destinoExterno||'—'}</td><td>${m.local||'—'}</td>
     <td>${valorExibicao(m.sexo)}</td><td>${valorExibicao(m.raca)}</td><td>${m.nascimento?formatBR(m.nascimento):'<span class="pending">PENDENTE</span>'}</td><td>${calcCategoria(m.nascimento,m.data)}</td><td class="num">${m.quantidade}</td><td>${m.observacao||''}</td>${podeGravar()?`<td>${podeEditarMovimento(m)?`<button class="btn btn-outline btn-sm btnEditMov" data-id="${m.id}">EDITAR</button>`:''} ${AUTH_ADMIN?`<button class="btn btn-danger btn-sm btnDeleteMov" data-id="${m.id}">EXCLUIR</button>`:''}</td>`:''}</tr>`).join('');
   document.getElementById('movTable').querySelector('thead').innerHTML = thead;
-  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${podeGravar()?14:13}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
+  document.getElementById('movTable').querySelector('tbody').innerHTML = tbody || `<tr><td colspan="${(podeGravar()?14:13)+(AUTH_ADMIN?1:0)}" style="text-align:center;color:var(--cinza-600);">Nenhuma movimentação encontrada.</td></tr>`;
   document.getElementById('movPager').innerHTML = `Página ${paginaMov} de ${totalPag}
     <button class="btn btn-outline btn-sm" ${paginaMov<=1?'disabled':''} id="movPrev">‹</button>
     <button class="btn btn-outline btn-sm" ${paginaMov>=totalPag?'disabled':''} id="movNext">›</button>`;
@@ -5082,6 +5136,13 @@ function renderMovimentacoes(){
   if(nextBtn) nextBtn.onclick=()=>{paginaMov++; renderMovimentacoes();};
   document.querySelectorAll('.btnEditMov').forEach(b=>b.onclick=()=>abrirFormularioMov(DB.movimentacoes.find(m=>m.id===b.dataset.id)));
   document.querySelectorAll('.btnDeleteMov').forEach(b=>b.onclick=()=>excluirMovimentacao(b.dataset.id));
+  document.querySelectorAll('#movTable .movSelectRow').forEach(c=>c.onchange=()=>{if(c.checked)movSelecionadas.add(c.dataset.id);else movSelecionadas.delete(c.dataset.id);atualizarSelecaoMov();});
+  const all=document.getElementById('movSelectPage');
+  if(all)all.onchange=()=>{slice.forEach(m=>all.checked?movSelecionadas.add(m.id):movSelecionadas.delete(m.id));atualizarSelecaoMov();};
+  document.getElementById('movSelectFiltered').onclick=()=>{if(!AUTH_ADMIN)return;lista.forEach(m=>movSelecionadas.add(m.id));atualizarSelecaoMov();};
+  document.getElementById('movClearSelection').onclick=()=>{movSelecionadas.clear();atualizarSelecaoMov();};
+  document.getElementById('movDeleteSelected').onclick=excluirMovimentacoesSelecionadas;
+  atualizarSelecaoMov();
 }
 
 async function renderMapaAtual(){
