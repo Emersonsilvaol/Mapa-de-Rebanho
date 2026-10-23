@@ -2674,6 +2674,40 @@ function agendarSyncCentral(){
 }
 
 let _recuperacaoCentralEmCurso=false;
+// Um rascunho de uma revisão anterior não pode ressuscitar cadastros excluídos.
+// A cópia fica recuperável mesmo depois de carregar a base central atual.
+async function arquivarRascunhoAnterior(draft){
+ const key='mapa_draft_archive_'+Date.now()+'_'+uid('draft');
+ await idbSet(key,{...structuredClone(draft),arquivadoEm:new Date().toISOString()});
+ await idbSet('mapa_last_draft_archive',key);
+ await idbSet('mapa_pending_draft',null);
+ await mostrarRascunhoArquivado(key);
+}
+async function mostrarRascunhoArquivado(key){
+ key=key||await idbGet('mapa_last_draft_archive');
+ if(!key)return;
+ let aviso=document.getElementById('rascunhoArquivado');
+ if(!aviso){aviso=document.createElement('div');aviso.id='rascunhoArquivado';aviso.className='alert alert-gold';aviso.setAttribute('role','status');document.querySelector('main')?.prepend(aviso);}
+ aviso.textContent='A versão central foi atualizada. O rascunho anterior deste navegador foi preservado para conferência. ';
+ const b=document.createElement('button');b.type='button';b.className='btn btn-outline btn-sm';b.textContent='Baixar rascunho anterior';
+ b.onclick=async()=>{try{const saved=await idbGet(key);if(!saved?.payload)throw Error('Cópia local não encontrada.');const url=URL.createObjectURL(new Blob([JSON.stringify(saved.payload,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='rascunho_mapa_revisao_'+saved.revision+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){toast(e.message,'err');}};
+ aviso.append(b);
+}
+async function conferirBaseReidentificacao(){
+ if(_syncPromise)await _syncPromise;
+ const generation=DB_GENERATION;
+ const data=await buscarBaseAutorizada();
+ if(generation!==DB_GENERATION)throw Error('A base mudou durante a conferência. Tente novamente.');
+ if(!data?.payload||!Array.isArray(data.payload.animais)||!Array.isArray(data.payload.movimentacoes)||data.revision==null)throw Error('Não foi possível validar a versão central para reidentificar.');
+ if(data.revision===CENTRAL_REVISION&&!CONFLITO_CENTRAL)return;
+ if(LOCAL_DIRTY){
+  await arquivarRascunhoAnterior({payload:payloadCentral(),revision:CENTRAL_REVISION,reason:PENDING_REASON});
+ }
+ clearTimeout(_syncTimer);
+ if(!aplicarBaseCentralRecebida(data))throw Error('Não foi possível atualizar a base.');
+ PENDING_REASON='';
+ await Promise.all([idbSet(LS_KEYS.animais,DB.animais),idbSet(LS_KEYS.mov,DB.movimentacoes),idbSet(LS_KEYS.setores,DB.setores),idbSet(LS_KEYS.config,DB.config)]);
+}
 async function recuperarBaseCentralAposInicio(){
  if(!AUTH_ADMIN||CENTRAL_REVISION!==null||LOCAL_DIRTY||_syncEmAndamento||_recuperacaoCentralEmCurso)return false;
  _recuperacaoCentralEmCurso=true;
@@ -2691,12 +2725,17 @@ async function loadDB(){
     if(igual){await idbSet('mapa_pending_draft',null).catch(()=>{});}
     else{
      const mudou=central&&draft.revision!==CENTRAL_REVISION;
-     DB={...draft.payload};PENDING_REASON=draft.reason||'Rascunho recuperado';LOCAL_DIRTY=true;
-     CONFLITO_CENTRAL=!!mudou||!central;
-     if(CONFLITO_CENTRAL)mostrarConflitoCentral();else atualizarEstadoProtecao();
+     if(mudou){
+      await arquivarRascunhoAnterior(draft);PENDING_REASON='';
+     }else{
+      DB={...draft.payload};PENDING_REASON=draft.reason||'Rascunho recuperado';LOCAL_DIRTY=true;
+      CONFLITO_CENTRAL=!central;
+      if(CONFLITO_CENTRAL)mostrarConflitoCentral();else atualizarEstadoProtecao();
+     }
     }
    }
   }
+  if(AUTH_ADMIN)await mostrarRascunhoArquivado().catch(()=>{});
   if(!AUTH_ADMIN){
     if(!central){DB.animais=[];DB.movimentacoes=[];bloquearAcesso('Não foi possível carregar os dados autorizados. Tente retomar o acesso.',false);}
     return;
@@ -4896,6 +4935,9 @@ function abrirFormularioMov(m){
 async function salvarFormularioMov(m){
   if(!await verificarAcessoAtual())return;
   if(!exigirMovimento(m||{tipo:document.getElementById('formMovTipo')?.value})) return;
+  if(document.getElementById('formMovTipo')?.value==='Reidentificação'){
+   try{await conferirBaseReidentificacao();}catch(e){toast(e.message,'err');return;}
+  }
   const d={animalId:'',data:document.getElementById('formMovData').value,tipo:document.getElementById('formMovTipo').value,sisbov:document.getElementById('formMovSisbov').value.trim(),brinco:document.getElementById('formMovBrinco').value.trim(),chip:document.getElementById('formMovChip').value.trim(),sexo:document.getElementById('formMovSexo').value,raca:document.getElementById('formMovRaca').value.trim(),nascimento:document.getElementById('formMovNasc').value,setorOrigem:document.getElementById('formMovOrigem').value,setorDestino:document.getElementById('formMovDestino').value,local:(document.getElementById('formMovLocal')?.value||'').trim(),destinoExterno:(document.getElementById('formMovDestinoExterno')?.value||'').trim(),causaMorte:(document.getElementById('formMovCausaMorte')?.value||'').trim(),quantidade:parseInt(document.getElementById('formMovQtd').value)||1,observacao:document.getElementById('formMovObs').value.trim()};
   if(erroFormatoSisbov(d.sisbov)){toast(erroFormatoSisbov(d.sisbov),'err');return;}
   if(!d.data||!d.tipo){toast('Informe data e tipo.','err');return;}
@@ -6297,7 +6339,9 @@ async function salvarReidPage(){
   if(btn){btn.disabled=true;btn.textContent='SALVANDO...';}
 
   try{
-    const animal=REID_PAGE_ANIMAL||animalPorIdentificacaoAtualOuHistorico(anterior,data);
+    const selectedId=REID_PAGE_ANIMAL?.id;
+    await conferirBaseReidentificacao();
+    const animal=(DB.animais||[]).find(a=>a.id===selectedId)||animalPorIdentificacaoAtualOuHistorico(anterior,data);
     if(!animal) throw new Error('Identificação anterior não encontrada.');
     if(erroFormatoSisbov(novo))throw new Error(erroFormatoSisbov(novo));
     if(anteriorDig.length===15 && anteriorDig===novo) throw new Error('O novo SISBOV deve ser diferente do anterior.');
@@ -6464,6 +6508,7 @@ async function tratarArquivoReidentificacaoLote(input){
     if(!/\.(xlsx|xls|csv)$/.test(nome)) throw new Error('Formato não suportado. Use XLSX, XLS ou CSV.');
     const rows=await lerArquivo(file);
     if(!Array.isArray(rows)||!rows.length) throw new Error('A planilha não possui linhas para importar.');
+    await conferirBaseReidentificacao();
     const resultado=prepararImportacaoReid(rows);
     abrirPreviewReid(resultado);
   }catch(err){
@@ -7751,3 +7796,4 @@ html body #view-dashboard.bq-premium-dashboard #dashKpis :is(
 <link rel="stylesheet" href="/bq-login-white-v8.css?v=20261022-v8" id="bq-login-white-v8">
 </body>
 </html>
+
