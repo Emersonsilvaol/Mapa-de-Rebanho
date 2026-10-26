@@ -250,7 +250,7 @@ table.grid tr.total-geral td{background:var(--verde-escuro);color:#fff;font-weig
 .detail-row b{color:var(--verde-mais-escuro);}
 
 /* toast */
-#toastWrap{position:fixed;bottom:18px;right:18px;z-index:300;display:flex;flex-direction:column;gap:8px;}
+#toastWrap{position:fixed;bottom:18px;right:18px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;}
 .toast{background:var(--verde-mais-escuro);color:#fff;padding:11px 16px;border-radius:8px;font-size:12.5px;box-shadow:var(--sombra-lg);max-width:320px;animation:fadein .2s;}
 .toast.err{background:var(--vermelho);}
 .toast.ok{background:var(--verde-ok);}
@@ -2413,7 +2413,13 @@ function toast(msg, type){
   el.className = 'toast'+(type?' '+type:'');
   el.textContent = msg;
   document.getElementById('toastWrap').appendChild(el);
-  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3600);
+  if(type==='err'){
+    el.setAttribute('role','alert');
+    const fechar=document.createElement('button');fechar.type='button';fechar.textContent='Fechar';
+    fechar.setAttribute('aria-label','Fechar aviso de erro');
+    fechar.style.cssText='display:block;margin-top:10px;background:transparent;color:inherit;border:1px solid currentColor;border-radius:5px;padding:5px 10px';
+    fechar.onclick=()=>el.remove();el.appendChild(fechar);
+  }else setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3600);
 }
 
 function openModal(title, bodyHTML, footerButtons, wide){
@@ -4932,7 +4938,17 @@ function abrirFormularioMov(m){
   ajustarFluxo(false);
   if(tipoEl.value!=='Reidentificação')preencherNormal(true);
 }
+let SALVANDO_FORMULARIO_MOV=false;
 async function salvarFormularioMov(m){
+  if(SALVANDO_FORMULARIO_MOV)return;
+  SALVANDO_FORMULARIO_MOV=true;
+  const botoes=[...document.querySelectorAll('#modalFooter button')];
+  const estados=botoes.map(b=>b.disabled);botoes.forEach(b=>b.disabled=true);
+  try{return await executarSalvarFormularioMov(m);}
+  catch(e){console.error('Falha no lançamento de movimentação',e);toast(e?.message||'Não foi possível concluir o lançamento. Confira o registro antes de tentar novamente.','err');}
+  finally{SALVANDO_FORMULARIO_MOV=false;botoes.forEach((b,i)=>b.disabled=estados[i]);}
+}
+async function executarSalvarFormularioMov(m){
   if(!await verificarAcessoAtual())return;
   if(!exigirMovimento(m||{tipo:document.getElementById('formMovTipo')?.value})) return;
   if(document.getElementById('formMovTipo')?.value==='Reidentificação'){
@@ -5058,7 +5074,10 @@ async function salvarFormularioMov(m){
   if(m){ Object.assign(m,d); }
   else { d.id=uid('mv'); DB.movimentacoes.push(d); }
   if(!await saveDB()||!await sincronizarSupabase())return;
-  closeModal();renderAll();toast(m?'Movimentação corrigida e sincronizada.':'Movimentação cadastrada e sincronizada.','ok');
+  closeModal();
+  try{renderAll();}
+  catch(e){console.error('Movimentação salva; falha ao atualizar a tela',e);toast('Lançamento salvo e confirmado na nuvem. Falha ao atualizar a tela: '+(e?.message||'erro de exibição')+'. Atualize a página para conferir; não repita o lançamento.','err');return;}
+  toast(m?'Movimentação corrigida e sincronizada.':'Movimentação cadastrada e sincronizada.','ok');
 }
 async function excluirTudoMapaInicial(){
   if(!exigirAdmin('excluir o Mapa Inicial')) return;

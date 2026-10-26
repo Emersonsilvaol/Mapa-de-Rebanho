@@ -19,7 +19,7 @@
       root.classList.add('bq3-view');
       return root;
     }
-    function navigar(mod){
+    function navegar(mod){
       if(typeof podeAcesso==='function' && !podeAcesso(moduloViewAcesso(mod),'ver'))return false;
       if(typeof irParaView==='function')irParaView(mod);
       else byId('mainTabs')?.querySelector('button[data-view="'+mod+'"]')?.click();
