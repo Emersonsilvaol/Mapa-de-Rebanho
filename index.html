@@ -2699,15 +2699,8 @@ async function arquivarRascunhoAnterior(draft){
  await idbSet('mapa_pending_draft',null);
  await mostrarRascunhoArquivado(key);
 }
-async function mostrarRascunhoArquivado(key){
- key=key||await idbGet('mapa_last_draft_archive');
- if(!key)return;
- let aviso=document.getElementById('rascunhoArquivado');
- if(!aviso){aviso=document.createElement('div');aviso.id='rascunhoArquivado';aviso.className='alert alert-gold';aviso.setAttribute('role','status');document.querySelector('main')?.prepend(aviso);}
- aviso.textContent='A versão central foi atualizada. O rascunho anterior deste navegador foi preservado para conferência. ';
- const b=document.createElement('button');b.type='button';b.className='btn btn-outline btn-sm';b.textContent='Baixar rascunho anterior';
- b.onclick=async()=>{try{const saved=await idbGet(key);if(!saved?.payload)throw Error('Cópia local não encontrada.');const url=URL.createObjectURL(new Blob([JSON.stringify(saved.payload,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='rascunho_mapa_revisao_'+saved.revision+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){toast(e.message,'err');}};
- aviso.append(b);
+async function mostrarRascunhoArquivado(){
+ document.getElementById('rascunhoArquivado')?.remove();
 }
 async function conferirBaseReidentificacao(){
  if(_syncPromise)await _syncPromise;
