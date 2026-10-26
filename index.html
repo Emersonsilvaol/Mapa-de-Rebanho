@@ -4268,7 +4268,8 @@ function renderHeaderCounters(){
 }
 
 
-let __MAPA_UI_CACHE = new Map();
+let __MAPA_UI_CACHE = new Map(), CONFERENCIA_MAPA_VERSAO=0;
+function chaveMapaConferencia(){return [CONFERENCIA_MAPA_VERSAO,CENTRAL_REVISION,DB_GENERATION,todayISO()].join('|');}
 function buildMapaUICached(ref){
   const key = String(ref||'')+'|'+DB_GENERATION+'|'+(DB.animais?.length||0)+'|'+(DB.movimentacoes?.length||0)+'|'+(DB.config?.dataMapaInicial||'');
   if(__MAPA_UI_CACHE.has(key))return __MAPA_UI_CACHE.get(key);
@@ -4277,7 +4278,7 @@ function buildMapaUICached(ref){
   __MAPA_UI_CACHE.set(key,value);
   return value;
 }
-function invalidarMapaUICache(){ __MAPA_UI_CACHE.clear(); }
+function invalidarMapaUICache(){ __MAPA_UI_CACHE.clear(); CONFERENCIA_MAPA_VERSAO++; }
 
 function campoDadosValido(v){const x=String(v??'').trim();return !!x&&!['—','-','pendente','n/a','na','sem setor','sem seção'].includes(x.toLowerCase());}
 function problemasQualidadeDados(ativos){
@@ -5412,7 +5413,7 @@ function renderRelatorio(){
 }
 
 let LOCAIS_SETORES_CACHE=[];
-let CONCILIACAO_GESTAO=[];
+let CONCILIACAO_GESTAO=[],CONCILIACAO_FONTES=null,CONCILIACAO_MAPA_CHAVE='';
 function canonTexto(v){return stripAccents(String(v||'')).replace(/\s+/g,' ').trim().toLowerCase();}
 function secaoCanonica(v){const k=chaveSetor(v);return DB.setores.find(x=>chaveSetor(x)===k)||String(v||'').trim();}
 function ativoPlanilha(v){const x=canonTexto(v);return !['nao','não','n','0','false','inativo'].includes(x);}
@@ -5472,7 +5473,7 @@ async function confirmarImportacaoLocais(lista){
  await carregarLocaisSetores();toast(`${salvos} local(is) importado(s).`,'ok');
 }
 let IRANCHO_CONSULTA=null,IRANCHO_CONSULTA_OCUPADA=false,IRANCHO_CONSULTA_PAGINA=0;
-let IRANCHO_ATUAL=[],IRANCHO_CONTROLE=[],IRANCHO_GRUPO='DIFERENCAS',IRANCHO_BUSCA='',IRANCHO_PAGINA=0,IRANCHO_SELECAO=new Set(),IRANCHO_OCUPADO=false,IRANCHO_CONSULTADO='';
+let IRANCHO_ATUAL=[],IRANCHO_CONTROLE=[],IRANCHO_GRUPO='DIFERENCAS',IRANCHO_BUSCA='',IRANCHO_PAGINA=0,IRANCHO_SELECAO=new Set(),IRANCHO_OCUPADO=false,IRANCHO_CONSULTADO='',IRANCHO_FONTES=null,IRANCHO_MAPA_CHAVE='';
 
 let PENDENCIAS_AUTO_CHAVE='',PENDENCIAS_AUTO_OCUPADO=false,PENDENCIAS_AUTO_TIMER=null;
 function atualizarContadorPendencias(){
@@ -5495,7 +5496,7 @@ async function carregarPendenciasAutomaticas(forcar=false){
    if(box&&!IRANCHO_CONTROLE.length)box.textContent=run?.status==='running'?'Sincronização em andamento. As pendências aparecerão após concluir.':'A última sincronização não foi concluída. Use a consulta manual para conferir a posição atual.';
    return;
   }
-  const chave=run.id+'|'+DB_GENERATION+'|'+todayISO();
+  const chave=run.id+'|'+CENTRAL_REVISION+'|'+DB_GENERATION+'|'+todayISO();
   if(!forcar&&chave===PENDENCIAS_AUTO_CHAVE)return;
   if(!IRANCHO_CONTROLE.length&&box)box.textContent='Carregando automaticamente as divergências de lote, local e setor…';
   const encontrados=[],ids=new Set();
@@ -5547,11 +5548,13 @@ async function consultarPosicoesIrancho(){
  }catch(e){IRANCHO_ATUAL=[];IRANCHO_CONTROLE=[];box.textContent=e.message;}finally{IRANCHO_OCUPADO=false;btn.disabled=false;btnAtualizar.disabled=false;}
 }
 function montarControleIrancho(locais,gestao){
+ IRANCHO_FONTES={locais,gestao};IRANCHO_MAPA_CHAVE=chaveMapaConferencia();
  const mapa=indiceAnimaisGestao(buildMapaUICached(todayISO())),lidx=indiceLocaisGestao(locais),gp=new Map(gestao.map(p=>[normalizarSisbov(p.sisbov),p])),repetidos=new Map();
  IRANCHO_ATUAL.forEach(p=>repetidos.set(p.sisbov,(repetidos.get(p.sisbov)||0)+1));
  IRANCHO_CONTROLE=IRANCHO_ATUAL.map(p=>{
   const x=classificarPosicaoGestao(p,mapa,lidx),cat=(IRANCHO_CONSULTA?.catalogo||[]).find(c=>String(c.id)===p.local_codigo),g=gp.get(normalizarSisbov(p.sisbov)),a=x.animalMapa;
   let grupo=categoriaControleGestao(x),motivo=grupo==='DIFERENCAS'?'Posição do Mapa diferente do iRancho':grupo==='PREENCHER'?'Mapa sem local ou lote completo':grupo==='AUSENTES'?'SISBOV do iRancho ausente no Mapa':grupo==='REVISAO'?'Confira o vínculo do local e a situação do animal':'Mapa e iRancho correspondem';
+  if(x.situacao==='ANIMAL_BAIXADO')motivo='Animal cadastrado no Mapa, com baixa por '+(a.status==='MORTO'?'morte':'venda')+'; confira a situação no iRancho';
   if(!/^\d{15}$/.test(p.sisbov)||repetidos.get(p.sisbov)>1){grupo='REVISAO';motivo='SISBOV inválido ou repetido no iRancho';}
   else if(cat&&cat.fazenda_id!==p.fazenda_id){grupo='REVISAO';motivo='Seção do animal e seção do pasto divergem no próprio iRancho';}
   else if(!p.lote){grupo='REVISAO';motivo='Lote não informado no iRancho';}
@@ -5566,6 +5569,9 @@ function montarControleIrancho(locais,gestao){
 }
 function chavePosicaoIrancho(p){return JSON.stringify(['irancho',p.id_animal,p.sisbov,p.secao_gestao,p.local_codigo,p.lote_codigo,p.lote,p.updated_at]);}
 function renderControleIrancho(){
+ if(IRANCHO_FONTES&&IRANCHO_MAPA_CHAVE!==chaveMapaConferencia()){
+  IRANCHO_SELECAO.clear();montarControleIrancho(IRANCHO_FONTES.locais,IRANCHO_FONTES.gestao);
+ }
  atualizarContadorPendencias();
  const box=document.getElementById('iranchoPosicoesResultado');if(!box||!AUTH_ADMIN)return;
  const nomes={DIFERENCAS:'Diferenças',PREENCHER:'Completar Mapa',REVISAO:'Revisar origem / vínculos',AUSENTES:'Ausentes no Mapa',SEM_IRANCHO:'Ausentes no iRancho',CONFERIDOS:'Conferidos'},counts={};IRANCHO_CONTROLE.forEach(x=>counts[x.grupo]=(counts[x.grupo]||0)+1);
@@ -5674,6 +5680,7 @@ async function conciliarGestaoPecuaria(){
  // Supabase limita a quantidade por resposta: nenhuma posição fica oculta pela paginação da API.
  for(let from=0;;from+=500){const {data,error}=await authClient.from('gp_animal_positions').select('*').order('sisbov').range(from,from+499);if(error){if(box)box.textContent=error.message;return;}positions.push(...(data||[]));if(!data||data.length<500)break;}
  const idx=indiceAnimaisGestao(buildMapaUICached(todayISO())),lidx=indiceLocaisGestao(locais);
+ CONCILIACAO_FONTES={positions,locais};CONCILIACAO_MAPA_CHAVE=chaveMapaConferencia();
  CONCILIACAO_GESTAO=positions.map(p=>classificarPosicaoGestao(p,idx,lidx));CONCILIACAO_PAGINA=0;renderConciliacaoGestao();
 }
 function categoriaControleGestao(x){
@@ -5688,6 +5695,11 @@ function categoriaControleGestao(x){
 function temDivergenciaGestao(x){return categoriaControleGestao(x)==='DIFERENCAS';}
 function resumoPosicaoControle(secao,local,lote){return `<b>${esc(secao||'Seção não informada')}</b><br>Local: ${esc(local||'Não informado')}<br>Lote: ${esc(lote||'Não informado')}`;}
 function renderConciliacaoGestao(){
+ if(CONCILIACAO_FONTES&&CONCILIACAO_MAPA_CHAVE!==chaveMapaConferencia()){
+  const idx=indiceAnimaisGestao(buildMapaUICached(todayISO())),lidx=indiceLocaisGestao(CONCILIACAO_FONTES.locais);
+  CONCILIACAO_GESTAO=CONCILIACAO_FONTES.positions.map(p=>classificarPosicaoGestao(p,idx,lidx));
+  CONCILIACAO_MAPA_CHAVE=chaveMapaConferencia();
+ }
  const box=document.getElementById('conciliacaoGestaoConteudo');if(!box)return;
  const grupos={DIFERENCAS:'Diferenças de posição',PREENCHER:'Completar posição',REVISAO:'Leituras para revisar',AUSENTES:'SISBOV ausente no Mapa',CONFERIDOS:'Posições conferidas'};
  const counts={};CONCILIACAO_GESTAO.forEach(x=>{const g=categoriaControleGestao(x);counts[g]=(counts[g]||0)+1;});
@@ -5921,6 +5933,7 @@ function renderAll(){
   else if(id==='view-mortalidade') renderMortalidadeModulo();
   else if(id==='view-mapaAtual') renderMapaAtual();
   else if(id==='view-inventario') renderInventario();
+  else if(id==='view-conferencia'){renderControleIrancho();renderConciliacaoGestao();}
   else if(id==='view-projecaoIdade'&&typeof renderProjecaoIdade==='function') renderProjecaoIdade();
   else if(id==='view-relatorio') renderRelatorio();
   else if(id==='view-mortalidade') renderMortalidade();
@@ -6728,7 +6741,7 @@ function irParaView(view){
   if(view==='fichaAnimal') renderFichaAnimal();
   if(view==='mortalidade') renderMortalidade();
   if(view==='usuarios'){ renderPermissoesFormulario({}); carregarUsuarios(); }
-  if(view==='conferencia'){if(IRANCHO_CONTROLE.length&&!IRANCHO_OCUPADO)renderControleIrancho();void carregarPendenciasAutomaticas(true);}
+  if(view==='conferencia'){if(!IRANCHO_OCUPADO)renderControleIrancho();renderConciliacaoGestao();void carregarPendenciasAutomaticas(true);}
   if(view==='config'){ renderSetores(); renderAuditoriaPanel(); renderEditorVisual(); }
  aplicarPermissoes(); }
 document.getElementById('mainTabs').addEventListener('click', e=>{
