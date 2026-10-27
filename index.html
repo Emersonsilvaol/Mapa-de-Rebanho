@@ -6248,6 +6248,7 @@ function filtrarModulo(tipo){
   }).sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
 }
 function renderNascimentos(){
+  iniciarModulosNascimentoMorte();
   periodoPadraoModulo('nasc'); preencherSetorModulo('nascSetor');
   const l=filtrarModulo('Nascimento'), mach=l.filter(m=>normSexo(valorAnimalMov(m,'sexo')||m.sexo)==='Macho').length, fem=l.filter(m=>normSexo(valorAnimalMov(m,'sexo')||m.sexo)==='Fêmea').length;
   const dias=Math.max(1,Math.round(((new Date(document.getElementById('nascFim').value)-new Date(document.getElementById('nascIni').value))/86400000)+1));
@@ -6263,6 +6264,7 @@ function renderTabelaNasc(lista){
   document.getElementById('nascTbody').innerHTML=l.map(m=>`<tr><td>${formatBR(m.data)}</td><td><b>${esc(m.sisbov||'—')}</b></td><td>${esc(m.brinco||valorAnimalMov(m,'brinco')||'—')}</td><td>${esc(normSexo(m.sexo||valorAnimalMov(m,'sexo'))||'—')}</td><td>${esc(m.raca||valorAnimalMov(m,'raca')||'—')}</td><td>${formatBR(m.nascimento||valorAnimalMov(m,'nascimento'))||'—'}</td><td>${esc(setorMov(m)||'—')}</td><td><button class="row-action" onclick="abrirFichaPorMov('${m.id}')">VER</button></td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center">Sem registros.</td></tr>';
 }
 function renderMortalidadeModulo(){
+  iniciarModulosNascimentoMorte();
   periodoPadraoModulo('morte'); preencherSetorModulo('morteSetor');
   const l=filtrarModulo('Morte'), mach=l.filter(m=>normSexo(m.sexo||valorAnimalMov(m,'sexo'))==='Macho').length, fem=l.filter(m=>normSexo(m.sexo||valorAnimalMov(m,'sexo'))==='Fêmea').length;
   const ini=document.getElementById('morteIni').value,fim=document.getElementById('morteFim').value,dias=Math.max(1,Math.round(((new Date(fim)-new Date(ini))/86400000)+1));
@@ -6323,10 +6325,31 @@ function salvarNovaMorte(){
   saveDB();invalidarMapaUICache();__ANIMAL_MORTE=null;closeModal();renderMortalidadeModulo();renderHeaderCounters();toast('Morte registrada com sucesso.','ok');
 }
 async function exportarModulo(tipo){
- if(!await autorizarExportacao(tipo==='Nascimento'?'nascimentos':'mortalidade','xlsx'))return;
-  if(!garantirBibliotecaExportacao('xlsx'))return;
-  const l=filtrarModulo(tipo),dados=l.map(m=>({'DATA':formatBR(m.data),'TIPO':tipo,'SISBOV':m.sisbov||'','BRINCO':m.brinco||valorAnimalMov(m,'brinco')||'','SEXO':m.sexo||valorAnimalMov(m,'sexo')||'','RAÇA':m.raca||valorAnimalMov(m,'raca')||'','SEÇÃO':setorMov(m),'CAUSA DA MORTE':m.causaMorte||''}));
-  const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(dados);XLSX.utils.book_append_sheet(wb,ws,tipo);XLSX.writeFile(wb,(tipo==='Nascimento'?'nascimentos':'mortalidade')+'.xlsx');
+ if(!['Nascimento','Morte'].includes(tipo))return false;
+ const nascimento=tipo==='Nascimento',mod=nascimento?'nascimentos':'mortalidade',button=document.getElementById(nascimento?'btnNascXlsx':'btnMorteXlsx');
+ if(button?.dataset.exportando==='1')return false;
+ const disabledBefore=button?.disabled??false;
+ if(button){button.dataset.exportando='1';button.disabled=true;}
+ try{
+  if(!await autorizarExportacao(mod,'xlsx'))return false;
+  if(!garantirBibliotecaExportacao('xlsx'))return false;
+  const search=String(document.getElementById(nascimento?'nascBusca':'morteBusca')?.value||'').toLowerCase().trim();
+  const lista=filtrarModulo(tipo).filter(m=>!search||[m.sisbov,m.brinco,valorAnimalMov(m,'brinco')].join(' ').toLowerCase().includes(search));
+  if(!lista.length){toast('Nenhum registro nos filtros selecionados para exportar.','err');return false;}
+  const dados=lista.map(m=>{
+   const row={'DATA':formatBR(m.data),'TIPO':tipo,'SISBOV':String(m.sisbov||''),'BRINCO':String(m.brinco||valorAnimalMov(m,'brinco')||''),'SEXO':m.sexo||valorAnimalMov(m,'sexo')||'','RAÇA':m.raca||valorAnimalMov(m,'raca')||'','SEÇÃO':setorMov(m)};
+   if(nascimento){row['DATA NASCIMENTO']=formatBR(m.nascimento||valorAnimalMov(m,'nascimento'));row['OBSERVAÇÃO']=m.observacao||'';}
+   else row['CAUSA DA MORTE']=m.causaMorte||'';
+   return row;
+  });
+  const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(dados);
+  ws['!cols']=Object.keys(dados[0]).map(k=>({wch:k==='OBSERVAÇÃO'?60:k==='SISBOV'?20:k==='SEÇÃO'?24:18}));
+  if(ws['!ref'])ws['!autofilter']={ref:ws['!ref']};
+  XLSX.utils.book_append_sheet(wb,ws,tipo);
+  XLSX.writeFile(wb,(nascimento?'nascimentos':'mortalidade')+'.xlsx');
+  toast(lista.length.toLocaleString('pt-BR')+' registro(s) exportado(s).','ok');return true;
+ }catch(e){console.error('Falha ao exportar '+mod,e);toast('Não foi possível exportar: '+(e?.message||'tente novamente.'),'err');return false;}
+ finally{if(button){delete button.dataset.exportando;button.disabled=disabledBefore;}}
 }
 function iniciarModulosNascimentoMorte(){
   ['btnNascFiltrar','nascSexo','nascSetor'].forEach(id=>{const e=document.getElementById(id);if(e)e.onchange=renderNascimentos});
