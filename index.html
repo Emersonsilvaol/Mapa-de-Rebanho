@@ -1645,6 +1645,7 @@ thead th{
             <span id="ultimoPontoRecuperacao" style="font-size:11.5px;color:var(--cinza-600);align-self:center"></span>
             <button class="btn btn-outline" id="btnImportBackup">Importar Backup</button><button class="btn btn-outline" id="btnHistoricoProtecao" onclick="abrirHistoricoProtecao()">Backups e exclusões</button><span id="estadoProtecao"></span><p>Backup diário às 03h (Campo Grande), mantido por 90 dias. Até 100 versões anteriores de alterações. Exclusões ficam na lixeira com data, responsável e motivo.</p>
           </div>
+          <p style="font-size:12px;color:var(--cinza-600);margin:14px 0 0"><strong>Alerta de backup:</strong> importações com mais de 100 animais exibem um aviso antes da gravação, com opção de baixar a base atual.</p>
         </div>
       </div>
       <div class="panel">
@@ -3309,6 +3310,54 @@ function separarMovimentacoesNovas(lista){
 }
 
 function erroFormatoSisbov(value){const s=normalizarSisbov(value);return s&&!/^(105|076)\d{12}$/.test(s)?'SISBOV deve ter 15 dígitos numéricos e começar com 105 ou 076.':'';}
+/* ================= ALERTA DE BACKUP ANTES DA IMPORTAÇÃO ================= */
+let ALERTA_BACKUP_IMPORTACAO_ABERTO=false;
+// Parâmetro da aplicação, compartilhado por todos os perfis e navegadores.
+const LIMITE_ALERTA_BACKUP_IMPORTACAO=100;
+function limiteBackupImportacao(){return LIMITE_ALERTA_BACKUP_IMPORTACAO;}
+function quantidadeAnimaisImportacao(lista){
+ const ids=new Set();let agregados=0;
+ for(const item of lista||[]){
+  const id=item.animalId||normalizarSisbov(item.sisbovAnterior||item.anterior||item.sisbov)||item.chip||item.brinco||item.id;
+  const qtd=Number(item.quantidade)||1;
+  if(qtd>1)agregados+=qtd;
+  else if(id)ids.add(String(id));
+  else agregados++;
+ }
+ return ids.size+agregados;
+}
+async function confirmarBackupImportacao(lista,generation=DB_GENERATION){
+ if(ALERTA_BACKUP_IMPORTACAO_ABERTO)return false;
+ const quantidade=quantidadeAnimaisImportacao(lista),limite=limiteBackupImportacao(),revision=CENTRAL_REVISION;
+ if(quantidade<=limite)return true;
+ ALERTA_BACKUP_IMPORTACAO_ABERTO=true;
+ try{
+  const continuar=await new Promise(resolve=>{
+   const dialog=document.createElement('dialog');dialog.id='alertaBackupImportacao';
+   dialog.setAttribute('aria-labelledby','alertaBackupImportacaoTitulo');
+   dialog.setAttribute('aria-describedby','alertaBackupImportacaoTexto');
+   dialog.style.cssText='width:min(500px,calc(100vw - 32px));box-sizing:border-box;max-height:90dvh;overflow:auto;border:1px solid var(--cinza-300);border-radius:10px;padding:24px;background:var(--surface,#fff);color:var(--ink,#263238);font:inherit';
+   const podeExportar=AUTH_ADMIN&&podeAcesso('configuracoes','exportar');
+   dialog.innerHTML=`<h3 id="alertaBackupImportacaoTitulo" style="margin:0 0 12px;font-size:18px">Faça um backup antes de importar</h3><p id="alertaBackupImportacaoTexto" style="font-size:14px;line-height:1.6">Esta importação envolve <strong>${fmtNum(quantidade)} animais</strong> e ultrapassa o limite de ${fmtNum(limite)}. Recomendamos salvar uma cópia da base atual antes de continuar.</p>${podeExportar?'':'<p style="font-size:13px">Peça ao administrador para fazer o backup antes de prosseguir.</p>'}<p data-backup-status role="status" style="font-size:13px;line-height:1.5"></p><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:20px"><button type="button" class="btn btn-outline" data-backup-cancelar>Cancelar</button>${podeExportar?'<button type="button" class="btn btn-primary" data-backup-baixar>Baixar backup</button>':''}<button type="button" class="btn btn-outline" data-backup-continuar>Continuar importação</button></div>`;
+   dialog.onclose=()=>{const ok=dialog.returnValue==='continuar';dialog.remove();resolve(ok);};
+   dialog.querySelector('[data-backup-cancelar]').onclick=()=>dialog.close('cancelar');
+   const continuarBtn=dialog.querySelector('[data-backup-continuar]');continuarBtn.onclick=()=>dialog.close('continuar');
+   const baixar=dialog.querySelector('[data-backup-baixar]');
+   if(baixar)baixar.onclick=async()=>{
+    baixar.disabled=true;continuarBtn.disabled=true;
+    try{if(await exportarBackup())dialog.querySelector('[data-backup-status]').textContent='Backup enviado para download. Confira se o arquivo foi salvo antes de continuar.';}
+    catch(e){dialog.querySelector('[data-backup-status]').textContent='Não foi possível baixar o backup. Tente novamente antes de continuar.';}
+    finally{baixar.disabled=false;continuarBtn.disabled=false;}
+   };
+   document.body.appendChild(dialog);dialog.showModal();
+  });
+  if(continuar&&(generation!==DB_GENERATION||revision!==CENTRAL_REVISION)){
+   toast('A base mudou durante o alerta de backup. Abra novamente a prévia da importação.','err');return false;
+  }
+  return continuar;
+ }finally{ALERTA_BACKUP_IMPORTACAO_ABERTO=false;}
+}
+/* ================= FIM DO ALERTA DE BACKUP ================= */
 function prepararLoteMov(lista){
  const original=DB,candidate=structuredClone(DB);DB=candidate;
  try{lista.forEach(raw=>{const m={...raw};if(['Nascimento','Compra','Animais sem auditar'].includes(m.tipo)&&m.sisbov&&m.quantidade===1&&!DB.animais.some(a=>a.sisbov===m.sisbov))DB.animais.push({id:uid('an'),sisbov:m.sisbov,brinco:m.brinco,chip:'',sexo:m.sexo,raca:m.raca,nascimento:m.nascimento,setorInicial:m.setorDestino||m.setorOrigem,origem:m.tipo==='Nascimento'?'nascimento':'compra'});if(String(m.animalId||'').startsWith('pend_'))delete m.animalId;vincularMovimentacaoAoAnimal(m);delete m._animalIdPendente;delete m.animalLocalizadoNoLote;DB.movimentacoes.push(m);});return candidate;}finally{DB=original;}
@@ -3371,6 +3420,7 @@ function confirmarImportInicial(res){
  if(generation!==DB_GENERATION){toast('A base mudou. Abra novamente a prévia.','err');return;}
  if(!res.validos.length){toast('Nenhum registro novo para importar.','err');return;}
  if(!confirmarAlteracaoGrande(candidate,res.validos))return;
+ if(!await confirmarBackupImportacao(res.validos,generation))return;
  DB.animais=candidate.animais;DB.setores=[...new Set([...DB.setores,...res.validos.map(a=>a.setorInicial).filter(Boolean)])];PENDING_REASON='Importação do Mapa Inicial';
  if(!await saveDB()||!await sincronizarSupabase())return;closeModal();renderAll();toast('Importação sincronizada.','ok');
  }}]);
@@ -3415,6 +3465,7 @@ function confirmarImportMov(res){
         return;
       }
       if(!confirmarAlteracaoGrande(candidate,separadasPreview.novas))return;
+      if(!await confirmarBackupImportacao(movimentacoesNovas,previewGeneration))return;
       DB=candidate;PENDING_REASON='Importação de movimentações conferida';
       const okDados=await saveDB();
       if(okDados===false || !await sincronizarSupabase()){
@@ -6169,14 +6220,16 @@ async function exportarRelatorio(formato){
 
 /* ============================== BACKUP ===================================== */
 async function exportarBackup(){
- if(!await autorizarExportacao('configuracoes','json'))return;
+ if(!await autorizarExportacao('configuracoes','json'))return false;
   const backup = {versao:1, geradoEm:new Date().toISOString(), ...DB};
   const blob = new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  const url=URL.createObjectURL(blob);a.href = url;
   a.download = 'backup_mapa_pecuario_'+todayISO()+'.json';
   a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
   toast('Backup exportado.', 'ok');
+  return true;
 }
 function importarBackup(file){
   if(!exigirAdmin('importar backup')) return;
@@ -6190,6 +6243,7 @@ function importarBackup(file){
       confirmDialog('Prévia — Restaurar Backup', `Substituição integral: ${DB.animais.length} → ${data.animais.length} cadastros; ${DB.movimentacoes.length} → ${data.movimentacoes.length} eventos. Saldo hoje: ${saldoPrevia(DB)} → ${saldoPrevia({...DB,...data})}. Seções: ${esc((data.setores||[]).join(', '))}. Deseja continuar?`, async ()=>{
         if(previewGeneration!==DB_GENERATION){toast('A base mudou. Abra novamente a prévia.','err');return;}
         if(!confirmarAlteracaoGrande({...DB,...data},data.movimentacoes))return;
+        if(!await confirmarBackupImportacao(data.animais,previewGeneration))return;
         DB.animais = data.animais||[];
         DB.movimentacoes = data.movimentacoes||[];
         DB.setores = data.setores||DB.setores;
@@ -6601,6 +6655,7 @@ async function confirmarImportacaoReid(){
   }
   const lista=REID_LOTE_VALIDACAO?.validos||[];
   if(!lista.length) return;
+  if(!await confirmarBackupImportacao(lista))return;
 
   const footer=document.getElementById('modalFooter');
   const botoes=footer ? [...footer.querySelectorAll('button')] : [];
