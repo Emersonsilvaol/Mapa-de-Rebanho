@@ -7306,9 +7306,24 @@ function initEvents(){
     paginaMov=1; renderMovimentacoes();
   };
 
-  // Mapa Atual
-  document.getElementById('btnHoje').onclick = ()=>{ document.getElementById('mapaAtualData').value = todayISO(); renderMapaAtual(); };
-  document.getElementById('btnAtualizarMapa').onclick = async ()=>{if(!AUTH_ADMIN)MAPA_SERVIDOR_REF=null;await renderMapaAtual();renderConciliacao();};
+  // Mapa Atual — aplica a referência assim que o usuário seleciona uma data.
+  const aplicarDataReferenciaMapa = async ()=>{
+    const campo=document.getElementById('mapaAtualData');
+    if(!campo?.value){toast('Selecione uma data de referência.','err');return;}
+    paginaAnimais=1;
+    if(!AUTH_ADMIN)MAPA_SERVIDOR_REF=null;
+    await renderMapaAtual();
+    renderConciliacao();
+  };
+  const campoDataReferencia=document.getElementById('mapaAtualData');
+  if(campoDataReferencia){
+    campoDataReferencia.addEventListener('change',aplicarDataReferenciaMapa);
+    campoDataReferencia.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){e.preventDefault();aplicarDataReferenciaMapa();}
+    });
+  }
+  document.getElementById('btnHoje').onclick = ()=>{campoDataReferencia.value=todayISO();aplicarDataReferenciaMapa();};
+  document.getElementById('btnAtualizarMapa').onclick = aplicarDataReferenciaMapa;
   document.getElementById('mapaFiltroLocal').onchange=()=>{paginaAnimais=1;renderMapaAtual();};
   document.getElementById('btnVerAnimais').onclick = ()=>{
     const p = document.getElementById('painelAnimais');
